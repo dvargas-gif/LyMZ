@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from './auth.service.js';
-import { auditService } from '../audit/audit.service.js';
-import { ACCIONES, ESTADOS } from '../audit/audit.schema.js';
 import { useAuth } from './AuthContext.jsx';
 import Logo from '../components/Logo.jsx';
 
 export default function Login() {
-  const [usuario, setUsuario] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -19,18 +17,10 @@ export default function Login() {
     setError('');
     setCargando(true);
     try {
-      const sesion = await authService.login(usuario, password);
-      await auditService.registrar({
-        usuarioId: sesion.usuarioId, usuarioNombre: sesion.nombre, ip: sesion.ip,
-        accion: ACCIONES.LOGIN, estado: ESTADOS.CORRECTO,
-      });
+      const sesion = await authService.login(email, password);
       login(sesion);
       navigate('/', { replace: true });
     } catch (err) {
-      await auditService.registrar({
-        usuarioId: null, usuarioNombre: usuario, ip: 'no-disponible-en-cliente',
-        accion: ACCIONES.LOGIN_FALLIDO, estado: ESTADOS.CANCELADO, observaciones: err.message,
-      });
       setError(err.message);
     } finally {
       setCargando(false);
@@ -44,8 +34,8 @@ export default function Login() {
           <Logo size={34} />
           <h1>WMS · Slotting Mezanine</h1>
         </div>
-        <label>Usuario
-          <input value={usuario} onChange={e => setUsuario(e.target.value)} autoFocus required />
+        <label>Email
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} autoFocus required />
         </label>
         <label>Contraseña
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />

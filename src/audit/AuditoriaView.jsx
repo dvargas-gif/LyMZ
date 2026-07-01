@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { auditService } from './audit.service.js';
-import { storage } from '../services/storage.local.js';
+import { storage } from '../services/storage.supabase.js';
 
 /**
  * Vista de seguridad: sesiones, intentos fallidos y acciones administrativas,

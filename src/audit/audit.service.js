@@ -1,4 +1,4 @@
-import { storage } from '../services/storage.local.js';
+import { storage } from '../services/storage.supabase.js';
 import { ACCIONES, ESTADOS } from './audit.schema.js';
 
 function partirFechaHora(iso) {
