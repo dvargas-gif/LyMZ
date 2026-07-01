@@ -4,6 +4,7 @@ import { authService } from './auth.service.js';
 import { auditService } from '../audit/audit.service.js';
 import { ACCIONES, ESTADOS } from '../audit/audit.schema.js';
 import { useAuth } from './AuthContext.jsx';
+import Logo from '../components/Logo.jsx';
 
 export default function Login() {
   const [usuario, setUsuario] = useState('');
@@ -40,7 +41,7 @@ export default function Login() {
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
         <div className="login-card__brand">
-          <i className="ti ti-building-warehouse" />
+          <Logo size={34} />
           <h1>WMS · Slotting Mezanine</h1>
         </div>
         <label>Usuario
@@ -51,15 +52,6 @@ export default function Login() {
         </label>
         {error && <div className="login-card__error">{error}</div>}
         <button type="submit" disabled={cargando}>{cargando ? 'Ingresando…' : 'Ingresar'}</button>
-        <div className="login-card__demo">
-          <p>Usuarios demo (modo desarrollo):</p>
-          <ul>
-            <li><code>admin / admin123</code> — Administrador</li>
-            <li><code>supervisor / super123</code> — Supervisor</li>
-            <li><code>operador / oper123</code> — Operador</li>
-            <li><code>lectura / lect123</code> — Solo lectura</li>
-          </ul>
-        </div>
       </form>
     </div>
   );

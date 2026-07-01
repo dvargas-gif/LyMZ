@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../auth/auth.service.js';
+import Logo from './Logo.jsx';
 
 /**
  * El usuario autenticado permanece visible en el encabezado (requisito).
@@ -16,7 +17,7 @@ export default function Header({ sesion, onLogout }) {
   return (
     <header className="app-header">
       <div className="app-header__brand">
-        <i className="ti ti-building-warehouse" />
+        <Logo size={24} />
         <span>WMS · Slotting Mezanine</span>
       </div>
       <div className="app-header__user">
