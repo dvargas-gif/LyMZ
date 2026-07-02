@@ -133,11 +133,20 @@ td.desde{font-family:monospace;font-size:12.65px;color:#C0392B}
 .mapa-panel-row{flex-direction:column}
 .wrap{max-width:100%!important;align-self:flex-start!important}
 #terminal{width:100%!important}
+
+/* Tooltip de descripción de artículo — aparece al instante (sin el delay
+   del title nativo del navegador), sobre el código dentro del modal. */
+.tt-art{position:relative;cursor:help;border-bottom:1px dotted #9A9684}
+.tt-art:hover::after{content:attr(data-tt);position:absolute;left:0;top:calc(100% + 6px);
+  background:#1C3A3E;color:#fff;padding:7px 11px;border-radius:7px;font-size:11.5px;
+  font-weight:500;font-family:-apple-system,'Segoe UI',sans-serif;white-space:normal;
+  width:240px;z-index:100;box-shadow:0 6px 18px rgba(0,0,0,.3);line-height:1.4}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/tabler-icons.min.css" rel="stylesheet">
 </head><body>
 <h1>Slotting Mezanine</h1>
+<div id="bannerSala" style="display:none;background:#FFF4EC;border:2px solid #E07B39;color:#C0392B;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;margin:10px 0"></div>
 <div style="display:flex;gap:6px;margin:14px 0 18px;border-bottom:1px solid #E0DACE">
   <button id="tabMapa" onclick="verVista('mapa')" style="background:none;border:none;border-bottom:2px solid #15454A;color:#15454A;font-weight:600;font-size:14px;padding:8px 16px;cursor:pointer;font-family:inherit">Mapa editable</button>
   <button id="tabDash" onclick="verVista('dash')" style="background:none;border:none;border-bottom:2px solid transparent;color:#9A9684;font-weight:500;font-size:14px;padding:8px 16px;cursor:pointer;font-family:inherit">Dashboard analítico</button>
@@ -251,6 +260,20 @@ td.desde{font-family:monospace;font-size:12.65px;color:#C0392B}
   <div class="modal-body" id="mbody"></div></div>
 </div>
 <script>
+// --- AGREGADO PARA SALAS DE SIMULACIÓN ---
+// Si la URL trae ?escenario=<id>, este mapa es una "sala": todo lo que se
+// guarda va a una copia aislada (escenario_posiciones), nunca al mapa real
+// (posiciones_actuales). Nada de esto cambia cómo funciona el mapa cuando
+// NO hay escenario en la URL (mapa real, comportamiento de siempre).
+const _qs=new URLSearchParams(location.search);
+const ESCENARIO_ID=_qs.get('escenario')?parseInt(_qs.get('escenario')):null;
+const ESCENARIO_NOMBRE=_qs.get('nombre')||'';
+if(ESCENARIO_ID){
+  const b=document.getElementById('bannerSala');
+  b.style.display='block';
+  b.textContent='🧪 SALA DE SIMULACIÓN — "'+ESCENARIO_NOMBRE+'" — Los cambios acá NO afectan el mapa real.';
+}
+// --- FIN AGREGADO PARA SALAS ---
 
 const DASHM={"total_cuerpos": 214, "total_articulos": 3016, "con_ubicacion": 2568, "sin_ubicacion": 448, "por_clase": {"A": 739, "B": 748, "C": 605, "D": 924}, "por_pasillo": {"MZ01": 492, "MZ02": 485, "MZ03": 557, "MZ04": 491, "MZ05": 415, "MZ06": 445, "MZ07": 51, "MZ08": 80}, "errores": {"sobrecarga_nivel": 2, "exceso_articulos": 0, "sin_ubicacion_actual": 448}, "sobrecarga_detalle": [{"cuerpo": "MZ04|28", "nivel": "N05", "consumo": 0.9, "arts": 3}, {"cuerpo": "MZ05|22", "nivel": "N01", "consumo": 0.9, "arts": 4}], "top_cuerpos": [{"cuerpo": "MZ01|17", "arts": 20}, {"cuerpo": "MZ02|29", "arts": 20}, {"cuerpo": "MZ01|26", "arts": 20}, {"cuerpo": "MZ03|22", "arts": 20}, {"cuerpo": "MZ06|22", "arts": 20}, {"cuerpo": "MZ05|27", "arts": 20}, {"cuerpo": "MZ06|30", "arts": 20}, {"cuerpo": "MZ08|20", "arts": 20}, {"cuerpo": "MZ08|21", "arts": 20}, {"cuerpo": "MZ08|22", "arts": 20}, {"cuerpo": "MZ08|23", "arts": 20}, {"cuerpo": "MZ02|31", "arts": 20}, {"cuerpo": "MZ02|32", "arts": 20}, {"cuerpo": "MZ01|32", "arts": 20}, {"cuerpo": "MZ01|34", "arts": 20}], "consumo_total": 367.8, "capacidad_teorica": 963.0, "ocupacion_pct": 38.2};
 let dashDibujado=false;
@@ -342,6 +365,7 @@ function toggleModoBloqueo(){
 function toggleBloqueo(key){
   if(bloqueadas.has(key))bloqueadas.delete(key);
   else bloqueadas.add(key);
+  notificarBloqueo(key, bloqueadas.has(key));
   render();
 }
 function logMov(art,desde,hacia,tipo){
@@ -359,21 +383,29 @@ function logMov(art,desde,hacia,tipo){
   try{
     if(window.parent && window.parent!==window){
       window.parent.postMessage({type:'slotting:audit',payload:{
-        articulo:art, desde, hacia, tipoMovimiento:tipo, usuario:usr, fechaHora:ahoraStr()
+        articulo:art, desde, hacia, tipoMovimiento:tipo, usuario:usr, fechaHora:ahoraStr(), escenarioId:ESCENARIO_ID
       }}, '*');
     }
   }catch(e){}
   // --- FIN AGREGADO ---
 }
 
+// --- AGREGADO PARA TOOLTIPS DE DESCRIPCIÓN ---
+// DESCRIPCIONES se llena al arrancar (junto con el estado guardado, más
+// abajo). No es parte del dataset base ni de la lógica de slotting.
+let DESCRIPCIONES={};
+function descripcionDe(art){ return DESCRIPCIONES[art] || "Sin descripción disponible"; }
+function escapeAttr(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;"); }
+// --- FIN AGREGADO PARA TOOLTIPS ---
+
 // --- AGREGADO PARA PERSISTENCIA (Supabase, vía el padre) ---
 // No cambia la lógica de mover/deshacer/render: son notificaciones adicionales
 // que se disparan DESPUÉS de que confirmar()/soltarCuerpoEn()/deshacer() ya
 // aplicaron el cambio sobre CUERPOS, igual que ya hacía logMov() con auditoría.
-function notificarPosicion(art,pas,col,niv){
+function notificarPosicion(art,pas,col,niv,clase,grupo,tipo){
   try{
     if(window.parent && window.parent!==window){
-      window.parent.postMessage({type:'slotting:posicion',payload:{articulo:art,pasillo:pas,columna:col,nivel:niv}}, '*');
+      window.parent.postMessage({type:'slotting:posicion',payload:{articulo:art,pasillo:pas,columna:col,nivel:niv,clase,grupo,tipo,escenarioId:ESCENARIO_ID}}, '*');
     }
   }catch(e){}
 }
@@ -383,14 +415,14 @@ function notificarPosicion(art,pas,col,niv){
 function notificarDeshecho(art,desde,hacia){
   try{
     if(window.parent && window.parent!==window){
-      window.parent.postMessage({type:'slotting:deshecho',payload:{articulo:art,desde,hacia}}, '*');
+      window.parent.postMessage({type:'slotting:deshecho',payload:{articulo:art,desde,hacia,escenarioId:ESCENARIO_ID}}, '*');
     }
   }catch(e){}
 }
 // Reconstruye en CUERPOS (el estado base ya cargado) la posición guardada de
 // un artículo. Usa el mismo patrón de "buscar, sacar, insertar" que ya usa
 // confirmar() — pero es una función NUEVA, no reemplaza ni toca confirmar().
-function aplicarPosicionGuardada(art,pas,col,niv){
+function aplicarPosicionGuardada(art,pas,col,niv,clase,grupo,tipo){
   let articuloObj=null;
   for(const key in CUERPOS){
     const cu=CUERPOS[key];
@@ -399,6 +431,9 @@ function aplicarPosicionGuardada(art,pas,col,niv){
       if(idx>=0){
         articuloObj=cu.niveles[n].splice(idx,1)[0];
         if(cu.niveles[n].length===0)delete cu.niveles[n];
+        // si el rack de origen quedó sin ningún artículo, se borra del todo
+        // (mismo criterio que ya usa deshacer() al reconstruir estado)
+        if(nArts(cu)===0)delete CUERPOS[key];
         break;
       }
     }
@@ -406,10 +441,20 @@ function aplicarPosicionGuardada(art,pas,col,niv){
   }
   if(!articuloObj)return;
   const destKey=pas+"|"+col;
-  if(!CUERPOS[destKey])CUERPOS[destKey]={pas,col:parseInt(col),clase:"-",grupo:"-",tipo:niv==="CUERPO"?"CUERPO":"NORMAL",niveles:{}};
+  if(!CUERPOS[destKey])CUERPOS[destKey]={pas,col:parseInt(col),clase:clase||"-",grupo:grupo||"-",tipo:tipo||(niv==="CUERPO"?"CUERPO":"NORMAL"),niveles:{}};
   const cuD=CUERPOS[destKey];
   cuD.niveles[niv]=cuD.niveles[niv]||[];
   cuD.niveles[niv].push(articuloObj);
+}
+// Notifica un bloqueo/desbloqueo de posición — toggleBloqueo() ya existía,
+// esto solo se agrega al final, no cambia si bloquea o desbloquea.
+function notificarBloqueo(key,bloqueada){
+  try{
+    if(window.parent && window.parent!==window){
+      const [pas,col]=key.split("|");
+      window.parent.postMessage({type:'slotting:bloqueo',payload:{key,pasillo:pas,columna:parseInt(col),bloqueada,escenarioId:ESCENARIO_ID}}, '*');
+    }
+  }catch(e){}
 }
 // --- FIN AGREGADO PARA PERSISTENCIA ---
 
@@ -551,7 +596,7 @@ function abrir(key){
       const cbar=Math.min(a.consumo,1)*100;
       const consHtml=`<div style="display:flex;align-items:center;gap:5px"><span style="font-weight:700;color:${cc};min-width:34px">${a.consumo.toFixed(2)}</span>`+
         `<span style="flex:1;height:6px;background:#EEE;border-radius:3px;overflow:hidden;min-width:40px"><span style="display:block;height:100%;width:${cbar}%;background:${cc}"></span></span></div>`;
-      body+=`<tr><td class="art">${a.art}</td><td>${consHtml}</td><td class="desde">${desde}</td><td>${a.picks}</td>`+
+      body+=`<tr><td class="art"><span class="tt-art" data-tt="${escapeAttr(descripcionDe(a.art))}">${a.art}</span></td><td>${consHtml}</td><td class="desde">${desde}</td><td>${a.picks}</td>`+
             `<td><button class="mover" onclick="iniciarMover('${a.art}','${key}','${niv}')">Mover</button></td></tr>`;});
     body+=`</table></div>`;
   });
@@ -675,7 +720,7 @@ function soltarCuerpoEn(destKey){
   // crear destino con la copia, conservando clase/tipo del origen
   CUERPOS[destKey]={pas:dpas,col:dcol,clase:cuO.clase,grupo:cuO.grupo,tipo:cuO.tipo,niveles:nivelesCopia};
   logMov(`cuerpo completo (${Object.values(nivelesCopia).reduce((s,l)=>s+l.length,0)} art)`, `${cuO.pas}-C${colO}`, `${dpas}-C${colD}`, 'cuerpo');
-  for(const niv in nivelesCopia){nivelesCopia[niv].forEach(a=>notificarPosicion(a.art, dpas, dcol, niv));}
+  for(const niv in nivelesCopia){nivelesCopia[niv].forEach(a=>notificarPosicion(a.art, dpas, dcol, niv, cuO.clase, cuO.grupo, cuO.tipo));}
   // borrar el origen -> queda en blanco
   delete CUERPOS[moviendo.desdeKey];
   moviendo=null;
@@ -724,11 +769,17 @@ try{
   if(window.parent && window.parent!==window){
     window.addEventListener('message', function(ev){
       if(!ev.data || ev.data.type!=='slotting:estadoInicial')return;
-      const posiciones=ev.data.payload||[];
-      posiciones.forEach(p=>aplicarPosicionGuardada(p.articulo,p.pasillo,p.columna,p.nivel));
+      const estado=ev.data.payload||{};
+      (estado.posiciones||[]).forEach(p=>aplicarPosicionGuardada(p.articulo,p.pasillo,p.columna,p.nivel,p.clase,p.grupo,p.tipo));
+      (estado.bloqueos||[]).forEach(b=>bloqueadas.add(b.rack_key));
+      (estado.descripciones||[]).forEach(d=>{DESCRIPCIONES[d.articulo]=d.descripcion;});
       render();
+      // Si el usuario ya tenía un rack abierto (clic muy rápido, antes de que
+      // llegara esta respuesta), refresca ese modal para que muestre las
+      // descripciones recién cargadas. abrir() ya existía; solo se reinvoca.
+      if(modalKey && document.getElementById("overlay").classList.contains("show"))abrir(modalKey);
     });
-    window.parent.postMessage({type:'slotting:solicitarEstado'}, '*');
+    window.parent.postMessage({type:'slotting:solicitarEstado', payload:{escenarioId:ESCENARIO_ID}}, '*');
   }
 }catch(e){}
 </script></body></html>

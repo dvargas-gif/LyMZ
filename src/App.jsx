@@ -9,6 +9,7 @@ import SlottingFrame from './components/SlottingFrame.jsx';
 import DashboardAnalitico from './dashboard/DashboardAnalitico.jsx';
 import Historial from './historial/Historial.jsx';
 import AuditoriaView from './audit/AuditoriaView.jsx';
+import SalasView from './salas/SalasView.jsx';
 
 function Shell() {
   const { sesion, logout } = useAuth();
@@ -20,6 +21,7 @@ function Shell() {
       <Tabs rol={sesion.rol} activa={tab} onCambiar={setTab} />
       <main className="app-main">
         {tab === 'mapa' && <SlottingFrame sesion={sesion} />}
+        {tab === 'salas' && <SalasView sesion={sesion} />}
         {tab === 'dashboard' && <DashboardAnalitico />}
         {tab === 'historial' && <Historial sesion={sesion} />}
         {tab === 'auditoria' && <AuditoriaView />}

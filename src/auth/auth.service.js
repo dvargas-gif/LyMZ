@@ -47,6 +47,22 @@ export const authService = {
     return construirSesion(perfil, ip);
   },
 
+  /**
+   * Redirige a Google para autenticarse. Al volver, Supabase ya deja la
+   * sesión activa sola (detectSessionInUrl) y onAuthStateChange la recoge.
+   * Un trigger en la base (on_auth_user_created) crea el perfil la primera
+   * vez, con rol "Solo lectura" — un Administrador lo sube de rol después
+   * si corresponde. Solo se permiten cuentas @ologistics.com (lo valida
+   * el propio trigger; si no coincide, Supabase devuelve error).
+   */
+  async loginConGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) throw new Error(error.message);
+  },
+
   async logout() {
     await supabase.auth.signOut();
   },

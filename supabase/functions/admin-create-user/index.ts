@@ -53,7 +53,10 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: crearError.message }), { status: 400 });
   }
 
-  const { error: perfilError } = await clienteAdmin.from('profiles').insert({
+  // upsert (no insert): un trigger en auth.users ya crea el perfil por defecto
+  // (rol "Solo lectura") apenas se crea el usuario — acá lo sobreescribimos
+  // con los datos reales que pidió el Administrador.
+  const { error: perfilError } = await clienteAdmin.from('profiles').upsert({
     id: nuevo.user.id, nombre, rol, activo: true,
   });
   if (perfilError) {
