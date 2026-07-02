@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
   // (rol "Solo lectura") apenas se crea el usuario — acá lo sobreescribimos
   // con los datos reales que pidió el Administrador.
   const { error: perfilError } = await clienteAdmin.from('profiles').upsert({
-    id: nuevo.user.id, nombre, rol, activo: true,
+    id: nuevo.user.id, nombre, rol, activo: true, email,
   });
   if (perfilError) {
     await clienteAdmin.auth.admin.deleteUser(nuevo.user.id); // rollback si falla el perfil

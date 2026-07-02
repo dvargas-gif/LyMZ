@@ -10,6 +10,10 @@ import DashboardAnalitico from './dashboard/DashboardAnalitico.jsx';
 import Historial from './historial/Historial.jsx';
 import AuditoriaView from './audit/AuditoriaView.jsx';
 import SalasView from './salas/SalasView.jsx';
+import AdminFab from './admin/AdminFab.jsx';
+
+// Panel de administración exclusivo — solo esta cuenta lo ve, sin importar el rol.
+const EMAIL_SUPERADMIN = 'dvargas@ologistics.com';
 
 function Shell() {
   const { sesion, logout } = useAuth();
@@ -26,6 +30,7 @@ function Shell() {
         {tab === 'historial' && <Historial sesion={sesion} />}
         {tab === 'auditoria' && <AuditoriaView />}
       </main>
+      {sesion.usuario === EMAIL_SUPERADMIN && <AdminFab sesion={sesion} onNavigate={setTab} />}
     </div>
   );
 }

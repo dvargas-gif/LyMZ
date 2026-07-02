@@ -4,6 +4,8 @@ import { posicionesService } from '../services/posiciones.service.js';
 import { bloqueosService } from '../services/bloqueos.service.js';
 import { articulosService } from '../services/articulos.service.js';
 import { escenarioPosicionesService } from '../services/escenarioPosiciones.service.js';
+import { escenarioEliminadosService } from '../services/escenarioEliminados.service.js';
+import { configMapaService } from '../services/configMapa.service.js';
 import { puede } from '../auth/roles.js';
 
 /**
@@ -78,6 +80,12 @@ export default function SlottingFrame({ sesion, escenario }) {
         return;
       }
 
+      if (ev.data.type === 'slotting:limpiarArticulo') {
+        const { articulo, escenarioId } = ev.data.payload;
+        if (escenarioId) escenarioEliminadosService.marcarEliminado({ escenarioId, articulo, usuarioId: sesion.usuarioId });
+        return;
+      }
+
       if (ev.data.type === 'slotting:bloqueo') {
         if (enSala) return; // las salas no manejan bloqueos físicos reales
         const { key, pasillo, columna, bloqueada } = ev.data.payload;
@@ -90,14 +98,27 @@ export default function SlottingFrame({ sesion, escenario }) {
         const escenarioId = ev.data.payload?.escenarioId;
         const posicionesProm = escenarioId ? escenarioPosicionesService.listar(escenarioId) : posicionesService.listar();
         const bloqueosProm = escenarioId ? Promise.resolve([]) : bloqueosService.listar();
-        Promise.all([posicionesProm, bloqueosProm, articulosService.listarDescripciones()])
-          .then(([posiciones, bloqueos, descripciones]) => ev.source.postMessage({ type: 'slotting:estadoInicial', payload: { posiciones, bloqueos, descripciones } }, '*'))
+        const eliminadosProm = escenarioId ? escenarioEliminadosService.listar(escenarioId) : Promise.resolve([]);
+        const configProm = configMapaService.obtener().catch(() => ({ tema: 'claro', orientacion: 'horizontal' }));
+        Promise.all([posicionesProm, bloqueosProm, articulosService.listarDescripciones(), configProm, eliminadosProm])
+          .then(([posiciones, bloqueos, descripciones, configuracion, eliminados]) => ev.source.postMessage({ type: 'slotting:estadoInicial', payload: { posiciones, bloqueos, descripciones, configuracion, eliminados } }, '*'))
           .catch(() => ev.source.postMessage({ type: 'slotting:estadoInicial', payload: { posiciones: [], bloqueos: [], descripciones: [] } }, '*'));
       }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [sesion]);
+
+  // Cuando se cambia el tema/orientación desde el menú de administración,
+  // simplemente recargamos el iframe — el propio mapa vuelve a pedir su
+  // estado (incluida la config nueva) al arrancar, sin lógica extra acá.
+  useEffect(() => {
+    function onConfigCambiada() {
+      try { ref.current?.contentWindow?.location.reload(); } catch { /* noop */ }
+    }
+    window.addEventListener('mapa:config-cambiada', onConfigCambiada);
+    return () => window.removeEventListener('mapa:config-cambiada', onConfigCambiada);
+  }, []);
 
   function onIframeLoad() {
     try {

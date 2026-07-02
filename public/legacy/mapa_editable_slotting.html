@@ -3,7 +3,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Inter','Segoe UI',Helvetica,Arial,sans-serif;background:#F7F4EC;color:#1C3A3E;padding:16px 10px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+:root{--bg:#F7F4EC;--ink:#1C3A3E;--card:#fff;--line:#E0DACE}
+body.tema-oscuro{--bg:#14201F;--ink:#E7ECE9;--card:#1D2C2A;--line:#2E3E3B}
+body.tema-alto-contraste{--bg:#FFFFFF;--ink:#000000;--card:#FFFFFF;--line:#000000}
+/* Modo simulación (sala): fondo con un leve tinte violeta para que sea obvio
+   a simple vista que esto es una copia, no el mapa real. Selector compuesto
+   (.tema-x.modo-simulacion) para que combine bien con cualquier tema. */
+body.modo-simulacion{--bg:#F1EDFA}
+body.tema-oscuro.modo-simulacion{--bg:#201A2E}
+body.tema-alto-contraste.modo-simulacion{--bg:#F2EEFF}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Inter','Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);padding:16px 10px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;transition:background .3s ease,color .3s ease}
 h1{font-size:27.6px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
 .sub{font-size:14.95px;color:#6E7A72;margin-bottom:12px}
 .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
@@ -109,20 +118,22 @@ td.desde{font-family:monospace;font-size:12.65px;color:#C0392B}
 @keyframes bandaFlowH{0%{background-position:22px 0}100%{background-position:0 0}}
 @keyframes cajaBajaH{0%{left:100%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:-14px;opacity:0}}
 
-/* ===== Reorganización visual: mapa vertical -> horizontal =====
+/* ===== Reorganización visual: mapa vertical <-> horizontal =====
    Solo transpone los ejes flex (columna<->fila). No toca render(), datos,
    IDs, eventos ni geometría: cada pasillo sigue teniendo exactamente las
-   mismas columnas/niveles/gaps, ahora extendidos a lo ancho en vez de apilados
-   hacia abajo. Los !important son necesarios porque render() fija
+   mismas columnas/niveles/gaps. Ahora es TOGGLEABLE vía la clase
+   "horizontal-mode" en <body> (por defecto presente = horizontal; se
+   quita para volver a la orientación vertical original tal cual era antes
+   de cualquier cambio). Los !important son necesarios porque render() fija
    flex-direction como estilo inline en JS; sin ellos el CSS no podría pisarlo. */
-#grid{flex-direction:column-reverse!important}
-#grid>div:not(.gapv){flex-direction:row!important;align-items:center}
-#grid>div:not(.gapv)>div:first-child{min-width:44px}
+body.horizontal-mode #grid{flex-direction:column-reverse!important}
+body.horizontal-mode #grid>div:not(.gapv){flex-direction:row!important;align-items:center}
+body.horizontal-mode #grid>div:not(.gapv)>div:first-child{min-width:44px}
 /* El corredor entre grupos de pasillos era una franja vertical; ahora es horizontal.
    width:100% explícito (no solo align-self:stretch) para garantizar que siempre
    llegue hasta el final del pasillo más largo, sin depender de auto-sizing. */
-#grid>.gapv{align-self:stretch;width:100%;height:24px;margin:8px 0}
-#grid>.gapv span{writing-mode:horizontal-tb;transform:none;font-size:8.05px}
+body.horizontal-mode #grid>.gapv{align-self:stretch;width:100%;height:24px;margin:8px 0}
+body.horizontal-mode #grid>.gapv span{writing-mode:horizontal-tb;transform:none;font-size:8.05px}
 
 /* El registro pasa a ir DEBAJO del croquis (no al costado) y el croquis usa
    todo el ancho liberado. toggleTerminal() sigue fijando un max-width viejo
@@ -143,8 +154,8 @@ td.desde{font-family:monospace;font-size:12.65px;color:#C0392B}
   width:240px;z-index:100;box-shadow:0 6px 18px rgba(0,0,0,.3);line-height:1.4}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/tabler-icons.min.css" rel="stylesheet">
-</head><body>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.44.0/tabler-icons.min.css" rel="stylesheet">
+</head><body class="horizontal-mode">
 <h1>Slotting Mezanine</h1>
 <div id="bannerSala" style="display:none;background:#FFF4EC;border:2px solid #E07B39;color:#C0392B;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;margin:10px 0"></div>
 <div style="display:flex;gap:6px;margin:14px 0 18px;border-bottom:1px solid #E0DACE">
@@ -193,10 +204,10 @@ td.desde{font-family:monospace;font-size:12.65px;color:#C0392B}
 </div>
 </div>
 <div class="legend">
-  <div class="item"><span class="sw" style="background:#15454A"></span>A</div>
-  <div class="item"><span class="sw" style="background:#C2603F"></span>B</div>
-  <div class="item"><span class="sw" style="background:#7A5282"></span>C</div>
-  <div class="item"><span class="sw" style="background:#B5862E"></span>D</div>
+  <div class="item"><span class="sw" id="swA" style="background:#15454A"></span>A</div>
+  <div class="item"><span class="sw" id="swB" style="background:#C2603F"></span>B</div>
+  <div class="item"><span class="sw" id="swC" style="background:#7A5282"></span>C</div>
+  <div class="item"><span class="sw" id="swD" style="background:#B5862E"></span>D</div>
   <div class="item"><span class="sw" style="background:#1C3A3E"></span>Cuerpo entero</div>
   <div class="item"><span class="sw" style="background:#D8D2C4"></span>Pasillo</div>
 </div>
@@ -272,6 +283,7 @@ if(ESCENARIO_ID){
   const b=document.getElementById('bannerSala');
   b.style.display='block';
   b.textContent='🧪 SALA DE SIMULACIÓN — "'+ESCENARIO_NOMBRE+'" — Los cambios acá NO afectan el mapa real.';
+  document.body.classList.add('modo-simulacion');
 }
 // --- FIN AGREGADO PARA SALAS ---
 
@@ -321,6 +333,32 @@ function gapsDe(pas){ return pas==="MZ01"?GAP_AFTER_MZ01:GAP_AFTER_DEFAULT; }
 const MAXCOL_MZ01=27; // MZ01 llega hasta C027
 const ZCOL={A:"#15454A",B:"#C2603F",C:"#7A5282",D:"#B5862E"};
 const ZNOM={A:"Alta",B:"Media",C:"Baja",D:"Muy baja"};
+
+// --- AGREGADO PARA CONFIGURACIÓN (tema/orientación) ---
+// PALETAS solo se usa para MUTAR los valores de ZCOL (nunca se reemplaza el
+// objeto), así que intensidad()/render() siguen funcionando exactamente igual,
+// solo con otros colores de entrada.
+const PALETAS={
+  claro:{A:"#15454A",B:"#C2603F",C:"#7A5282",D:"#B5862E"},
+  oscuro:{A:"#3FA7AC",B:"#E8935F",C:"#B583C4",D:"#E0B24A"},
+  alto_contraste:{A:"#0B5394",B:"#CC0000",C:"#674EA7",D:"#B45F06"},
+};
+function aplicarConfiguracion(cfg){
+  if(!cfg)return;
+  if(cfg.orientacion){
+    document.body.classList.toggle('horizontal-mode', cfg.orientacion==='horizontal');
+  }
+  if(cfg.tema && PALETAS[cfg.tema]){
+    Object.assign(ZCOL, PALETAS[cfg.tema]);
+    document.body.classList.remove('tema-oscuro','tema-alto-contraste');
+    if(cfg.tema==='oscuro')document.body.classList.add('tema-oscuro');
+    if(cfg.tema==='alto_contraste')document.body.classList.add('tema-alto-contraste');
+    const sw=document.getElementById.bind(document);
+    if(sw('swA')){sw('swA').style.background=ZCOL.A;sw('swB').style.background=ZCOL.B;sw('swC').style.background=ZCOL.C;sw('swD').style.background=ZCOL.D;}
+  }
+  render();
+}
+// --- FIN AGREGADO PARA CONFIGURACIÓN ---
 const GAPNAME={9:"PASILLO",19:"PASILLO",26:"PASILLO"};
 const NIVORDER=["N05","N04","N03","N02","N01","CUERPO"];
 let cambios=[];           // log de movimientos
@@ -456,6 +494,45 @@ function notificarBloqueo(key,bloqueada){
     }
   }catch(e){}
 }
+// Notifica que un artículo se borró por completo (solo pasa dentro de una
+// sala, vía limpiarSlot). El mapa real nunca envía esto.
+function notificarEliminado(art){
+  try{
+    if(window.parent && window.parent!==window){
+      window.parent.postMessage({type:'slotting:limpiarArticulo',payload:{articulo:art,escenarioId:ESCENARIO_ID}}, '*');
+    }
+  }catch(e){}
+}
+// Reconstruye, al cargar una sala, que un artículo fue borrado ahí:
+// lo busca y lo saca de CUERPOS sin volver a ponerlo en ningún lado
+// (a diferencia de aplicarPosicionGuardada, que sí lo reubica).
+function eliminarArticuloGuardado(art){
+  for(const key in CUERPOS){
+    const cu=CUERPOS[key];
+    for(const n in cu.niveles){
+      const idx=cu.niveles[n].findIndex(a=>a.art===art);
+      if(idx>=0){
+        cu.niveles[n].splice(idx,1);
+        if(cu.niveles[n].length===0)delete cu.niveles[n];
+        if(nArts(cu)===0)delete CUERPOS[key];
+        return;
+      }
+    }
+  }
+}
+// Vacía un slot COMPLETO — solo existe dentro de una sala de simulación
+// (el botón que la llama ni siquiera se muestra en el mapa real).
+function limpiarSlot(key){
+  if(!ESCENARIO_ID)return;
+  const cu=CUERPOS[key];
+  if(!cu)return;
+  const articulos=[];
+  for(const niv in cu.niveles)cu.niveles[niv].forEach(a=>articulos.push(a.art));
+  delete CUERPOS[key];
+  articulos.forEach(art=>notificarEliminado(art));
+  cerrar();
+  render();
+}
 // --- FIN AGREGADO PARA PERSISTENCIA ---
 
 const grid=document.getElementById("grid");const cellRefs={};
@@ -579,6 +656,10 @@ function abrir(key){
     body+=`<div style="margin-bottom:14px"><button class="mover" style="background:#C0392B;padding:6px 14px;font-size:12px" onclick="iniciarMoverCuerpo('${key}')">⬚ Mover CUERPO COMPLETO (todos los artículos)</button></div>`;
   }
   body+=`<div style="margin-bottom:14px"><button class="mover" style="background:${bloqueadas.has(key)?'#5F5E5A':'#888780'};padding:6px 14px;font-size:12px" onclick="toggleBloqueo('${key}');cerrar()">${bloqueadas.has(key)?'🔓 Desbloquear posición':'🔒 Bloquear posición (quitar físicamente)'}</button></div>`;
+  // Solo dentro de una sala de simulación: vaciar el slot por completo (no existe en el mapa real).
+  if(ESCENARIO_ID && nArts(cu)>0){
+    body+=`<div style="margin-bottom:14px"><button class="mover" style="background:#7A2E2E;padding:6px 14px;font-size:12px" onclick="limpiarSlot('${key}')">🧹 Limpiar slot (vaciar esta posición)</button></div>`;
+  }
   NIVORDER.forEach(niv=>{
     if(!cu.niveles[niv]||cu.niveles[niv].length===0)return;
     const arts=cu.niveles[niv].slice().sort((a,b)=>b.picks-a.picks);
@@ -771,8 +852,10 @@ try{
       if(!ev.data || ev.data.type!=='slotting:estadoInicial')return;
       const estado=ev.data.payload||{};
       (estado.posiciones||[]).forEach(p=>aplicarPosicionGuardada(p.articulo,p.pasillo,p.columna,p.nivel,p.clase,p.grupo,p.tipo));
+      (estado.eliminados||[]).forEach(e=>eliminarArticuloGuardado(e.articulo));
       (estado.bloqueos||[]).forEach(b=>bloqueadas.add(b.rack_key));
       (estado.descripciones||[]).forEach(d=>{DESCRIPCIONES[d.articulo]=d.descripcion;});
+      aplicarConfiguracion(estado.configuracion);
       render();
       // Si el usuario ya tenía un rack abierto (clic muy rápido, antes de que
       // llegara esta respuesta), refresca ese modal para que muestre las
