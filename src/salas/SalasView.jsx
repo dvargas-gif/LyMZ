@@ -129,25 +129,25 @@ export default function SalasView({ sesion }) {
         </div>
 
         <div style={barraStyle}>
-          <button onClick={handleAtras}><i className="ti ti-arrow-left" /> Atrás</button>
-          <button onClick={handleBloqueo} title="Activa/desactiva el modo bloqueo del mapa (solo afecta esta sala)">
+          <button className="btn-secondary" onClick={handleAtras}><i className="ti ti-arrow-left" /> Atrás</button>
+          <button className="btn-secondary" onClick={handleBloqueo} title="Activa/desactiva el modo bloqueo del mapa (solo afecta esta sala)">
             <i className="ti ti-lock" /> Bloqueo
           </button>
-          <button onClick={handleSeleccionArea} className={modoSeleccion ? 'btn-primary' : ''} title="Tocá posiciones en el mapa para armar el área a limpiar">
+          <button className={`btn-secondary ${modoSeleccion ? 'activo' : ''}`} onClick={handleSeleccionArea} title="Tocá posiciones en el mapa para armar el área a limpiar">
             <i className="ti ti-square-dot" /> {modoSeleccion ? 'Seleccionando…' : 'Seleccionar área'}
           </button>
-          <button onClick={handleLimpiarArea} disabled={modoSeleccion && seleccionCantidad === 0} title="Vacía las posiciones seleccionadas (solo en esta sala)">
+          <button className="btn-secondary" onClick={handleLimpiarArea} disabled={modoSeleccion && seleccionCantidad === 0} title="Vacía las posiciones seleccionadas (solo en esta sala)">
             <i className="ti ti-eraser" /> Limpiar área {seleccionCantidad > 0 ? `(${seleccionCantidad})` : ''}
           </button>
-          <button onClick={handleVolverBase} disabled={restaurando}>
+          <button className="btn-secondary" onClick={handleVolverBase} disabled={restaurando}>
             <i className="ti ti-refresh" /> {restaurando ? 'Restaurando…' : 'Volver al acomodo base'}
           </button>
-          <button onClick={handleGuardar} className="btn-primary">
+          <button className="btn-primary" onClick={handleGuardar}>
             <i className="ti ti-device-floppy" /> {guardadoOk ? 'Guardado ✓' : 'Guardar simulación'}
           </button>
           <span style={{ flex: 1 }} />
-          <button onClick={() => setPanelAbierto('picks')}><i className="ti ti-chart-histogram" /> Cargar picks</button>
-          <button onClick={() => setPanelAbierto('reporte')}><i className="ti ti-table" /> Ver reporte</button>
+          <button className="btn-secondary" onClick={() => setPanelAbierto('picks')}><i className="ti ti-chart-histogram" /> Cargar picks</button>
+          <button className="btn-secondary" onClick={() => setPanelAbierto('reporte')}><i className="ti ti-table" /> Ver reporte</button>
         </div>
         <p className="muted" style={{ fontSize: 12, margin: '0 0 10px' }}>
           Todo lo que hagas en esta sala se guarda solo, al instante, y nunca afecta el mapa real.
@@ -207,7 +207,7 @@ export default function SalasView({ sesion }) {
               <td className="muted">{s.actualizado_en ? new Date(s.actualizado_en).toLocaleString() : '—'}</td>
               <td style={{ display: 'flex', gap: 8 }}>
                 <button className="btn-primary" onClick={() => abrirSala(s)}>Abrir</button>
-                <button onClick={() => handleEliminar(s)} title="Borrar sala">
+                <button className="btn-icon" onClick={() => handleEliminar(s)} title="Borrar sala">
                   <i className="ti ti-trash" />
                 </button>
               </td>

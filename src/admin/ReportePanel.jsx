@@ -38,7 +38,7 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
           <h2 style={{ fontSize: 18, fontWeight: 600 }}>
             {escenario ? `🧪 Reporte de la sala — ${escenario.nombre}` : 'Reporte de posiciones'}
           </h2>
-          <button onClick={onCerrar} style={closeBtnStyle}><i className="ti ti-x" /></button>
+          <button onClick={onCerrar} className="btn-icon"><i className="ti ti-x" /></button>
         </div>
         <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 4 }}>
           {escenario
@@ -106,7 +106,6 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
 
 const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,58,62,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 };
 const cardStyle = { background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 1040, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.35)' };
-const closeBtnStyle = { background: '#F1EFE8', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', color: '#6E7A72' };
 const nombreInputStyle = { fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', width: '100%' };
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };
 const tdStyle = { padding: '7px 8px' };

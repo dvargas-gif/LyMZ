@@ -27,7 +27,7 @@ export default function EditarCroquisPanel({ sesion, onCerrar }) {
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <h2 style={{ fontSize: 18, fontWeight: 600 }}>Editar croquis</h2>
-          <button onClick={onCerrar} style={closeBtnStyle}><i className="ti ti-x" /></button>
+          <button onClick={onCerrar} className="btn-icon"><i className="ti ti-x" /></button>
         </div>
         <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 20 }}>
           Estos cambios se ven en el mapa para todos los que lo abran (se aplican al instante si ya lo tenés abierto).
@@ -89,7 +89,6 @@ export default function EditarCroquisPanel({ sesion, onCerrar }) {
 
 const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,58,62,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 };
 const cardStyle = { background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,.35)' };
-const closeBtnStyle = { background: '#F1EFE8', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', color: '#6E7A72' };
 const sectionTitle = { fontSize: 12, fontWeight: 700, color: '#1C3A3E', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.3px' };
 const temaBtnStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: '#fff', border: '2px solid #E0DACE', borderRadius: 10, padding: '10px 14px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
 const orientBtnStyle = { flex: 1, border: 'none', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' };

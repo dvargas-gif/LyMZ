@@ -101,7 +101,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <h2 style={{ fontSize: 18, fontWeight: 600 }}>📈 Carga de picks — {escenario.nombre}</h2>
-          <button onClick={onCerrar} style={closeBtnStyle}><i className="ti ti-x" /></button>
+          <button onClick={onCerrar} className="btn-icon"><i className="ti ti-x" /></button>
         </div>
         <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
           Subí demanda real (código, picks, frecuencia, prioridad) para ver qué artículos tienen más movimiento
@@ -148,7 +148,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn-primary" disabled={guardando} onClick={confirmarCarga}>{guardando ? 'Cargando…' : `Cargar ${previa.length} filas a la sala`}</button>
-              <button disabled={guardando} onClick={() => setPrevia(null)}>Cancelar</button>
+              <button className="btn-secondary" disabled={guardando} onClick={() => setPrevia(null)}>Cancelar</button>
             </div>
           </div>
         )}
@@ -184,7 +184,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '18px 0 8px' }}>
               <h3 style={{ ...h3Style, margin: 0 }}>Detalle por artículo</h3>
-              <button onClick={() => setVerTodas(v => !v)} style={{ fontSize: 11.5 }}>{verTodas ? 'Ver menos' : `Ver las ${analisis.filas.length} filas`}</button>
+              <button className="btn-secondary" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={() => setVerTodas(v => !v)}>{verTodas ? 'Ver menos' : `Ver las ${analisis.filas.length} filas`}</button>
             </div>
             <TablaAnalisis filas={filasVisibles} />
           </div>
@@ -231,7 +231,6 @@ function TablaAnalisis({ filas }) {
 
 const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,58,62,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, padding: 20 };
 const cardStyle = { background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 1080, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.35)' };
-const closeBtnStyle = { background: '#F1EFE8', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', color: '#6E7A72' };
 const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 180, minHeight: 74, border: '2px dashed #C8C2B4', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: '#6E7A72' };
 const theadRow = { textAlign: 'left', color: '#9A9684', fontSize: 11, textTransform: 'uppercase' };
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };

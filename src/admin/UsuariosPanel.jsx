@@ -72,7 +72,7 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <h2 style={{ fontSize: 18, fontWeight: 600 }}>Permisos de usuarios</h2>
-          <button onClick={onCerrar} style={closeBtnStyle}><i className="ti ti-x" /></button>
+          <button onClick={onCerrar} className="btn-icon"><i className="ti ti-x" /></button>
         </div>
         <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
           Cambiar el rol o desactivar una cuenta tiene efecto inmediato.
@@ -166,7 +166,6 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
 
 const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,58,62,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 };
 const cardStyle = { background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 640, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.35)' };
-const closeBtnStyle = { background: '#F1EFE8', border: 'none', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', color: '#6E7A72' };
 const selectStyle = { fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid #DADCE0', fontFamily: 'inherit' };
 const nombreInputStyle = { fontSize: 13, padding: '5px 8px', borderRadius: 6, border: '1px solid #15454A', fontFamily: 'inherit', width: '100%' };
 const toggleBtnStyle = { border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' };

@@ -55,7 +55,7 @@ export default function Historial({ sesion }) {
         <select value={filtros.estado} onChange={e => onFiltroChange('estado', e.target.value)}>
           {ESTADOS_OPC.map(o => <option key={o} value={o}>{o || 'Todos los estados'}</option>)}
         </select>
-        <button onClick={cargar}><i className="ti ti-filter" /> Filtrar</button>
+        <button className="btn-secondary" onClick={cargar}><i className="ti ti-filter" /> Filtrar</button>
       </div>
 
       <table className="tabla">
