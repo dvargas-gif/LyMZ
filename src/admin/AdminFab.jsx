@@ -155,7 +155,7 @@ export default function AdminFab({ sesion, onNavigate }) {
         </button>
       </div>
 
-      {panel === 'usuarios' && <UsuariosPanel onCerrar={() => setPanel(null)} />}
+      {panel === 'usuarios' && <UsuariosPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
       {panel === 'croquis' && <EditarCroquisPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
       {panel === 'reporte' && <ReportePanel onCerrar={() => setPanel(null)} />}
     </>

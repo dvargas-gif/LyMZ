@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import { usuariosService } from '../services/usuarios.service.js';
+import { miPerfilService } from '../services/miPerfil.service.js';
 import { ROLES } from '../auth/roles.js';
 
 const TODOS_LOS_ROLES = Object.values(ROLES);
 
-export default function UsuariosPanel({ onCerrar }) {
+export default function UsuariosPanel({ sesion, onCerrar }) {
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardandoId, setGuardandoId] = useState(null);
   const [editandoId, setEditandoId] = useState(null);
   const [nombreTemp, setNombreTemp] = useState('');
+  const [editandoApodoId, setEditandoApodoId] = useState(null);
+  const [apodoTemp, setApodoTemp] = useState('');
 
   async function cargar() {
     setCargando(true);
@@ -48,6 +51,22 @@ export default function UsuariosPanel({ onCerrar }) {
     setGuardandoId(null);
   }
 
+  function iniciarEdicionApodo(u) {
+    setEditandoApodoId(u.id);
+    setApodoTemp(u.apodo || '');
+  }
+
+  async function confirmarApodo(u) {
+    const apodo = apodoTemp.trim();
+    setEditandoApodoId(null);
+    if (apodo === (u.apodo || '')) return;
+    setGuardandoId(u.id);
+    // Función propia (auth.uid()) — por eso esta celda solo es editable en TU fila.
+    await miPerfilService.actualizarApodo(apodo);
+    setUsuarios(prev => prev.map(x => (x.id === u.id ? { ...x, apodo } : x)));
+    setGuardandoId(null);
+  }
+
   return (
     <div style={overlayStyle} onClick={e => e.target === e.currentTarget && onCerrar()}>
       <div style={cardStyle}>
@@ -67,6 +86,7 @@ export default function UsuariosPanel({ onCerrar }) {
               <tr style={{ textAlign: 'left', color: '#9A9684', fontSize: 11, textTransform: 'uppercase' }}>
                 <th style={{ padding: '6px 8px' }}>Nombre</th>
                 <th style={{ padding: '6px 8px' }}>Email</th>
+                <th style={{ padding: '6px 8px' }}>Cómo me saluda</th>
                 <th style={{ padding: '6px 8px' }}>Rol</th>
                 <th style={{ padding: '6px 8px' }}>Estado</th>
               </tr>
@@ -98,6 +118,32 @@ export default function UsuariosPanel({ onCerrar }) {
                     )}
                   </td>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}>{u.email}</td>
+                  <td style={{ padding: '8px' }}>
+                    {u.id !== sesion.usuarioId ? (
+                      <span style={{ color: u.apodo ? 'inherit' : '#C8C2B4' }}>{u.apodo || '—'}</span>
+                    ) : editandoApodoId === u.id ? (
+                      <input
+                        autoFocus
+                        placeholder="ej. Amo supremo"
+                        value={apodoTemp}
+                        onChange={e => setApodoTemp(e.target.value)}
+                        onBlur={() => confirmarApodo(u)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') e.currentTarget.blur();
+                          if (e.key === 'Escape') setEditandoApodoId(null);
+                        }}
+                        style={nombreInputStyle}
+                      />
+                    ) : (
+                      <span
+                        onClick={() => iniciarEdicionApodo(u)}
+                        title="Tocá para cambiar cómo te saluda al entrar"
+                        style={{ cursor: 'pointer', borderBottom: '1px dotted #C8C2B4', color: u.apodo ? 'inherit' : '#9A9684', fontStyle: u.apodo ? 'normal' : 'italic' }}
+                      >
+                        {u.apodo || 'sin definir'} <i className="ti ti-pencil" style={{ fontSize: 11, color: '#9A9684' }} />
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: '8px' }}>
                     <select value={u.rol} onChange={e => handleRol(u, e.target.value)} disabled={guardandoId === u.id} style={selectStyle}>
                       {TODOS_LOS_ROLES.map(r => <option key={r} value={r}>{r}</option>)}

@@ -15,11 +15,9 @@ import BienvenidaModal from './components/BienvenidaModal.jsx';
 import SaludoToast from './components/SaludoToast.jsx';
 import { ROLES } from './auth/roles.js';
 
-// Panel de administración exclusivo — solo esta cuenta lo ve, sin importar el rol.
-const EMAIL_SUPERADMIN = 'dvargas@ologistics.com';
-// El saludo personalizado (pregunta de apodo + bienvenida) es solo para
-// quienes "administran" en sentido amplio: Administrador y Supervisor.
-const ROLES_CON_SALUDO = [ROLES.ADMIN, ROLES.SUPERVISOR];
+// Panel de administración (botón flotante) y saludo personalizado: exclusivo
+// de Administrador y Supervisor — el resto de los roles no lo ve ni lo usa.
+const ROLES_PANEL_ADMIN = [ROLES.ADMIN, ROLES.SUPERVISOR];
 
 function Shell() {
   const { sesion, logout } = useAuth();
@@ -29,7 +27,7 @@ function Shell() {
   const [mostrarSaludo, setMostrarSaludo] = useState(false);
 
   useEffect(() => {
-    if (!ROLES_CON_SALUDO.includes(sesion.rol)) return;
+    if (!ROLES_PANEL_ADMIN.includes(sesion.rol)) return;
     if (apodo) setMostrarSaludo(true);
     else setPedirApodo(true);
     // Solo al entrar (una vez por sesión de la pestaña) — no en cada cambio de tab.
@@ -55,7 +53,7 @@ function Shell() {
         {tab === 'historial' && <Historial sesion={sesion} />}
         {tab === 'auditoria' && <AuditoriaView />}
       </main>
-      {sesion.usuario === EMAIL_SUPERADMIN && <AdminFab sesion={sesion} onNavigate={setTab} />}
+      {ROLES_PANEL_ADMIN.includes(sesion.rol) && <AdminFab sesion={sesion} onNavigate={setTab} />}
       {pedirApodo && <BienvenidaModal nombre={sesion.nombre} onListo={handleApodoListo} />}
       {mostrarSaludo && <SaludoToast apodo={apodo} onCerrar={() => setMostrarSaludo(false)} />}
     </div>
