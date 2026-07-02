@@ -124,7 +124,11 @@ export default function SlottingFrame({ sesion, escenario }) {
     try {
       const grid = ref.current.contentDocument.getElementById('grid');
       if (!grid) return;
-      const anchoGrid = grid.getBoundingClientRect().width;
+      // scrollWidth (no getBoundingClientRect) porque el propio mapa puede
+      // aplicarle un transform:scale para evitar su scroll horizontal interno
+      // — getBoundingClientRect reflejaría el tamaño YA achicado y este
+      // cálculo terminaría pidiendo un contenedor cada vez más chico.
+      const anchoGrid = grid.scrollWidth;
       setAnchoContenedor(Math.round(anchoGrid) + 60); // + padding del body + margen de respiro
     } catch {
       // Si por algún motivo no se puede medir, se queda con el 95vw de respaldo del CSS.
