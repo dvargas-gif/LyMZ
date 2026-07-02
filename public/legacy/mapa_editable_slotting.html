@@ -208,7 +208,7 @@ body.horizontal-mode #grid>.gapv span{writing-mode:horizontal-tb;transform:none;
   <div class="item"><span class="sw" id="swB" style="background:#C2603F"></span>B</div>
   <div class="item"><span class="sw" id="swC" style="background:#7A5282"></span>C</div>
   <div class="item"><span class="sw" id="swD" style="background:#B5862E"></span>D</div>
-  <div class="item"><span class="sw" style="background:#1C3A3E"></span>Cuerpo entero</div>
+  <div class="item"><span class="sw" id="swCuerpo" style="background:#374151"></span>Cuerpo entero</div>
   <div class="item"><span class="sw" style="background:#D8D2C4"></span>Pasillo</div>
 </div>
 </div>
@@ -331,7 +331,15 @@ const GAP_AFTER_DEFAULT=[9,19,26]; // MZ02-MZ08: tras C009, C019, C026
 const GAP_AFTER_MZ01=[7,22]; // MZ01: tras C007 y C022 (llega a C027)
 function gapsDe(pas){ return pas==="MZ01"?GAP_AFTER_MZ01:GAP_AFTER_DEFAULT; }
 const MAXCOL_MZ01=27; // MZ01 llega hasta C027
-const ZCOL={A:"#15454A",B:"#C2603F",C:"#7A5282",D:"#B5862E"};
+// Paleta ESTÁNDAR de clasificación de artículos (única fuente de verdad de
+// estos 5 colores; el mismo set vive espejado en
+// src/constants/coloresArticulo.js para que React lo use igual en tablas y
+// reportes). Elegida para contraste WCAG AA con texto blanco (todas ≥4.9:1)
+// y distinguibilidad bajo daltonismo (familia de matices inspirada en la
+// paleta Okabe-Ito, evitando el par rojo/verde puro que más se confunde).
+// Aplica SOLO a la clasificación de artículos — pasillos, slots vacíos,
+// bloqueados, fondo y modo simulación no se tocan.
+const ZCOL={A:"#0B5394",B:"#0F766E",C:"#B45309",D:"#6D4C7D",CUERPO:"#374151"};
 const ZNOM={A:"Alta",B:"Media",C:"Baja",D:"Muy baja"};
 
 // --- AGREGADO PARA CONFIGURACIÓN (tema/orientación) ---
@@ -339,9 +347,12 @@ const ZNOM={A:"Alta",B:"Media",C:"Baja",D:"Muy baja"};
 // objeto), así que intensidad()/render() siguen funcionando exactamente igual,
 // solo con otros colores de entrada.
 const PALETAS={
-  claro:{A:"#15454A",B:"#C2603F",C:"#7A5282",D:"#B5862E"},
-  oscuro:{A:"#3FA7AC",B:"#E8935F",C:"#B583C4",D:"#E0B24A"},
-  alto_contraste:{A:"#0B5394",B:"#CC0000",C:"#674EA7",D:"#B45F06"},
+  claro:{A:"#0B5394",B:"#0F766E",C:"#B45309",D:"#6D4C7D",CUERPO:"#374151"},
+  oscuro:{A:"#3FA7AC",B:"#E8935F",C:"#B583C4",D:"#E0B24A",CUERPO:"#6B7280"},
+  // alto_contraste: se cambió el B de rojo puro (#CC0000) a un teal oscuro,
+  // porque junto al C (naranja) era exactamente el par que más se confunde
+  // en daltonismo rojo-verde — el resto de la paleta de este tema no se tocó.
+  alto_contraste:{A:"#0B5394",B:"#00695C",C:"#B45F06",D:"#674EA7",CUERPO:"#000000"},
 };
 function aplicarConfiguracion(cfg){
   if(!cfg)return;
@@ -355,6 +366,7 @@ function aplicarConfiguracion(cfg){
     if(cfg.tema==='alto_contraste')document.body.classList.add('tema-alto-contraste');
     const sw=document.getElementById.bind(document);
     if(sw('swA')){sw('swA').style.background=ZCOL.A;sw('swB').style.background=ZCOL.B;sw('swC').style.background=ZCOL.C;sw('swD').style.background=ZCOL.D;}
+    if(sw('swCuerpo'))sw('swCuerpo').style.background=ZCOL.CUERPO;
   }
   render();
   ajustarEscalaGrid();
@@ -610,7 +622,7 @@ function render(){
       const estaBloqueada=bloqueadas.has(key);
       let cell=document.createElement("div");
       if(cu){const na=nArts(cu);const esC=cu.tipo==="CUERPO";
-        cell.className="cell";cell.style.background=esC?ZCOL[cu.clase]:intensidad(cu.clase,na);
+        cell.className="cell";cell.style.background=esC?ZCOL.CUERPO:intensidad(cu.clase,na);
         if(esC)cell.style.border="2px solid #1C3A3E";
         cell.style.color=(esC||na/20>0.5)?"#fff":"#1C3A3E";
         cell.innerHTML=esC?`<span class="cestamp">CE</span>`:`<span class="n">${na}</span>`;
@@ -649,7 +661,7 @@ function render(){
 }
 function abrir(key){
   modalKey=key;const cu=CUERPOS[key];if(!cu)return;
-  document.getElementById("mhead").style.background=ZCOL[cu.clase]||"#15454A";
+  document.getElementById("mhead").style.background=(cu.tipo==="CUERPO")?ZCOL.CUERPO:(ZCOL[cu.clase]||"#15454A");
   document.getElementById("mtit").textContent=`${cu.pas} · C${String(cu.col).padStart(3,"0")}`;
   document.getElementById("mmeta").textContent=`Clase ${cu.clase} (${ZNOM[cu.clase]}) · ${nArts(cu)} artículos`;
   let body="";

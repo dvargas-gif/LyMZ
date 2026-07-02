@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { reporteService } from '../services/reporte.service.js';
+import { colorDeClase } from '../constants/coloresArticulo.js';
 
 export default function ReportePanel({ onCerrar }) {
   const [filas, setFilas] = useState([]);
@@ -78,7 +79,13 @@ export default function ReportePanel({ onCerrar }) {
                     <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.pasillo}-C{String(f.columna).padStart(3, '0')}-{f.nivel}</td>
                     <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11 }}>{f.rack_actual || '—'}</td>
                     <td style={tdStyle}>{f.niveles_a_armar ?? '—'}</td>
-                    <td style={tdStyle}>{f.clase || '—'}</td>
+                    <td style={tdStyle}>
+                      {f.clase ? (
+                        <span style={{ ...claseBadge, background: colorDeClase(f.clase, f.tipo) }}>
+                          {f.tipo === 'CUERPO' ? 'CE' : f.clase}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td style={tdStyle}>{f.picks ?? '—'}</td>
                     <td style={tdStyle}>{f.consumo ?? '—'}</td>
                     <td style={tdStyle}>{f.movido && <span style={movidoBadge}>movido</span>}</td>
@@ -100,3 +107,4 @@ const nombreInputStyle = { fontSize: 13, padding: '8px 10px', borderRadius: 8, b
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };
 const tdStyle = { padding: '7px 8px' };
 const movidoBadge = { fontSize: 10, fontWeight: 700, color: '#D08A1E', background: '#FAEEDA', padding: '2px 7px', borderRadius: 10 };
+const claseBadge = { display: 'inline-block', minWidth: 22, textAlign: 'center', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6 };
