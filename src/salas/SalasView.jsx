@@ -27,6 +27,7 @@ export default function SalasView({ sesion }) {
   const [restaurando, setRestaurando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [panelAbierto, setPanelAbierto] = useState(null); // null | 'reporte' | 'picks'
+  const [errorCrear, setErrorCrear] = useState('');
   const frameRef = useRef(null);
 
   async function cargar() {
@@ -41,11 +42,15 @@ export default function SalasView({ sesion }) {
     e.preventDefault();
     if (!nombreNuevo.trim()) return;
     setCreando(true);
+    setErrorCrear('');
     try {
       const nueva = await escenariosService.crear({ nombre: nombreNuevo.trim(), usuarioId: sesion.usuarioId, usuarioNombre: sesion.nombre });
       setNombreNuevo('');
       await cargar();
       abrirSala(nueva);
+    } catch (err) {
+      console.error(err);
+      setErrorCrear(err?.message ? `No se pudo crear el escenario: ${err.message}` : 'No se pudo crear el escenario. Revisá la consola para más detalle.');
     } finally {
       setCreando(false);
     }
@@ -103,11 +108,17 @@ export default function SalasView({ sesion }) {
   }
 
   async function handleGuardar() {
-    await escenariosService.tocar(salaAbierta.id);
-    setCambiosPendientes(0);
-    setGuardadoOk(true);
-    setTimeout(() => setGuardadoOk(false), 2000);
-    await cargar();
+    try {
+      await escenariosService.tocar(salaAbierta.id);
+      setGuardadoOk(true);
+      setTimeout(() => setGuardadoOk(false), 2000);
+      await cargar();
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo marcar el checkpoint de guardado (probablemente falta correr supabase/sql/2026-07-02_salas_simulacion_avanzado.sql en Supabase). Tus cambios ya están guardados igual, esto solo afecta el sello de "última actualización".');
+    } finally {
+      setCambiosPendientes(0);
+    }
   }
 
   if (salaAbierta) {
@@ -168,15 +179,16 @@ export default function SalasView({ sesion }) {
 
       <form onSubmit={handleCrear} className="filtros-bar" style={{ marginTop: 16 }}>
         <input
-          placeholder="Nombre de la sala (ej. Propuesta reorganización julio)"
+          placeholder="Nombre del escenario (ej. Propuesta reorganización julio)"
           value={nombreNuevo}
           onChange={e => setNombreNuevo(e.target.value)}
           style={{ minWidth: 320 }}
         />
         <button className="btn-primary" disabled={creando || !nombreNuevo.trim()}>
-          <i className="ti ti-plus" /> {creando ? 'Creando…' : 'Nueva sala de simulación'}
+          <i className="ti ti-plus" /> {creando ? 'Creando copia del acomodo actual…' : 'Crear nuevo escenario'}
         </button>
       </form>
+      {errorCrear && <p style={{ color: '#C0392B', fontSize: 12.5, marginTop: 8 }}>{errorCrear}</p>}
 
       <table className="tabla" style={{ marginTop: 20 }}>
         <thead>

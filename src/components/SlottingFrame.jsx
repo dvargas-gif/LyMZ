@@ -117,9 +117,14 @@ const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onC
       if (ev.data.type === 'slotting:bloqueo') {
         const { key, pasillo, columna, bloqueada, escenarioId } = ev.data.payload;
         if (escenarioId) {
-          if (bloqueada) escenarioBloqueosService.bloquear({ escenarioId, key, pasillo, columna, usuarioId: sesion.usuarioId });
-          else escenarioBloqueosService.desbloquear(escenarioId, key);
-          onCambio?.();
+          // Si supabase/sql/2026-07-02_salas_simulacion_avanzado.sql todavía no
+          // corrió, `escenario_bloqueos` no existe — esto NO debe tumbar el
+          // resto de la sala (mover artículos, limpiar, etc.), solo el bloqueo
+          // en sí queda sin persistir hasta que se corra ese script.
+          const accion = bloqueada
+            ? escenarioBloqueosService.bloquear({ escenarioId, key, pasillo, columna, usuarioId: sesion.usuarioId })
+            : escenarioBloqueosService.desbloquear(escenarioId, key);
+          accion.then(() => onCambio?.()).catch(err => console.error('No se pudo guardar el bloqueo de la sala (¿corriste el SQL de salas avanzado?)', err));
         } else {
           if (bloqueada) bloqueosService.bloquear({ key, pasillo, columna, usuarioId: sesion.usuarioId });
           else bloqueosService.desbloquear(key);
@@ -134,13 +139,21 @@ const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onC
 
       if (ev.data.type === 'slotting:solicitarEstado') {
         const escenarioId = ev.data.payload?.escenarioId;
-        const posicionesProm = escenarioId ? escenarioPosicionesService.listar(escenarioId) : posicionesService.listar();
-        const bloqueosProm = escenarioId ? escenarioBloqueosService.listar(escenarioId) : bloqueosService.listar();
-        const eliminadosProm = escenarioId ? escenarioEliminadosService.listar(escenarioId) : Promise.resolve([]);
+        // Cada pieza del estado se resuelve SOLA: si una tabla todavía no
+        // existe (por ejemplo escenario_bloqueos antes de correr el SQL
+        // nuevo), esa pieza queda vacía pero las demás (posiciones,
+        // eliminados, descripciones) igual llegan — antes un solo fallo acá
+        // tiraba todo el estado a cero y la sala parecía "no funcionar".
+        const seguro = (promesa, porDefecto, etiqueta) => promesa.catch(err => { console.error(`No se pudo cargar ${etiqueta} (¿corriste el SQL de salas avanzado?)`, err); return porDefecto; });
+
+        const posicionesProm = seguro(escenarioId ? escenarioPosicionesService.listar(escenarioId) : posicionesService.listar(), [], 'posiciones');
+        const bloqueosProm = seguro(escenarioId ? escenarioBloqueosService.listar(escenarioId) : bloqueosService.listar(), [], 'bloqueos');
+        const eliminadosProm = escenarioId ? seguro(escenarioEliminadosService.listar(escenarioId), [], 'artículos limpiados') : Promise.resolve([]);
+        const descripcionesProm = seguro(articulosService.listarDescripciones(), [], 'descripciones');
         const configProm = configMapaService.obtener().catch(() => ({ tema: 'claro', orientacion: 'horizontal' }));
-        Promise.all([posicionesProm, bloqueosProm, articulosService.listarDescripciones(), configProm, eliminadosProm])
-          .then(([posiciones, bloqueos, descripciones, configuracion, eliminados]) => ev.source.postMessage({ type: 'slotting:estadoInicial', payload: { posiciones, bloqueos, descripciones, configuracion, eliminados } }, '*'))
-          .catch(() => ev.source.postMessage({ type: 'slotting:estadoInicial', payload: { posiciones: [], bloqueos: [], descripciones: [] } }, '*'));
+
+        Promise.all([posicionesProm, bloqueosProm, descripcionesProm, configProm, eliminadosProm])
+          .then(([posiciones, bloqueos, descripciones, configuracion, eliminados]) => ev.source.postMessage({ type: 'slotting:estadoInicial', payload: { posiciones, bloqueos, descripciones, configuracion, eliminados } }, '*'));
       }
     }
     window.addEventListener('message', onMessage);

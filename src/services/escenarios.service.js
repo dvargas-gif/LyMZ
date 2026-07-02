@@ -56,7 +56,9 @@ export const escenariosService = {
       posicionesService.listar(),
       escenarioPosicionesService.borrarTodos(escenarioId),
       escenarioEliminadosService.borrarTodos(escenarioId),
-      escenarioBloqueosService.borrarTodos(escenarioId),
+      // Best-effort: si escenario_bloqueos todavía no existe (falta correr
+      // el SQL de salas avanzado), no debe impedir restaurar lo demás.
+      escenarioBloqueosService.borrarTodos(escenarioId).catch(err => console.error('No se pudieron borrar los bloqueos de la sala', err)),
     ]);
     if (posicionesReales.length > 0) {
       const filas = posicionesReales.map(p => ({

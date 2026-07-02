@@ -26,13 +26,20 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
 
   async function cargarBase() {
     setCargando(true);
-    const [pos, picks] = await Promise.all([
-      reporteService.obtener(escenario.id),
-      escenarioPicksService.listar(escenario.id),
-    ]);
-    setPosiciones(pos);
-    setPicksGuardados(picks);
-    setCargando(false);
+    setError('');
+    try {
+      const [pos, picks] = await Promise.all([
+        reporteService.obtener(escenario.id),
+        escenarioPicksService.listar(escenario.id),
+      ]);
+      setPosiciones(pos);
+      setPicksGuardados(picks);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudo cargar la carga de picks de esta sala. Si es la primera vez que se usa, falta correr supabase/sql/2026-07-02_salas_simulacion_avanzado.sql en Supabase.');
+    } finally {
+      setCargando(false);
+    }
   }
 
   useEffect(() => { cargarBase(); }, [escenario.id]);
@@ -73,11 +80,15 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
 
   async function confirmarCarga() {
     setGuardando(true);
+    setError('');
     try {
       await escenarioPicksService.cargarLote({ escenarioId: escenario.id, filas: previa, usuarioId: sesion.usuarioId });
       setPrevia(null);
       setPegado('');
       await cargarBase();
+    } catch (err) {
+      console.error(err);
+      setError('No se pudo guardar la carga. Si es la primera vez que se usa, falta correr supabase/sql/2026-07-02_salas_simulacion_avanzado.sql en Supabase.');
     } finally {
       setGuardando(false);
     }
