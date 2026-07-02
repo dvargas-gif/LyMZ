@@ -366,6 +366,53 @@ function logMov(art,desde,hacia,tipo){
   // --- FIN AGREGADO ---
 }
 
+// --- AGREGADO PARA PERSISTENCIA (Supabase, vía el padre) ---
+// No cambia la lógica de mover/deshacer/render: son notificaciones adicionales
+// que se disparan DESPUÉS de que confirmar()/soltarCuerpoEn()/deshacer() ya
+// aplicaron el cambio sobre CUERPOS, igual que ya hacía logMov() con auditoría.
+function notificarPosicion(art,pas,col,niv){
+  try{
+    if(window.parent && window.parent!==window){
+      window.parent.postMessage({type:'slotting:posicion',payload:{articulo:art,pasillo:pas,columna:col,nivel:niv}}, '*');
+    }
+  }catch(e){}
+}
+// Igual que notificarPosicion, pero además deja constancia en la auditoría
+// (estado "Deshecho") sin tocar el registro visual del terminal — deshacer()
+// nunca escribió ahí y esto no cambia eso.
+function notificarDeshecho(art,desde,hacia){
+  try{
+    if(window.parent && window.parent!==window){
+      window.parent.postMessage({type:'slotting:deshecho',payload:{articulo:art,desde,hacia}}, '*');
+    }
+  }catch(e){}
+}
+// Reconstruye en CUERPOS (el estado base ya cargado) la posición guardada de
+// un artículo. Usa el mismo patrón de "buscar, sacar, insertar" que ya usa
+// confirmar() — pero es una función NUEVA, no reemplaza ni toca confirmar().
+function aplicarPosicionGuardada(art,pas,col,niv){
+  let articuloObj=null;
+  for(const key in CUERPOS){
+    const cu=CUERPOS[key];
+    for(const n in cu.niveles){
+      const idx=cu.niveles[n].findIndex(a=>a.art===art);
+      if(idx>=0){
+        articuloObj=cu.niveles[n].splice(idx,1)[0];
+        if(cu.niveles[n].length===0)delete cu.niveles[n];
+        break;
+      }
+    }
+    if(articuloObj)break;
+  }
+  if(!articuloObj)return;
+  const destKey=pas+"|"+col;
+  if(!CUERPOS[destKey])CUERPOS[destKey]={pas,col:parseInt(col),clase:"-",grupo:"-",tipo:niv==="CUERPO"?"CUERPO":"NORMAL",niveles:{}};
+  const cuD=CUERPOS[destKey];
+  cuD.niveles[niv]=cuD.niveles[niv]||[];
+  cuD.niveles[niv].push(articuloObj);
+}
+// --- FIN AGREGADO PARA PERSISTENCIA ---
+
 const grid=document.getElementById("grid");const cellRefs={};
 const GRUPO_GAP_DESPUES=["MZ01","MZ03","MZ05","MZ07"]; // corredor tras estos pasillos (MZ01 solo, MZ02-03, MZ04-05, MZ06-07, MZ08 solo)
 function render(){
@@ -555,6 +602,7 @@ function confirmar(destKey,niv){
     desde:`${cuO.pas}-C${String(cuO.col).padStart(3,'0')}-${desdeNiv}`,
     hacia:`${cuD.pas}-C${dcol}-${niv}`});
   logMov(art, `${cuO.pas}-C${String(cuO.col).padStart(3,'0')}-${desdeNiv}`, `${cuD.pas}-C${dcol}-${niv}`, 'suelto');
+  notificarPosicion(art, cuD.pas, cuD.col, niv);
   moviendo=null;
   document.getElementById("movebar").className="movebar";
   document.getElementById("badge").textContent=cambios.length+" cambios";
@@ -580,6 +628,8 @@ function deshacer(){
       }
       CUERPOS[dkey].niveles[dniv]=CUERPOS[dkey].niveles[dniv]||[];
       CUERPOS[dkey].niveles[dniv].push(a);
+      notificarPosicion(c.art, c.dpas, c.dcol, dniv);
+      notificarDeshecho(c.art, `${c.hpas}-C${String(c.hcol).padStart(3,'0')}-${hniv}`, `${c.dpas}-C${String(c.dcol).padStart(3,'0')}-${dniv}`);
     }
   }
   document.getElementById("badge").textContent=cambios.length+" cambios";render();
@@ -625,6 +675,7 @@ function soltarCuerpoEn(destKey){
   // crear destino con la copia, conservando clase/tipo del origen
   CUERPOS[destKey]={pas:dpas,col:dcol,clase:cuO.clase,grupo:cuO.grupo,tipo:cuO.tipo,niveles:nivelesCopia};
   logMov(`cuerpo completo (${Object.values(nivelesCopia).reduce((s,l)=>s+l.length,0)} art)`, `${cuO.pas}-C${colO}`, `${dpas}-C${colD}`, 'cuerpo');
+  for(const niv in nivelesCopia){nivelesCopia[niv].forEach(a=>notificarPosicion(a.art, dpas, dcol, niv));}
   // borrar el origen -> queda en blanco
   delete CUERPOS[moviendo.desdeKey];
   moviendo=null;
@@ -663,4 +714,21 @@ function exportar(){
   XLSX.writeFile(wb,"Slotting_editado.xlsx");
 }
 render();
+
+// --- AGREGADO PARA PERSISTENCIA: carga del último estado guardado ---
+// El mapa siempre arranca y se ve igual aunque esto falle o tarde (ya se
+// llamó a render() arriba con los datos base) — esto solo aplica ENCIMA los
+// movimientos guardados en Supabase, y vuelve a pintar. No reemplaza el
+// primer render(), lo complementa.
+try{
+  if(window.parent && window.parent!==window){
+    window.addEventListener('message', function(ev){
+      if(!ev.data || ev.data.type!=='slotting:estadoInicial')return;
+      const posiciones=ev.data.payload||[];
+      posiciones.forEach(p=>aplicarPosicionGuardada(p.articulo,p.pasillo,p.columna,p.nivel));
+      render();
+    });
+    window.parent.postMessage({type:'slotting:solicitarEstado'}, '*');
+  }
+}catch(e){}
 </script></body></html>

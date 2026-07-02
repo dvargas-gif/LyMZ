@@ -42,19 +42,24 @@ export const auditService = {
    * Este es el método que llama SlottingFrame cuando recibe el postMessage
    * emitido por el hook agregado en mapa_editable_slotting.html.
    */
-  async registrarMovimiento({ usuarioId, usuarioNombre, ip, desde, hacia, articulo, tipoMovimiento, cantidad = 1 }) {
+  async registrarMovimiento({ usuarioId, usuarioNombre, ip, desde, hacia, articulo, tipoMovimiento, cantidad = 1, estado = ESTADOS.CORRECTO }) {
     const origen = parsearUbicacion(desde);
     const destino = parsearUbicacion(hacia);
     return this.registrar({
       usuarioId, usuarioNombre, ip,
       accion: ACCIONES.MOVIMIENTO,
-      estado: ESTADOS.CORRECTO,
+      estado,
       rackOrigen: origen.rack, nivelOrigen: origen.nivel,
       rackDestino: destino.rack, nivelDestino: destino.nivel,
       articulo, cantidad,
       tipoMovimiento: tipoMovimiento === 'cuerpo' ? 'cuerpo_completo' : 'individual',
       observaciones: '',
     });
+  },
+
+  /** Deshacer un movimiento — mismo registro que un movimiento normal, pero con estado "Deshecho". */
+  async registrarDeshecho({ usuarioId, usuarioNombre, ip, desde, hacia, articulo }) {
+    return this.registrarMovimiento({ usuarioId, usuarioNombre, ip, desde, hacia, articulo, estado: ESTADOS.DESHECHO });
   },
 
   async listar(filtros = {}) {
