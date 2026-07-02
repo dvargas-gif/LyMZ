@@ -106,3 +106,33 @@ body {
 .kpi-mini--warn .v { color: var(--red); }
 
 @media (max-width: 1000px) { .dash-g2 { grid-template-columns: 1fr; } }
+
+/* ---- Bienvenida personalizada (Admin/Supervisor) ---- */
+@keyframes saludoIn { from { opacity: 0; transform: translate(-50%, -16px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes saludoOut { from { opacity: 1; transform: translate(-50%, 0) scale(1); } to { opacity: 0; transform: translate(-50%, -16px) scale(.96); } }
+.saludo-toast {
+  position: fixed; top: 20px; left: 50%; max-width: 90vw;
+  background: linear-gradient(135deg, var(--accent), #2E8B8F);
+  color: #fff; padding: 16px 22px; border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(21, 69, 74, .35);
+  display: flex; align-items: center; gap: 12px;
+  z-index: 3000; animation: saludoIn .5s cubic-bezier(.34, 1.56, .64, 1) forwards;
+}
+.saludo-toast.saliendo { animation: saludoOut .35s ease forwards; }
+.saludo-toast__icono { font-size: 24px; }
+.saludo-toast__texto strong { font-size: 15px; display: block; letter-spacing: -.2px; }
+.saludo-toast__texto span { font-size: 12px; opacity: .85; }
+.saludo-toast__cerrar { background: rgba(255, 255, 255, .18); border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; margin-left: 4px; flex-shrink: 0; }
+.saludo-toast__cerrar:hover { background: rgba(255, 255, 255, .3); }
+
+.bienvenida-overlay { position: fixed; inset: 0; background: rgba(28, 58, 62, .6); display: flex; align-items: center; justify-content: center; z-index: 3000; padding: 20px; }
+.bienvenida-card { background: #fff; border-radius: 18px; max-width: 420px; width: 100%; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); animation: saludoIn .45s cubic-bezier(.34, 1.56, .64, 1); }
+.bienvenida-card__header { background: linear-gradient(135deg, var(--accent), #2E8B8F); color: #fff; padding: 28px 26px 22px; }
+.bienvenida-card__header .emoji { font-size: 32px; display: block; margin-bottom: 8px; }
+.bienvenida-card__header h2 { font-size: 19px; font-weight: 700; margin-bottom: 4px; }
+.bienvenida-card__header p { font-size: 13px; opacity: .9; }
+.bienvenida-card__body { padding: 22px 26px 26px; }
+.bienvenida-card__body input { width: 100%; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; font-family: inherit; margin-bottom: 14px; }
+.bienvenida-card__body button[type=submit] { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.bienvenida-card__body button[type=submit]:disabled { opacity: .5; cursor: default; }
+.bienvenida-card__omitir { display: block; text-align: center; margin-top: 12px; font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; width: 100%; }

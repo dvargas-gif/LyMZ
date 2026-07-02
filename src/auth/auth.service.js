@@ -14,13 +14,13 @@ async function obtenerIP() {
 async function cargarPerfil(user) {
   const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
   if (!data) return null;
-  return { usuarioId: user.id, nombre: data.nombre, usuario: user.email, rol: data.rol, activo: data.activo };
+  return { usuarioId: user.id, nombre: data.nombre, usuario: user.email, rol: data.rol, activo: data.activo, apodo: data.apodo };
 }
 
 function construirSesion(perfil, ip) {
   return {
     usuarioId: perfil.usuarioId, nombre: perfil.nombre, usuario: perfil.usuario,
-    rol: perfil.rol, inicio: new Date().toISOString(), ip,
+    rol: perfil.rol, apodo: perfil.apodo, inicio: new Date().toISOString(), ip,
   };
 }
 
