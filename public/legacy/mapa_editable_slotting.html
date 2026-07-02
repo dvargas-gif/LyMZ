@@ -25,7 +25,7 @@ h1{font-size:27.6px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
 .search input{padding:8px 12px;border:1px solid #C8C2B4;border-radius:8px;font-size:14.95px;width:220px;font-family:inherit}
 .changes-badge{background:#E07B39;color:#fff;font-size:13.8px;font-weight:700;padding:4px 10px;border-radius:12px}
 .res{font-size:13.8px;color:#2E7D83;font-weight:600;width:100%;margin-top:4px}
-.wrap{overflow-x:auto;padding-bottom:12px;max-width:calc(100% - 530px)}
+.wrap{overflow:hidden;padding-bottom:12px;max-width:calc(100% - 530px)}
 @keyframes bandaFlow{0%{background-position:0 22px}100%{background-position:0 0}}
 .btn-lock{background:#E8E2D2;color:#6E7A72}
 .btn-lock:hover{background:#DDD6C4}
@@ -357,8 +357,35 @@ function aplicarConfiguracion(cfg){
     if(sw('swA')){sw('swA').style.background=ZCOL.A;sw('swB').style.background=ZCOL.B;sw('swC').style.background=ZCOL.C;sw('swD').style.background=ZCOL.D;}
   }
   render();
+  ajustarEscalaGrid();
 }
 // --- FIN AGREGADO PARA CONFIGURACIÓN ---
+
+// --- AGREGADO: escalar el croquis para que nunca haga scroll horizontal ---
+// #grid tiene un ancho natural fijo (según cantidad de columnas y tamaño de
+// celda). Si ese ancho no entra en .wrap, en vez de mostrar una barra de
+// scroll (como antes), se reduce PROPORCIONALMENTE con transform:scale.
+// No cambia render() ni ninguna celda: es una transformación visual sobre
+// el contenedor #grid ya construido.
+function ajustarEscalaGrid(){
+  const wrap=document.querySelector('.wrap');
+  const grid=document.getElementById('grid');
+  if(!wrap||!grid)return;
+  grid.style.transform='none'; // medir el tamaño real, sin una escala previa aplicada
+  const anchoDisponible=wrap.clientWidth;
+  const anchoNatural=grid.scrollWidth;
+  const altoNatural=grid.scrollHeight;
+  if(!anchoDisponible||anchoNatural<=anchoDisponible){
+    wrap.style.height='';
+    return; // entra tal cual, sin necesidad de escalar
+  }
+  const factor=anchoDisponible/anchoNatural;
+  grid.style.transformOrigin='top left';
+  grid.style.transform='scale('+factor+')';
+  wrap.style.height=Math.ceil(altoNatural*factor)+'px'; // compensa el alto para no dejar espacio vacío
+}
+window.addEventListener('resize', ajustarEscalaGrid);
+// --- FIN AGREGADO DE ESCALADO ---
 const GAPNAME={9:"PASILLO",19:"PASILLO",26:"PASILLO"};
 const NIVORDER=["N05","N04","N03","N02","N01","CUERPO"];
 let cambios=[];           // log de movimientos
@@ -840,6 +867,7 @@ function exportar(){
   XLSX.writeFile(wb,"Slotting_editado.xlsx");
 }
 render();
+ajustarEscalaGrid();
 
 // --- AGREGADO PARA PERSISTENCIA: carga del último estado guardado ---
 // El mapa siempre arranca y se ve igual aunque esto falle o tarde (ya se
@@ -857,6 +885,7 @@ try{
       (estado.descripciones||[]).forEach(d=>{DESCRIPCIONES[d.articulo]=d.descripcion;});
       aplicarConfiguracion(estado.configuracion);
       render();
+      ajustarEscalaGrid();
       // Si el usuario ya tenía un rack abierto (clic muy rápido, antes de que
       // llegara esta respuesta), refresca ese modal para que muestre las
       // descripciones recién cargadas. abrir() ya existía; solo se reinvoca.
