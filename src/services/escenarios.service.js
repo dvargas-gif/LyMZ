@@ -1,5 +1,8 @@
 import { supabase } from './supabaseClient.js';
 import { posicionesService } from './posiciones.service.js';
+import { escenarioPosicionesService } from './escenarioPosiciones.service.js';
+import { escenarioEliminadosService } from './escenarioEliminados.service.js';
+import { escenarioBloqueosService } from './escenarioBloqueos.service.js';
 
 /**
  * "Salas" de simulación: copias aisladas del mapa donde Admin/Supervisor
@@ -39,6 +42,37 @@ export const escenariosService = {
 
   async eliminar(id) {
     const { error } = await supabase.from('escenarios').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  /**
+   * "Volver al acomodo base": tira todo lo propio de la sala (posiciones
+   * movidas, artículos limpiados, bloqueos) y vuelve a copiar el estado REAL
+   * actual — igual que hace crear(), pero sobre una sala que ya existe. El
+   * mapa real nunca se toca acá, solo se LEE (posicionesService.listar()).
+   */
+  async restaurarDesdeBase({ escenarioId, usuarioId }) {
+    const [posicionesReales] = await Promise.all([
+      posicionesService.listar(),
+      escenarioPosicionesService.borrarTodos(escenarioId),
+      escenarioEliminadosService.borrarTodos(escenarioId),
+      escenarioBloqueosService.borrarTodos(escenarioId),
+    ]);
+    if (posicionesReales.length > 0) {
+      const filas = posicionesReales.map(p => ({
+        escenario_id: escenarioId,
+        articulo: p.articulo, pasillo: p.pasillo, columna: p.columna, nivel: p.nivel,
+        clase: p.clase, grupo: p.grupo, tipo: p.tipo,
+        actualizado_por: usuarioId,
+      }));
+      const { error } = await supabase.from('escenario_posiciones').insert(filas);
+      if (error) throw error;
+    }
+  },
+
+  /** Checkpoint manual del botón "Guardar simulación" — confirma al usuario que quedó todo al día. */
+  async tocar(id) {
+    const { error } = await supabase.from('escenarios').update({ actualizado_en: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
   },
 };

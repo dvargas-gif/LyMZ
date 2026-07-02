@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { reporteService } from '../services/reporte.service.js';
 import { colorDeClase } from '../constants/coloresArticulo.js';
 
-export default function ReportePanel({ onCerrar }) {
+export default function ReportePanel({ onCerrar, escenario = null }) {
   const [filas, setFilas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [actualizadoEn, setActualizadoEn] = useState(null);
 
   async function cargar() {
-    const datos = await reporteService.obtener();
+    const datos = await reporteService.obtener(escenario?.id ?? null);
     setFilas(datos);
     setActualizadoEn(new Date());
     setCargando(false);
@@ -17,9 +17,9 @@ export default function ReportePanel({ onCerrar }) {
 
   useEffect(() => {
     cargar();
-    const desuscribir = reporteService.suscribirCambios(() => cargar());
+    const desuscribir = reporteService.suscribirCambios(() => cargar(), escenario?.id ?? null);
     return desuscribir;
-  }, []);
+  }, [escenario?.id]);
 
   const filtradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -35,11 +35,15 @@ export default function ReportePanel({ onCerrar }) {
     <div style={overlayStyle} onClick={e => e.target === e.currentTarget && onCerrar()}>
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600 }}>Reporte de posiciones</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 600 }}>
+            {escenario ? `🧪 Reporte de la sala — ${escenario.nombre}` : 'Reporte de posiciones'}
+          </h2>
           <button onClick={onCerrar} style={closeBtnStyle}><i className="ti ti-x" /></button>
         </div>
         <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 4 }}>
-          Se actualiza solo cuando alguien mueve algo en el mapa real.
+          {escenario
+            ? 'Datos exclusivos de esta sala — no incluye ni afecta al mapa real.'
+            : 'Se actualiza solo cuando alguien mueve algo en el mapa real.'}
           {actualizadoEn && ` Última actualización: ${actualizadoEn.toLocaleTimeString()}.`}
         </p>
 

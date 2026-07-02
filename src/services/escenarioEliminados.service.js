@@ -15,4 +15,10 @@ export const escenarioEliminadosService = {
     });
     if (error) throw error;
   },
+
+  /** Usado por "Volver al acomodo base": los artículos "limpiados" dejan de estarlo. */
+  async borrarTodos(escenarioId) {
+    const { error } = await supabase.from('escenario_eliminados').delete().eq('escenario_id', escenarioId);
+    if (error) throw error;
+  },
 };

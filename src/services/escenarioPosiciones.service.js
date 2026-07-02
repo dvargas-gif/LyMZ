@@ -29,4 +29,10 @@ export const escenarioPosicionesService = {
     });
     if (error) throw error;
   },
+
+  /** Usado por "Volver al acomodo base" antes de volver a copiar el estado real. */
+  async borrarTodos(escenarioId) {
+    const { error } = await supabase.from('escenario_posiciones').delete().eq('escenario_id', escenarioId);
+    if (error) throw error;
+  },
 };

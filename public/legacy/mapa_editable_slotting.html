@@ -32,6 +32,7 @@ h1{font-size:27.6px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
 .btn-lock.activo{background:#C0392B;color:#fff}
 .cell.bloqueada{background:repeating-linear-gradient(45deg,#B4B2A9 0 6px,#9A988F 6px 12px)!important;cursor:pointer;opacity:.85}
 .cell.bloqueada .n,.cell.bloqueada .cestamp{text-decoration:line-through;color:#4A4636!important}
+.cell.seleccionada{outline:3px solid #7A2E2E;outline-offset:1px;box-shadow:0 0 0 3px rgba(122,46,46,.25) inset}
 .cell .candado{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:16.1px;z-index:4}
 .caja{position:absolute;left:50%;margin-left:-6px;width:12px;height:10px;background:#B99A78;border:1px solid #9A7E5E;border-radius:2px;z-index:2;opacity:.85;animation:cajaBaja 7s linear infinite}
 .caja::after{content:"";position:absolute;top:50%;left:0;right:0;height:1.5px;margin-top:-0.75px;background:#9A6E42}
@@ -445,6 +446,54 @@ function toggleBloqueo(key){
   notificarBloqueo(key, bloqueadas.has(key));
   render();
 }
+// --- AGREGADO: selección múltiple para "Limpiar área" — SOLO existe dentro
+// de una sala (los botones que la disparan ni se muestran en el mapa real).
+// No toca modoBloqueo/bloqueadas ni la lógica de mover: es un modo aparte,
+// chequeado ANTES en el onclick de cada celda (mismo patrón que ya usa
+// modoBloqueo), así que nunca interfiere con mover/deshacer/drag&drop.
+let modoSeleccionArea=false;
+const seleccionArea=new Set();
+function toggleModoSeleccionArea(){
+  if(!ESCENARIO_ID)return;
+  modoSeleccionArea=!modoSeleccionArea;
+  if(!modoSeleccionArea)seleccionArea.clear();
+  render();
+  notificarSeleccionArea();
+}
+function alternarSeleccionCelda(key){
+  if(seleccionArea.has(key))seleccionArea.delete(key);
+  else seleccionArea.add(key);
+  render();
+  notificarSeleccionArea();
+}
+// Avisa a React cuántas posiciones hay seleccionadas — así el botón
+// "Limpiar área (N)" de la barra de acciones muestra el conteo real.
+function notificarSeleccionArea(){
+  try{
+    if(window.parent && window.parent!==window){
+      window.parent.postMessage({type:'slotting:seleccionArea',payload:{cantidad:seleccionArea.size,escenarioId:ESCENARIO_ID}}, '*');
+    }
+  }catch(e){}
+}
+function limpiarAreaSeleccionada(){
+  if(!ESCENARIO_ID)return;
+  if(seleccionArea.size===0){alert('Primero tocá "📦 Seleccionar área" y elegí al menos una posición.');return;}
+  if(!confirm(`¿Vaciar ${seleccionArea.size} posición(es) seleccionada(s) en esta sala? Esta acción no se puede deshacer.`))return;
+  const keys=[...seleccionArea];
+  keys.forEach(key=>{
+    const cu=CUERPOS[key];
+    if(!cu)return;
+    const articulos=[];
+    for(const niv in cu.niveles)cu.niveles[niv].forEach(a=>articulos.push(a.art));
+    delete CUERPOS[key];
+    articulos.forEach(art=>notificarEliminado(art));
+  });
+  seleccionArea.clear();
+  modoSeleccionArea=false;
+  render();
+  notificarSeleccionArea();
+}
+// --- FIN AGREGADO SELECCIÓN DE ÁREA ---
 function logMov(art,desde,hacia,tipo){
   const log=document.getElementById("termlog");
   if(log.querySelector("div") && log.children.length===1 && log.children[0].style.fontStyle==="italic"){log.innerHTML="";}
@@ -631,15 +680,19 @@ function render(){
         if(!esC){const llp=consumoTotal(cu)/4.5;const lcol=colorLlenura(llp);
           cell.innerHTML+=`<span style="position:absolute;bottom:2px;left:3px;right:3px;height:2.5px;border-radius:2px;background:rgba(0,0,0,.08)"><span style="display:block;height:100%;border-radius:2px;width:${Math.min(llp*100,100)}%;background:${lcol}"></span></span>`;}
         cell.onclick=()=>{
+          if(modoSeleccionArea){alternarSeleccionCelda(key);return;}
           if(modoBloqueo){toggleBloqueo(key);return;}
           if(estaBloqueada)return; // bloqueada: no se abre ni recibe
           if(moviendo&&moviendo.cuerpoCompleto) soltarCuerpoEn(key); else if(moviendo) soltarEn(key); else abrir(key);
         };
+        if(seleccionArea.has(key))cell.classList.add("seleccionada");
       }else{cell.className="cell empty";cell.onclick=()=>{
+          if(modoSeleccionArea){alternarSeleccionCelda(key);return;}
           if(modoBloqueo){toggleBloqueo(key);return;}
           if(estaBloqueada)return;
           if(moviendo&&moviendo.cuerpoCompleto) soltarCuerpoEn(key); else if(moviendo) soltarEn(key);
-        };}
+        };
+        if(seleccionArea.has(key))cell.classList.add("seleccionada");}
       // etiqueta del número de columna al lado (arriba-izquierda) de cada cuadro
       const colTxt=cu?((cu.tipo==="CUERPO"||nArts(cu)/20>0.5)?"#FFFFFF":"#5F5E5A"):"#9A9684";
       cell.innerHTML+=`<span style="position:absolute;top:2px;left:3px;font-size:5.5px;font-weight:600;letter-spacing:-.2px;color:${colTxt};opacity:.65">${String(c).padStart(3,"0")}</span>`;
@@ -906,4 +959,15 @@ try{
     window.parent.postMessage({type:'slotting:solicitarEstado', payload:{escenarioId:ESCENARIO_ID}}, '*');
   }
 }catch(e){}
+
+// --- AGREGADO: comandos remotos desde la barra de acciones de React (SOLO
+// dentro de una sala). No reemplaza el listener de estadoInicial de arriba,
+// es uno nuevo aparte; cada acción llama a una función que YA existe.
+window.addEventListener('message', function(ev){
+  if(!ev.data || ev.data.type!=='slotting:comando' || !ESCENARIO_ID)return;
+  const accion=ev.data.payload?.accion;
+  if(accion==='activarModoBloqueo')toggleModoBloqueo();
+  else if(accion==='activarModoSeleccion')toggleModoSeleccionArea();
+  else if(accion==='limpiarSeleccion')limpiarAreaSeleccionada();
+});
 </script></body></html>

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { auditService } from '../audit/audit.service.js';
 import { posicionesService } from '../services/posiciones.service.js';
 import { bloqueosService } from '../services/bloqueos.service.js';
 import { articulosService } from '../services/articulos.service.js';
 import { escenarioPosicionesService } from '../services/escenarioPosiciones.service.js';
 import { escenarioEliminadosService } from '../services/escenarioEliminados.service.js';
+import { escenarioBloqueosService } from '../services/escenarioBloqueos.service.js';
 import { configMapaService } from '../services/configMapa.service.js';
 import { puede } from '../auth/roles.js';
 
@@ -28,14 +29,37 @@ import { puede } from '../auth/roles.js';
  * Modo sala: si se pasa `escenario={id,nombre}`, el MISMO mapa se abre con
  * ?escenario=<id> en la URL — el propio HTML legacy se encarga de avisar
  * ese id en cada mensaje (sin tocar su lógica de mover/deshacer). Acá solo
- * enrutamos: en modo sala las posiciones van a `escenario_posiciones` (nunca
- * a `posiciones_actuales`) y se ignoran auditoría/bloqueos reales — una sala
- * nunca puede escribir en el mapa real.
+ * enrutamos: en modo sala las posiciones Y los bloqueos van a las tablas
+ * `escenario_*` (nunca a las reales) y se ignora la auditoría real — una
+ * sala nunca puede escribir en el mapa real.
+ *
+ * Comandos remotos (forwardRef): la barra de acciones de una sala vive en
+ * React (SalasView), fuera del iframe, así que expone `activarModoBloqueo`,
+ * `activarModoSeleccion` y `limpiarSeleccion` — cada uno solo reenvía un
+ * postMessage que el propio mapa legacy ya sabe escuchar y resolver con una
+ * función que ya existía ahí (no se duplica nada de esa lógica acá).
+ * `onCambio` avisa a React cada vez que algo se modificó de verdad en la
+ * sala (para el contador de "cambios sin guardar" de la barra de acciones).
  */
-export default function SlottingFrame({ sesion, escenario }) {
+const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onCambio, onSeleccionCambia }, refExterno) {
   const ref = useRef(null);
   const soloLectura = !puede(sesion.rol, escenario ? 'usar_salas' : 'mover');
   const [anchoContenedor, setAnchoContenedor] = useState(null);
+
+  useImperativeHandle(refExterno, () => ({
+    activarModoBloqueo() {
+      ref.current?.contentWindow?.postMessage({ type: 'slotting:comando', payload: { accion: 'activarModoBloqueo' } }, '*');
+    },
+    activarModoSeleccion() {
+      ref.current?.contentWindow?.postMessage({ type: 'slotting:comando', payload: { accion: 'activarModoSeleccion' } }, '*');
+    },
+    limpiarSeleccion() {
+      ref.current?.contentWindow?.postMessage({ type: 'slotting:comando', payload: { accion: 'limpiarSeleccion' } }, '*');
+    },
+    recargar() {
+      try { ref.current?.contentWindow?.location.reload(); } catch { /* noop */ }
+    },
+  }), []);
 
   const src = escenario
     ? `/legacy/mapa_editable_slotting.html?escenario=${escenario.id}&nombre=${encodeURIComponent(escenario.nombre)}`
@@ -62,6 +86,7 @@ export default function SlottingFrame({ sesion, escenario }) {
         const { articulo, pasillo, columna, nivel, clase, grupo, tipo, escenarioId } = ev.data.payload;
         if (escenarioId) {
           escenarioPosicionesService.guardar({ escenarioId, articulo, pasillo, columna, nivel, clase, grupo, tipo, usuarioId: sesion.usuarioId });
+          onCambio?.();
         } else {
           posicionesService.guardar({ articulo, pasillo, columna, nivel, clase, grupo, tipo, usuarioId: sesion.usuarioId });
         }
@@ -82,22 +107,35 @@ export default function SlottingFrame({ sesion, escenario }) {
 
       if (ev.data.type === 'slotting:limpiarArticulo') {
         const { articulo, escenarioId } = ev.data.payload;
-        if (escenarioId) escenarioEliminadosService.marcarEliminado({ escenarioId, articulo, usuarioId: sesion.usuarioId });
+        if (escenarioId) {
+          escenarioEliminadosService.marcarEliminado({ escenarioId, articulo, usuarioId: sesion.usuarioId });
+          onCambio?.();
+        }
         return;
       }
 
       if (ev.data.type === 'slotting:bloqueo') {
-        if (enSala) return; // las salas no manejan bloqueos físicos reales
-        const { key, pasillo, columna, bloqueada } = ev.data.payload;
-        if (bloqueada) bloqueosService.bloquear({ key, pasillo, columna, usuarioId: sesion.usuarioId });
-        else bloqueosService.desbloquear(key);
+        const { key, pasillo, columna, bloqueada, escenarioId } = ev.data.payload;
+        if (escenarioId) {
+          if (bloqueada) escenarioBloqueosService.bloquear({ escenarioId, key, pasillo, columna, usuarioId: sesion.usuarioId });
+          else escenarioBloqueosService.desbloquear(escenarioId, key);
+          onCambio?.();
+        } else {
+          if (bloqueada) bloqueosService.bloquear({ key, pasillo, columna, usuarioId: sesion.usuarioId });
+          else bloqueosService.desbloquear(key);
+        }
+        return;
+      }
+
+      if (ev.data.type === 'slotting:seleccionArea') {
+        onSeleccionCambia?.(ev.data.payload?.cantidad ?? 0);
         return;
       }
 
       if (ev.data.type === 'slotting:solicitarEstado') {
         const escenarioId = ev.data.payload?.escenarioId;
         const posicionesProm = escenarioId ? escenarioPosicionesService.listar(escenarioId) : posicionesService.listar();
-        const bloqueosProm = escenarioId ? Promise.resolve([]) : bloqueosService.listar();
+        const bloqueosProm = escenarioId ? escenarioBloqueosService.listar(escenarioId) : bloqueosService.listar();
         const eliminadosProm = escenarioId ? escenarioEliminadosService.listar(escenarioId) : Promise.resolve([]);
         const configProm = configMapaService.obtener().catch(() => ({ tema: 'claro', orientacion: 'horizontal' }));
         Promise.all([posicionesProm, bloqueosProm, articulosService.listarDescripciones(), configProm, eliminadosProm])
@@ -107,7 +145,7 @@ export default function SlottingFrame({ sesion, escenario }) {
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [sesion]);
+  }, [sesion, onCambio, onSeleccionCambia]);
 
   // Cuando se cambia el tema/orientación desde el menú de administración,
   // simplemente recargamos el iframe — el propio mapa vuelve a pedir su
@@ -151,4 +189,6 @@ export default function SlottingFrame({ sesion, escenario }) {
       />
     </div>
   );
-}
+});
+
+export default SlottingFrame;
