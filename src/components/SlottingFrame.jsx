@@ -84,12 +84,19 @@ const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onC
 
       if (ev.data.type === 'slotting:posicion') {
         const { articulo, pasillo, columna, nivel, clase, grupo, tipo, escenarioId } = ev.data.payload;
-        if (escenarioId) {
-          escenarioPosicionesService.guardar({ escenarioId, articulo, pasillo, columna, nivel, clase, grupo, tipo, usuarioId: sesion.usuarioId });
-          onCambio?.();
-        } else {
-          posicionesService.guardar({ articulo, pasillo, columna, nivel, clase, grupo, tipo, usuarioId: sesion.usuarioId });
-        }
+        const guardado = escenarioId
+          ? escenarioPosicionesService.guardar({ escenarioId, articulo, pasillo, columna, nivel, clase, grupo, tipo, usuarioId: sesion.usuarioId })
+          : posicionesService.guardar({ articulo, pasillo, columna, nivel, clase, grupo, tipo, usuarioId: sesion.usuarioId });
+        guardado
+          .then(() => { if (escenarioId) onCambio?.(); })
+          .catch(err => {
+            console.error('No se pudo guardar la posición', err);
+            // El mapa ya movió el artículo visualmente (optimista, igual que
+            // siempre) — esto solo avisa que NO quedó persistido, para que
+            // el usuario sepa que tiene que reintentar (no hace rollback
+            // automático del dibujo, sería un cambio mucho más grande).
+            ev.source?.postMessage({ type: 'slotting:errorGuardado', payload: { articulo } }, '*');
+          });
         return;
       }
 

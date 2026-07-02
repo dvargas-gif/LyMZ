@@ -43,11 +43,20 @@ h1{font-size:27.6px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
 .row{display:flex;gap:3px;align-items:center}
 .rowlabel{width:48px;font-size:13.8px;font-weight:800;color:#2E7D83;text-align:right;padding-right:6px;flex-shrink:0}
 .cell{width:40.43px;height:36.96px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;
-      font-size:10.35px;font-weight:500;border:0.5px solid rgba(0,0,0,.06);transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s;position:relative;flex-shrink:0}
+      font-size:10.35px;font-weight:500;border:0.5px solid rgba(0,0,0,.06);transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s;position:relative;flex-shrink:0;touch-action:none}
 .cell:hover{transform:scale(1.18);box-shadow:0 6px 20px rgba(0,0,0,.18);z-index:5;border-color:rgba(0,0,0,.15)}
 .cell.empty{background:#FBFAF5;border:1px dashed #E0DACE;cursor:pointer}
 .cell.hl{outline:3px solid #E07B39;outline-offset:1px;z-index:6}
 .cell.target{outline:3px dashed #2E7D83;outline-offset:1px}
+/* ---- AGREGADO: pulsación larga para arrastrar un cuerpo completo ---- */
+@keyframes pulsarLargo{from{box-shadow:0 0 0 0 rgba(192,57,43,0)}to{box-shadow:0 0 0 5px rgba(192,57,43,.45)}}
+.cell.presionando{outline:2px solid rgba(192,57,43,.35);outline-offset:2px;animation:pulsarLargo 4s linear forwards;cursor:grab;z-index:6}
+.cell.arrastrando{outline:3px solid #C0392B;opacity:.4;cursor:grabbing;z-index:7}
+.cell.destino-arrastre{outline:3px dashed #2E7D83 !important;background:rgba(46,125,131,.18) !important}
+#fantasmaDrag{position:fixed;display:none;pointer-events:none;z-index:9999;padding:8px 14px;border-radius:10px;background:#C0392B;color:#fff;
+  font-size:11.5px;font-weight:700;box-shadow:0 10px 26px rgba(0,0,0,.35);transform:translate(-50%,-130%);white-space:nowrap;font-family:inherit}
+#pistaPulsacion{position:fixed;display:none;pointer-events:none;z-index:9998;padding:6px 12px;border-radius:8px;background:#1C3A3E;color:#fff;
+  font-size:11px;font-weight:600;box-shadow:0 6px 16px rgba(0,0,0,.3);transform:translate(-50%,-140%);white-space:nowrap;opacity:.95;font-family:inherit}
 .cell .n{font-size:14.95px;font-weight:600;letter-spacing:-.3px;line-height:1}
 .cell .cestamp{font-size:9.2px;font-weight:600;letter-spacing:.5px;opacity:.9}
 .gap{width:40px;background:#D8D2C4;opacity:.5;border-radius:3px;align-self:stretch;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -706,6 +715,12 @@ function render(){
       // posición bloqueada: tachada + candado
       if(estaBloqueada){cell.classList.add("bloqueada");cell.innerHTML+=`<span class="candado">🔒</span>`;}
       if(moviendo&&!estaBloqueada)cell.classList.add("target");
+      // Pulsación larga (long-press) para arrastrar: data-key habilita ubicar
+      // la celda bajo el puntero con elementFromPoint() durante el arrastre;
+      // el pointerdown solo ARMA un temporizador, nunca reemplaza el onclick
+      // de arriba (ver iniciarPulsacion()).
+      cell.dataset.key=key;
+      cell.addEventListener('pointerdown',e=>iniciarPulsacion(e,key,cell));
       colDiv.appendChild(cell);cellRefs[key]=cell;
       // insertar PASILLO neutro (espacio extra, no slot) según los cortes de ESTE pasillo
       if(gapsPas.includes(c)){const g=document.createElement("div");g.className="gaph";g.innerHTML=`<span>PASILLO</span>`;colDiv.appendChild(g);}
@@ -908,6 +923,124 @@ function soltarCuerpoEn(destKey){
   document.getElementById("badge").textContent=cambios.length+" cambios";
   render();
 }
+
+// --- AGREGADO: pulsación larga (long-press) para arrastrar un cuerpo completo ---
+// Capa NUEVA y aparte de iniciarMover/soltarEn/confirmar/iniciarMoverCuerpo/
+// soltarCuerpoEn: no cambia ni una línea de esas funciones, solo las DISPARA
+// cuando corresponde. Con click/tap corto (soltar antes de LONGPRESS_MS, o
+// mover el puntero más de LONGPRESS_TOLERANCIA_PX) nunca se llega a armar el
+// arrastre: el navegador sigue disparando el onclick normal de la celda
+// (abrir el rack o continuar el flujo de "Mover" por modal) exactamente
+// igual que antes. Funciona igual en el mapa real y en una sala porque, al
+// activarse, reutiliza iniciarMoverCuerpo()/soltarCuerpoEn() tal cual —
+// esas funciones ya llaman a notificarPosicion(), que ya manda escenarioId.
+const LONGPRESS_MS=4000;
+const LONGPRESS_TOLERANCIA_PX=10;
+let presionLarga=null; // {key,cell,timer,startX,startY,pointerId,armado}
+
+function elPistaPulsacion(){
+  let el=document.getElementById('pistaPulsacion');
+  if(!el){el=document.createElement('div');el.id='pistaPulsacion';document.body.appendChild(el);}
+  return el;
+}
+function elFantasmaDrag(){
+  let el=document.getElementById('fantasmaDrag');
+  if(!el){el=document.createElement('div');el.id='fantasmaDrag';document.body.appendChild(el);}
+  return el;
+}
+function mostrarPista(x,y,texto){const el=elPistaPulsacion();el.textContent=texto;el.style.left=x+'px';el.style.top=y+'px';el.style.display='block';}
+function ocultarPista(){const el=document.getElementById('pistaPulsacion');if(el)el.style.display='none';}
+function mostrarFantasma(x,y,texto){const el=elFantasmaDrag();el.textContent=texto;el.style.left=x+'px';el.style.top=y+'px';el.style.display='flex';}
+function ocultarFantasma(){const el=document.getElementById('fantasmaDrag');if(el)el.style.display='none';}
+function limpiarDestinoArrastre(){document.querySelectorAll('.cell.destino-arrastre').forEach(c=>c.classList.remove('destino-arrastre'));}
+function celdaBajoPuntero(x,y){
+  const el=document.elementFromPoint(x,y);
+  return (el&&el.closest)?el.closest('[data-key]'):null;
+}
+
+function iniciarPulsacion(e,key,cell){
+  if(e.button!==undefined&&e.button!==0)return; // solo botón primario del mouse (touch no trae "button")
+  if(modoBloqueo||modoSeleccionArea||moviendo)return; // no interferir con otros modos ya activos
+  const cu=CUERPOS[key];
+  if(!cu||nArts(cu)===0)return; // nada que arrastrar en un slot vacío
+  if(bloqueadas.has(key))return;
+  cancelarPulsacion();
+  try{grid.setPointerCapture(e.pointerId);}catch(err){}
+  cell.classList.add('presionando');
+  mostrarPista(e.clientX,e.clientY,'⏳ Mantené presionado para mover…');
+  const timer=setTimeout(()=>activarArrastre(key,cell),LONGPRESS_MS);
+  presionLarga={key,cell,timer,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,armado:false};
+}
+function activarArrastre(key,cell){
+  if(!presionLarga||presionLarga.key!==key)return;
+  presionLarga.armado=true;
+  cell.classList.remove('presionando');
+  cell.classList.add('arrastrando');
+  iniciarMoverCuerpo(key); // reutiliza TAL CUAL: arma moviendo, muestra movebar y hace render()
+  // iniciarMoverCuerpo() acaba de llamar a render(), que recreó todas las
+  // celdas — la celda original quedó desmontada del DOM. Se reengancha la
+  // marca visual de "arrastrando" sobre la celda NUEVA con la misma key.
+  const nuevaCell=cellRefs[key];
+  if(nuevaCell){presionLarga.cell=nuevaCell;nuevaCell.classList.add('arrastrando');}
+}
+function moverPulsacion(e){
+  if(!presionLarga||e.pointerId!==presionLarga.pointerId)return;
+  if(presionLarga.armado){
+    const cuO=CUERPOS[presionLarga.key];
+    const na=cuO?nArts(cuO):0;
+    mostrarFantasma(e.clientX,e.clientY,`✋ Moviendo ${presionLarga.key.replace('|','-C')} (${na} art)`);
+    limpiarDestinoArrastre();
+    const destCell=celdaBajoPuntero(e.clientX,e.clientY);
+    if(destCell&&destCell.dataset.key!==presionLarga.key)destCell.classList.add('destino-arrastre');
+    return;
+  }
+  const dx=e.clientX-presionLarga.startX, dy=e.clientY-presionLarga.startY;
+  if(Math.hypot(dx,dy)>LONGPRESS_TOLERANCIA_PX)cancelarPulsacion();
+  else mostrarPista(e.clientX,e.clientY,'⏳ Mantené presionado para mover…');
+}
+function soltarPulsacion(e){
+  if(!presionLarga||e.pointerId!==presionLarga.pointerId)return;
+  const p=presionLarga;
+  try{grid.releasePointerCapture(e.pointerId);}catch(err){}
+  ocultarPista();
+  if(!p.armado){
+    // pulsación corta: se deja todo como estaba y el click normal de la
+    // celda sigue su curso solo (abrir rack / continuar flujo de Mover).
+    clearTimeout(p.timer);
+    p.cell.classList.remove('presionando');
+    presionLarga=null;
+    return;
+  }
+  clearTimeout(p.timer);
+  limpiarDestinoArrastre();
+  ocultarFantasma();
+  p.cell.classList.remove('presionando','arrastrando');
+  presionLarga=null;
+
+  const destCell=celdaBajoPuntero(e.clientX,e.clientY);
+  const destKey=destCell?destCell.dataset.key:null;
+
+  if(!destKey){cancelarMover();return;} // soltó afuera del mapa: se cancela, nada cambia
+  if(bloqueadas.has(destKey)){
+    document.getElementById('movebar').innerHTML=`⚠ Esa posición está bloqueada, no se puede soltar ahí. <button class="cancel" onclick="cancelarMover()">cerrar</button>`;
+    setTimeout(()=>{ if(moviendo)cancelarMover(); },2500);
+    return;
+  }
+  soltarCuerpoEn(destKey); // reutiliza TAL CUAL: valida vacío/mismo origen, guarda y notifica
+}
+function cancelarPulsacion(){
+  if(!presionLarga)return;
+  clearTimeout(presionLarga.timer);
+  presionLarga.cell.classList.remove('presionando','arrastrando');
+  try{grid.releasePointerCapture(presionLarga.pointerId);}catch(err){}
+  ocultarPista();ocultarFantasma();limpiarDestinoArrastre();
+  presionLarga=null;
+}
+grid.addEventListener('pointermove',moverPulsacion);
+grid.addEventListener('pointerup',soltarPulsacion);
+grid.addEventListener('pointercancel',()=>cancelarPulsacion());
+// --- FIN AGREGADO PULSACIÓN LARGA ---
+
 function buscar(){
   const q=document.getElementById("buscar").value.trim().toLowerCase();
   Object.values(cellRefs).forEach(c=>c&&c.classList.remove("hl"));
@@ -976,5 +1109,13 @@ window.addEventListener('message', function(ev){
   if(accion==='activarModoBloqueo')toggleModoBloqueo();
   else if(accion==='activarModoSeleccion')toggleModoSeleccionArea();
   else if(accion==='limpiarSeleccion')limpiarAreaSeleccionada();
+});
+
+// Avisa si un movimiento (click, modal o arrastre por pulsación larga) no
+// se pudo guardar en Supabase — el dibujo ya se movió (optimista, como
+// siempre), esto solo informa que hay que reintentar.
+window.addEventListener('message', function(ev){
+  if(!ev.data || ev.data.type!=='slotting:errorGuardado')return;
+  alert(`⚠ No se pudo guardar el movimiento de "${ev.data.payload?.articulo||''}". Revisá tu conexión e intentá moverlo de nuevo.`);
 });
 </script></body></html>
