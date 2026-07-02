@@ -75,7 +75,8 @@ body {
 .panel h2 { font-size: 17px; font-weight: 600; }
 .filtros-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .filtros-bar input, .filtros-bar select { font-size: 12px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; }
-.filtros-bar button { font-size: 12px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+.filtros-bar button:not(.btn-primary) { font-size: 12px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+.filtros-bar button:disabled { opacity: .5; cursor: not-allowed; }
 .btn-primary { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tabla th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--line); }
