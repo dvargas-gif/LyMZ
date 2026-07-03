@@ -28,19 +28,10 @@ function ajustarEscalaGrid(){
 }
 window.addEventListener('resize', ajustarEscalaGrid);
 // --- FIN AGREGADO DE ESCALADO ---
-// Un solo lugar que actualiza LOS DOS badges de "cambios" (el de la toolbar
-// y el nuevo de la cabecera, junto al botón "Guardar Cambios") — evita que
-// alguno de los dos se desincronice del contador real (cambios.length).
+// Actualiza el badge de "cambios" de la toolbar (cambios.length).
 function actualizarBadgeCambios(){
   document.getElementById("badge").textContent=cambios.length+" cambios";
-  const bc=document.getElementById("badgeCabecera");
-  if(bc)bc.textContent=cambios.length;
 }
-// "Guardar Cambios" es un botón nuevo del rediseño visual: todo movimiento
-// YA se guarda solo (vía postMessage a React/Supabase) en cuanto ocurre, no
-// existe un paso de "guardar" separado — este botón es honesto sobre eso
-// en vez de simular una acción que no existe.
-function avisarGuardadoAutomatico(){alert("✅ Los cambios se guardan automáticamente a medida que los hacés. No hace falta ningún paso extra.");}
 // "Añadir rack" SÍ es una función real: le avisa a React (que es quien
 // habla con Supabase) que el Administrador quiere extender un pasillo.
 // El mapa nunca escribe en Supabase directamente — mismo patrón que ya usa

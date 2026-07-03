@@ -10,6 +10,7 @@
   --green: #1D9E75;
   --amber: #D08A1E;
   --red: #C0392B;
+  --overlay: rgba(28, 58, 62, .55); /* mismo tono que ya usan ModalBase/BienvenidaModal inline — token nuevo para código nuevo, no reescribe los inline existentes en esta pasada */
 }
 * { box-sizing: border-box; }
 body {
@@ -21,8 +22,11 @@ body {
 }
 .muted { color: var(--muted); }
 
-/* ---- Shell / Header ---- */
-.app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+/* ---- Shell / Header ----
+   padding-left reserva el ancho del riel colapsado del Sidebar (ver abajo)
+   — el Sidebar es fixed/overlay y no participa del flujo, así que sin este
+   padding el Header y .app-main arrancarían tapados debajo suyo. */
+.app-shell { display: flex; flex-direction: column; min-height: 100vh; padding-left: 60px; }
 .app-header {
   background: var(--card); border-bottom: 1px solid var(--line);
   padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;
@@ -38,15 +42,36 @@ body {
   cursor: pointer; color: var(--muted); font-size: 15px;
 }
 .btn-logout:hover { background: #E4E0D3; }
-
-/* ---- Tabs ---- */
-.tabs { display: flex; gap: 4px; padding: 0 24px; background: var(--card); border-bottom: 1px solid var(--line); }
-.tabs__item {
-  background: none; border: none; border-bottom: 2px solid transparent;
-  color: var(--muted); font-weight: 500; font-size: 14px; padding: 12px 16px; cursor: pointer; font-family: inherit;
-}
-.tabs__item--activa { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
 .app-main { flex: 1; padding: 24px; max-width: 1500px; margin: 0 auto; width: 100%; }
+
+/* ---- Sidebar (navegación + herramientas administrativas — reemplaza a
+   <Tabs> y al menú flotante) ----
+   Colapsado: riel fijo de 60px, SIEMPRE presente (ver padding-left de
+   .app-shell) porque ahora vive acá la navegación primaria de toda la app.
+   Expandido: se superpone sobre el contenido (no vuelve a correr el
+   layout), para no tocar el cálculo de ancho de .slotting-frame. */
+.sidebar__scrim { position: fixed; inset: 0; background: var(--overlay); z-index: 998; }
+.sidebar {
+  position: fixed; left: 0; top: 0; bottom: 0; z-index: 999;
+  width: 60px; background: var(--card); border-right: 1px solid var(--line);
+  box-shadow: 2px 0 10px rgba(0, 0, 0, .06);
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 8px; overflow: hidden; transition: width .2s ease, box-shadow .2s ease;
+}
+.sidebar--expandido { width: 240px; box-shadow: 4px 0 24px rgba(0, 0, 0, .16); }
+.sidebar__toggle, .sidebar__item {
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  height: 44px; padding: 0 11px; border-radius: 10px;
+  background: none; border: none; color: var(--muted);
+  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
+}
+.sidebar__toggle i, .sidebar__item i { font-size: 20px; width: 20px; text-align: center; flex-shrink: 0; }
+.sidebar__toggle:hover, .sidebar__item:hover { background: var(--bg); color: var(--accent); }
+.sidebar__toggle { color: var(--accent); margin-bottom: 8px; }
+.sidebar__item--activo { background: var(--accent); color: #fff; }
+.sidebar__item--activo:hover { background: var(--accent); color: #fff; }
+.sidebar__separador { height: 1px; background: var(--line); margin: 8px 3px; flex-shrink: 0; }
 
 /* ---- Login ---- */
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }

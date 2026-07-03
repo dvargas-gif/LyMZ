@@ -20,7 +20,3 @@ const PERMISOS = {
 export function puede(rol, accion) {
   return (PERMISOS[rol] || []).includes(accion);
 }
-
-export function accionesDe(rol) {
-  return PERMISOS[rol] || [];
-}

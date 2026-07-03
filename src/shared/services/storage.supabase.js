@@ -1,14 +1,13 @@
 import { supabase } from './supabaseClient.js';
-import { StorageInterface } from './storage.interface.js';
 
 const TAMANO_PAGINA = 1000; // límite por página que aplica PostgREST/Supabase por defecto
 
 /**
- * Adapter real: cumple el mismo contrato que storage.local.js pero contra
- * las tablas de Supabase. Los permisos de lectura/escritura los impone
- * Postgres (RLS), no esta capa.
+ * Adapter de persistencia contra las tablas de Supabase (hoy usado solo por
+ * auditoria). Los permisos de lectura/escritura los impone Postgres (RLS),
+ * no esta capa.
  */
-class SupabaseAdapter extends StorageInterface {
+class SupabaseAdapter {
   /**
    * Trae TODAS las filas paginando — un solo select() se corta en 1000
    * filas. Esto es genérico (cualquier `coleccion`), pero en la práctica
