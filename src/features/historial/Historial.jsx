@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { auditService } from '../auditoria/audit.service.js';
 import { exportarExcel } from '../../shared/utils/exportExcel.js';
 import { puede } from '../auth/roles.js';

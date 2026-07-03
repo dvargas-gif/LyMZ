@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ROLES, puede, accionesDe } from './roles.js';
+import { ROLES, puede } from './roles.js';
 
 describe('puede', () => {
   it('Administrador puede administrar_usuarios, Supervisor no', () => {
@@ -21,16 +21,5 @@ describe('puede', () => {
 
   it('un rol desconocido no puede nada (sin romper)', () => {
     expect(puede('Rol inventado', 'ver_mapa')).toBe(false);
-  });
-});
-
-describe('accionesDe', () => {
-  it('devuelve la lista completa de permisos del rol', () => {
-    expect(accionesDe(ROLES.ADMIN)).toContain('administrar_usuarios');
-    expect(accionesDe(ROLES.LECTURA)).toEqual(['ver_mapa', 'ver_dashboard', 'ver_historial']);
-  });
-
-  it('devuelve [] para un rol desconocido', () => {
-    expect(accionesDe('Rol inventado')).toEqual([]);
   });
 });

@@ -20,8 +20,6 @@ export const COLORES_ARTICULO = {
   CUERPO: '#374151', // Cuerpo entero — gris pizarra neutro (categoría aparte, no una rotación)
 };
 
-export const NOMBRE_CLASE = { A: 'Alta', B: 'Media', C: 'Baja', D: 'Muy baja' };
-
 /** Color + texto legible para una clase, listo para pintar un badge. */
 export function colorDeClase(clase, tipo) {
   const hex = tipo === 'CUERPO' ? COLORES_ARTICULO.CUERPO : COLORES_ARTICULO[clase];
