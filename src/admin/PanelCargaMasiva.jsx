@@ -92,7 +92,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
           observaciones: 'Carga masiva de posiciones (Excel/tabla)',
         })));
       }
-      setResultado({ aplicados: filas.length, conflictos: previa.conflictos.length });
+      setResultado({ aplicados: filas.length, conflictos: previa.conflictos.length, duplicados: previa.duplicados.length });
       setPrevia(null);
       setPegado('');
     } catch (err) {
@@ -163,6 +163,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
         {resultado && (
           <div style={{ background: '#EAF3EE', border: '1px solid #1D9E75', borderRadius: 10, padding: 14, marginBottom: 14 }}>
             <b style={{ color: '#1D9E75' }}>✓ Se aplicaron {resultado.aplicados} posiciones</b>
+            {resultado.duplicados > 0 && <span style={{ color: '#6E7A72', fontSize: 12.5 }}> — {resultado.duplicados} fila(s) duplicada(s) del mismo artículo/destino se aplicaron una sola vez.</span>}
             {resultado.conflictos > 0 && <span style={{ color: '#6E7A72', fontSize: 12.5 }}> — {resultado.conflictos} fila(s) se omitieron por conflicto (ver abajo antes de cerrar, o volvé a cargar el archivo para revisarlas).</span>}
           </div>
         )}
@@ -171,6 +172,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
           <div style={{ overflowY: 'auto', flex: 1 }}>
             <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5 }}>
               <span>✅ Aplicables: <b>{previa.aplicables.length}</b></span>
+              <span>♻ Duplicados: <b>{previa.duplicados.length}</b></span>
               <span>⚠ Conflictos: <b style={{ color: previa.conflictos.length ? '#C0392B' : 'inherit' }}>{previa.conflictos.length}</b></span>
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -198,11 +200,11 @@ function TablaPreviaCarga({ filas }) {
         </tr></thead>
         <tbody>
           {filas.map((f, i) => (
-            <tr key={i} style={{ borderTop: '1px solid #F0EEE5', background: f.valido ? 'transparent' : '#FCEBEB' }}>
+            <tr key={i} style={{ borderTop: '1px solid #F0EEE5', background: !f.valido ? '#FCEBEB' : f.duplicado ? '#FAEEDA' : 'transparent' }}>
               <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.articulo}</td>
-              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.pasillo}-C{String(f.columna).padStart(3, '0')}{f.nivel ? `-${f.nivel}` : ''}</td>
+              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.pasillo}-C{String(f.columna || 0).padStart(3, '0')}{f.nivel ? `-${f.nivel}` : ''}</td>
               <td style={tdStyle}>{f.clase && f.clase !== '-' ? <span style={{ ...badgeStyle, background: colorDeClase(f.clase, f.tipo) }}>{f.clase}</span> : '—'}</td>
-              <td style={{ ...tdStyle, color: f.valido ? '#1D9E75' : '#C0392B', fontSize: 11.5 }}>{f.valido ? 'OK' : f.motivo}</td>
+              <td style={{ ...tdStyle, color: !f.valido ? '#C0392B' : f.duplicado ? '#D08A1E' : '#1D9E75', fontSize: 11.5 }}>{f.motivo || 'OK'}</td>
             </tr>
           ))}
         </tbody>

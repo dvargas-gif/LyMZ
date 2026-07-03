@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { reporteService } from '../services/reporte.service.js';
 import { posicionesService } from '../services/posiciones.service.js';
 import { escenarioPosicionesService } from '../services/escenarioPosiciones.service.js';
-import { validarCargaMasiva } from '../services/cargaMasiva.service.js';
+import { validarCargaMasiva, normalizarArticulo } from '../services/cargaMasiva.service.js';
 import { auditService } from '../audit/audit.service.js';
 import { ACCIONES } from '../audit/audit.schema.js';
 import { colorDeClase } from '../constants/coloresArticulo.js';
@@ -56,11 +56,11 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
     const pasillo = temp.pasillo.trim().toUpperCase();
     const columna = parseInt(temp.columna, 10);
     const nivel = temp.nivel.trim().toUpperCase() || null;
-    if (!pasillo || !Number.isFinite(columna)) {
-      setErrorFila({ articulo: f.articulo, motivo: 'Pasillo y columna son obligatorios (columna debe ser un número).' });
+    if (!pasillo || !Number.isFinite(columna) || columna < 1) {
+      setErrorFila({ articulo: f.articulo, motivo: 'Pasillo y columna son obligatorios (columna debe ser un número mayor o igual a 1).' });
       return;
     }
-    const filaDeseada = { articulo: f.articulo, pasillo, columna, nivel, clase: f.clase, grupo: f.grupo, tipo: f.tipo };
+    const filaDeseada = { articulo: normalizarArticulo(f.articulo), pasillo, columna, nivel, clase: f.clase, grupo: f.grupo, tipo: f.tipo };
     const { filas: validadas } = validarCargaMasiva([filaDeseada], filas);
     const validada = validadas[0];
     if (!validada.valido) {
