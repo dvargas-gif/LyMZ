@@ -13,6 +13,7 @@ import SalasView from './salas/SalasView.jsx';
 import AdminFab from './admin/AdminFab.jsx';
 import BienvenidaModal from './components/BienvenidaModal.jsx';
 import SaludoToast from './components/SaludoToast.jsx';
+import AddRackModal from './admin/AddRackModal.jsx';
 import { ROLES } from './auth/roles.js';
 
 // Panel de administración (botón flotante) y saludo personalizado: exclusivo
@@ -25,6 +26,7 @@ function Shell() {
   const [apodo, setApodo] = useState(sesion.apodo);
   const [pedirApodo, setPedirApodo] = useState(false);
   const [mostrarSaludo, setMostrarSaludo] = useState(false);
+  const [mostrarAddRack, setMostrarAddRack] = useState(false);
 
   useEffect(() => {
     if (!ROLES_PANEL_ADMIN.includes(sesion.rol)) return;
@@ -47,7 +49,7 @@ function Shell() {
       <Header sesion={sesion} onLogout={logout} />
       <Tabs rol={sesion.rol} activa={tab} onCambiar={setTab} />
       <main className="app-main">
-        {tab === 'mapa' && <SlottingFrame sesion={sesion} />}
+        {tab === 'mapa' && <SlottingFrame sesion={sesion} onSolicitarAddRack={() => setMostrarAddRack(true)} />}
         {tab === 'salas' && <SalasView sesion={sesion} />}
         {tab === 'dashboard' && <DashboardAnalitico />}
         {tab === 'historial' && <Historial sesion={sesion} />}
@@ -56,6 +58,7 @@ function Shell() {
       {ROLES_PANEL_ADMIN.includes(sesion.rol) && <AdminFab sesion={sesion} onNavigate={setTab} />}
       {pedirApodo && <BienvenidaModal nombre={sesion.nombre} onListo={handleApodoListo} />}
       {mostrarSaludo && <SaludoToast apodo={apodo} onCerrar={() => setMostrarSaludo(false)} />}
+      {mostrarAddRack && <AddRackModal sesion={sesion} onCerrar={() => setMostrarAddRack(false)} />}
     </div>
   );
 }

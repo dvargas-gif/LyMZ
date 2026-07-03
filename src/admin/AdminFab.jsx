@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import UsuariosPanel from './UsuariosPanel.jsx';
 import EditarCroquisPanel from './EditarCroquisPanel.jsx';
 import ReportePanel from './ReportePanel.jsx';
+import PanelCargaMasiva from './PanelCargaMasiva.jsx';
 
 const RADIO = 170; // px desde el centro del botón principal — dejar espacio para que los 6 ítems no se toquen
 const ANGULO_INICIO = 95; // grados (0=derecha, 90=arriba, 180=izquierda)
@@ -44,7 +45,7 @@ function clamp(pos) {
  */
 export default function AdminFab({ sesion, onNavigate }) {
   const [abierto, setAbierto] = useState(false);
-  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte'
+  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte' | 'carga-masiva'
   const [pos, setPos] = useState(posInicial);
   const contenedorRef = useRef(null);
   const arrastre = useRef(null); // {pointerId, startX, startY, origX, origY, movido, ultima}
@@ -90,6 +91,7 @@ export default function AdminFab({ sesion, onNavigate }) {
   const items = [
     { icon: 'ti-users', label: 'Permisos de usuarios', onClick: () => { setPanel('usuarios'); setAbierto(false); } },
     { icon: 'ti-table', label: 'Reporte de posiciones', onClick: () => { setPanel('reporte'); setAbierto(false); } },
+    { icon: 'ti-upload', label: 'Carga masiva de posiciones', onClick: () => { setPanel('carga-masiva'); setAbierto(false); } },
     { icon: 'ti-flask', label: 'Salas de simulación', onClick: () => { onNavigate('salas'); setAbierto(false); } },
     { icon: 'ti-shield-check', label: 'Auditoría', onClick: () => { onNavigate('auditoria'); setAbierto(false); } },
     { icon: 'ti-history', label: 'Historial de movimientos', onClick: () => { onNavigate('historial'); setAbierto(false); } },
@@ -158,6 +160,7 @@ export default function AdminFab({ sesion, onNavigate }) {
       {panel === 'usuarios' && <UsuariosPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
       {panel === 'croquis' && <EditarCroquisPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
       {panel === 'reporte' && <ReportePanel onCerrar={() => setPanel(null)} />}
+      {panel === 'carga-masiva' && <PanelCargaMasiva sesion={sesion} onCerrar={() => setPanel(null)} />}
     </>
   );
 }

@@ -34,4 +34,14 @@ export const posicionesService = {
     });
     if (error) throw error;
   },
+
+  /** Carga masiva (ej. desde Excel): un solo upsert con todas las filas, en tandas de a 1000. */
+  async guardarLote(filas, usuarioId) {
+    const ahora = new Date().toISOString();
+    const filasDb = filas.map(f => ({ ...f, actualizado_por: usuarioId, actualizado_en: ahora }));
+    for (let i = 0; i < filasDb.length; i += TAMANO_PAGINA) {
+      const { error } = await supabase.from('posiciones_actuales').upsert(filasDb.slice(i, i + TAMANO_PAGINA));
+      if (error) throw error;
+    }
+  },
 };

@@ -7,6 +7,7 @@ import { escenarioPosicionesService } from '../services/escenarioPosiciones.serv
 import { escenarioEliminadosService } from '../services/escenarioEliminados.service.js';
 import { escenarioBloqueosService } from '../services/escenarioBloqueos.service.js';
 import { configMapaService } from '../services/configMapa.service.js';
+import { pasillosConfigService } from '../services/pasillosConfig.service.js';
 import { puede } from '../auth/roles.js';
 
 /**
@@ -40,8 +41,15 @@ import { puede } from '../auth/roles.js';
  * función que ya existía ahí (no se duplica nada de esa lógica acá).
  * `onCambio` avisa a React cada vez que algo se modificó de verdad en la
  * sala (para el contador de "cambios sin guardar" de la barra de acciones).
+ *
+ * "Añadir rack": el rol de la sesión viaja en la URL (?rol=...) solo para
+ * decidir si el mapa MUESTRA el botón — la seguridad real está en RLS
+ * (pasillos_config solo acepta escritura de Administrador). Al tocarlo, el
+ * mapa avisa por postMessage ('slotting:solicitarAddRack') y acá se lo
+ * pasamos a `onSolicitarAddRack` para que App.jsx abra el modal — el mapa
+ * nunca habla con Supabase directamente, ni siquiera para esto.
  */
-const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onCambio, onSeleccionCambia }, refExterno) {
+const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onCambio, onSeleccionCambia, onSolicitarAddRack }, refExterno) {
   const ref = useRef(null);
   const soloLectura = !puede(sesion.rol, escenario ? 'usar_salas' : 'mover');
   const [anchoContenedor, setAnchoContenedor] = useState(null);
@@ -61,9 +69,9 @@ const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onC
     },
   }), []);
 
-  const src = escenario
-    ? `/legacy/mapa_editable_slotting.html?escenario=${escenario.id}&nombre=${encodeURIComponent(escenario.nombre)}`
-    : '/legacy/mapa_editable_slotting.html';
+  const parametros = new URLSearchParams({ rol: sesion.rol });
+  if (escenario) { parametros.set('escenario', escenario.id); parametros.set('nombre', escenario.nombre); }
+  const src = `/legacy/mapa_editable_slotting.html?${parametros.toString()}`;
 
   useEffect(() => {
     function onMessage(ev) {
@@ -144,6 +152,11 @@ const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onC
         return;
       }
 
+      if (ev.data.type === 'slotting:solicitarAddRack') {
+        onSolicitarAddRack?.();
+        return;
+      }
+
       if (ev.data.type === 'slotting:solicitarEstado') {
         const escenarioId = ev.data.payload?.escenarioId;
         // Cada pieza del estado se resuelve SOLA: si una tabla todavía no
@@ -158,14 +171,18 @@ const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onC
         const eliminadosProm = escenarioId ? seguro(escenarioEliminadosService.listar(escenarioId), [], 'artículos limpiados') : Promise.resolve([]);
         const descripcionesProm = seguro(articulosService.listarDescripciones(), [], 'descripciones');
         const configProm = configMapaService.obtener().catch(() => ({ tema: 'claro', orientacion: 'horizontal' }));
+        const pasillosProm = seguro(pasillosConfigService.listar(), [], 'la extensión de pasillos');
 
-        Promise.all([posicionesProm, bloqueosProm, descripcionesProm, configProm, eliminadosProm])
-          .then(([posiciones, bloqueos, descripciones, configuracion, eliminados]) => ev.source.postMessage({ type: 'slotting:estadoInicial', payload: { posiciones, bloqueos, descripciones, configuracion, eliminados } }, '*'));
+        Promise.all([posicionesProm, bloqueosProm, descripcionesProm, configProm, eliminadosProm, pasillosProm])
+          .then(([posiciones, bloqueos, descripciones, configuracion, eliminados, pasillosConfig]) => {
+            const maxColumnas = Object.fromEntries(pasillosConfig.map(p => [p.pasillo, p.max_columna]));
+            ev.source.postMessage({ type: 'slotting:estadoInicial', payload: { posiciones, bloqueos, descripciones, configuracion, eliminados, maxColumnas } }, '*');
+          });
       }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [sesion, onCambio, onSeleccionCambia]);
+  }, [sesion, onCambio, onSeleccionCambia, onSolicitarAddRack]);
 
   // Cuando se cambia el tema/orientación desde el menú de administración,
   // simplemente recargamos el iframe — el propio mapa vuelve a pedir su
