@@ -10,11 +10,21 @@ import { escenarioBloqueosService } from './escenarioBloqueos.service.js';
  * (el mapa real). Cada sala arranca como una foto del estado real al
  * momento de crearla, y a partir de ahí vive en `escenario_posiciones`.
  */
+const TAMANO_PAGINA = 1000; // límite por página que aplica PostgREST/Supabase por defecto
+
 export const escenariosService = {
+  /** Trae TODAS las filas paginando — un solo select() se corta en 1000 filas. */
   async listar() {
-    const { data, error } = await supabase.from('escenarios').select('*').order('creado_en', { ascending: false });
-    if (error) throw error;
-    return data;
+    const todas = [];
+    let desde = 0;
+    while (true) {
+      const { data, error } = await supabase.from('escenarios').select('*').order('creado_en', { ascending: false }).range(desde, desde + TAMANO_PAGINA - 1);
+      if (error) throw error;
+      todas.push(...data);
+      if (data.length < TAMANO_PAGINA) break;
+      desde += TAMANO_PAGINA;
+    }
+    return todas;
   },
 
   /** Crea la sala y copia ahí mismo el estado real actual (snapshot). */

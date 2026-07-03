@@ -6,6 +6,10 @@ import { supabase } from './supabaseClient.js';
  * "Añadir rack" solo sube este número; no crea filas de artículos.
  */
 export const pasillosConfigService = {
+  // Sin paginación a propósito: esta tabla tiene un techo estructural de 8
+  // filas (MZ01-MZ08, un pasillo fijo cada una — "Añadir rack" extiende un
+  // pasillo existente, nunca crea uno nuevo). No hay escenario en el que
+  // esto llegue ni cerca de las 1000 filas del límite de PostgREST.
   async listar() {
     const { data, error } = await supabase.from('pasillos_config').select('*');
     if (error) throw error;
