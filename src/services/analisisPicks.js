@@ -9,6 +9,8 @@
 // Palabras clave (ya normalizadas: sin acentos/espacios/guiones) que puede
 // contener el encabezado real de la columna, sea cual sea cómo lo tituló
 // quien armó el Excel — se busca por "contiene", no por igualdad exacta.
+import { normalizarClave } from './cargaMasiva.service.js';
+
 const PALABRAS_CLAVE = {
   articulo: ['articulo', 'codigo', 'sku', 'material', 'item'],
   nombre: ['nombre', 'descripcion', 'producto'],
@@ -17,10 +19,6 @@ const PALABRAS_CLAVE = {
   prioridad: ['prioridad', 'priority'],
   periodo: ['periodo', 'fecha', 'period', 'date'],
 };
-
-function normalizarClave(k) {
-  return String(k).trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
-}
 
 /** Convierte filas crudas (de Excel/CSV/pegado) a la forma canónica, sea cual sea el nombre de columna que traigan. */
 export function normalizarFilasPicks(rawRows) {

@@ -14,7 +14,9 @@ const PALABRAS_CLAVE = {
   tipo: ['tipo'],
 };
 
-function normalizarClave(k) {
+/** Único lugar que decide cómo se interpreta un encabezado de columna de
+ * Excel/CSV — lo reusa analisisPicks.js para no duplicar esta regla. */
+export function normalizarClave(k) {
   return String(k).trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 }
 

@@ -8,8 +8,10 @@ import { normalizarFilasDestino, validarCargaMasiva } from '../services/cargaMas
 import { parsearTextoPegado } from '../services/analisisPicks.js';
 import { auditService } from '../audit/audit.service.js';
 import { ACCIONES } from '../audit/audit.schema.js';
-import { colorDeClase } from '../constants/coloresArticulo.js';
 import EdicionEnVivoTabla from './EdicionEnVivoTabla.jsx';
+import ModalBase from '../components/ModalBase.jsx';
+import BadgeClase from '../components/BadgeClase.jsx';
+import { formatearPosicion } from '../utils/formatearPosicion.js';
 
 /**
  * Dos formas de reacomodar de golpe, mismo panel:
@@ -103,91 +105,84 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
   }
 
   return (
-    <div style={overlayStyle} onClick={e => e.target === e.currentTarget && onCerrar()}>
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600 }}>📥✏️ Carga y edición de posiciones</h2>
-          <button onClick={onCerrar} className="btn-icon"><i className="ti ti-x" /></button>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, margin: '10px 0 14px' }}>
-          <button className={`btn-secondary ${modo === 'excel' ? 'activo' : ''}`} onClick={() => setModo('excel')}>
-            <i className="ti ti-file-spreadsheet" /> Carga por Excel
-          </button>
-          <button className={`btn-secondary ${modo === 'vivo' ? 'activo' : ''}`} onClick={() => setModo('vivo')}>
-            <i className="ti ti-pencil" /> Editar en vivo (tabla)
-          </button>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: '#1C3A3E', display: 'block', marginBottom: 6 }}>¿Dónde se aplica?</label>
-          <select value={destino} onChange={e => { setDestino(e.target.value); setPrevia(null); setResultado(null); }} style={selectStyle}>
-            <option value="real">Mapa real (⚠ afecta la operación real)</option>
-            {salas.map(s => <option key={s.id} value={s.id}>🧪 Sala: {s.nombre}</option>)}
-          </select>
-        </div>
-
-        {modo === 'vivo' && (
-          <EdicionEnVivoTabla escenarioId={escenarioId} sesion={sesion} />
-        )}
-
-        {modo === 'excel' && (
-        <>
-        <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
-          Subí un Excel/CSV (o pegá una tabla) con el acomodo que querés — columnas de artículo, pasillo y columna
-          como mínimo (nivel/clase/grupo/tipo son opcionales, se completan con lo que el artículo ya tiene hoy).
-        </p>
-
-        {!previa && !resultado && (
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
-            <label style={dropStyle}>
-              <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: '#15454A' }} />
-              <span>Subir Excel / CSV</span>
-              <input type="file" accept=".xlsx,.xls,.csv" onChange={manejarArchivo} style={{ display: 'none' }} />
-            </label>
-            <div style={{ flex: 1, minWidth: 280 }}>
-              <textarea
-                placeholder={'O pegá una tabla acá (con encabezado), ej:\narticulo\tpasillo\tcolumna\tnivel\nABC123\tMZ01\t5\tN02'}
-                value={pegado}
-                onChange={e => setPegado(e.target.value)}
-                style={{ width: '100%', minHeight: 74, fontSize: 12, fontFamily: 'monospace', padding: 10, borderRadius: 8, border: '1px solid #DADCE0' }}
-              />
-              <button className="btn-primary" disabled={!pegado.trim()} onClick={usarPegado} style={{ marginTop: 6 }}>Usar tabla pegada</button>
-            </div>
-          </div>
-        )}
-
-        {error && <p style={{ color: '#C0392B', fontSize: 12.5, marginBottom: 12 }}>{error}</p>}
-        {cargando && <p style={{ textAlign: 'center', color: '#9A9684', padding: 20 }}>Comparando contra el estado actual…</p>}
-
-        {resultado && (
-          <div style={{ background: '#EAF3EE', border: '1px solid #1D9E75', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-            <b style={{ color: '#1D9E75' }}>✓ Se aplicaron {resultado.aplicados} posiciones</b>
-            {resultado.duplicados > 0 && <span style={{ color: '#6E7A72', fontSize: 12.5 }}> — {resultado.duplicados} fila(s) duplicada(s) del mismo artículo/destino se aplicaron una sola vez.</span>}
-            {resultado.conflictos > 0 && <span style={{ color: '#6E7A72', fontSize: 12.5 }}> — {resultado.conflictos} fila(s) se omitieron por conflicto (ver abajo antes de cerrar, o volvé a cargar el archivo para revisarlas).</span>}
-          </div>
-        )}
-
-        {previa && (
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5 }}>
-              <span>✅ Aplicables: <b>{previa.aplicables.length}</b></span>
-              <span>♻ Duplicados: <b>{previa.duplicados.length}</b></span>
-              <span>⚠ Conflictos: <b style={{ color: previa.conflictos.length ? '#C0392B' : 'inherit' }}>{previa.conflictos.length}</b></span>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-              <button className="btn-primary" disabled={aplicando || previa.aplicables.length === 0} onClick={aplicar}>
-                {aplicando ? 'Aplicando…' : `Aplicar ${previa.aplicables.length} cambios`}
-              </button>
-              <button className="btn-secondary" disabled={aplicando} onClick={() => setPrevia(null)}>Cancelar</button>
-            </div>
-            <TablaPreviaCarga filas={previa.filas} />
-          </div>
-        )}
-        </>
-        )}
+    <ModalBase titulo="📥✏️ Carga y edición de posiciones" onCerrar={onCerrar} maxWidth={900} maxHeight="88vh" scrollContenido>
+      <div style={{ display: 'flex', gap: 8, margin: '10px 0 14px' }}>
+        <button className={`btn-secondary ${modo === 'excel' ? 'activo' : ''}`} onClick={() => setModo('excel')}>
+          <i className="ti ti-file-spreadsheet" /> Carga por Excel
+        </button>
+        <button className={`btn-secondary ${modo === 'vivo' ? 'activo' : ''}`} onClick={() => setModo('vivo')}>
+          <i className="ti ti-pencil" /> Editar en vivo (tabla)
+        </button>
       </div>
-    </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: '#1C3A3E', display: 'block', marginBottom: 6 }}>¿Dónde se aplica?</label>
+        <select value={destino} onChange={e => { setDestino(e.target.value); setPrevia(null); setResultado(null); }} style={selectStyle}>
+          <option value="real">Mapa real (⚠ afecta la operación real)</option>
+          {salas.map(s => <option key={s.id} value={s.id}>🧪 Sala: {s.nombre}</option>)}
+        </select>
+      </div>
+
+      {modo === 'vivo' && (
+        <EdicionEnVivoTabla escenarioId={escenarioId} sesion={sesion} />
+      )}
+
+      {modo === 'excel' && (
+      <>
+      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
+        Subí un Excel/CSV (o pegá una tabla) con el acomodo que querés — columnas de artículo, pasillo y columna
+        como mínimo (nivel/clase/grupo/tipo son opcionales, se completan con lo que el artículo ya tiene hoy).
+      </p>
+
+      {!previa && !resultado && (
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+          <label style={dropStyle}>
+            <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: '#15454A' }} />
+            <span>Subir Excel / CSV</span>
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={manejarArchivo} style={{ display: 'none' }} />
+          </label>
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <textarea
+              placeholder={'O pegá una tabla acá (con encabezado), ej:\narticulo\tpasillo\tcolumna\tnivel\nABC123\tMZ01\t5\tN02'}
+              value={pegado}
+              onChange={e => setPegado(e.target.value)}
+              style={{ width: '100%', minHeight: 74, fontSize: 12, fontFamily: 'monospace', padding: 10, borderRadius: 8, border: '1px solid #DADCE0' }}
+            />
+            <button className="btn-primary" disabled={!pegado.trim()} onClick={usarPegado} style={{ marginTop: 6 }}>Usar tabla pegada</button>
+          </div>
+        </div>
+      )}
+
+      {error && <p style={{ color: '#C0392B', fontSize: 12.5, marginBottom: 12 }}>{error}</p>}
+      {cargando && <p style={{ textAlign: 'center', color: '#9A9684', padding: 20 }}>Comparando contra el estado actual…</p>}
+
+      {resultado && (
+        <div style={{ background: '#EAF3EE', border: '1px solid #1D9E75', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+          <b style={{ color: '#1D9E75' }}>✓ Se aplicaron {resultado.aplicados} posiciones</b>
+          {resultado.duplicados > 0 && <span style={{ color: '#6E7A72', fontSize: 12.5 }}> — {resultado.duplicados} fila(s) duplicada(s) del mismo artículo/destino se aplicaron una sola vez.</span>}
+          {resultado.conflictos > 0 && <span style={{ color: '#6E7A72', fontSize: 12.5 }}> — {resultado.conflictos} fila(s) se omitieron por conflicto (ver abajo antes de cerrar, o volvé a cargar el archivo para revisarlas).</span>}
+        </div>
+      )}
+
+      {previa && (
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5 }}>
+            <span>✅ Aplicables: <b>{previa.aplicables.length}</b></span>
+            <span>♻ Duplicados: <b>{previa.duplicados.length}</b></span>
+            <span>⚠ Conflictos: <b style={{ color: previa.conflictos.length ? '#C0392B' : 'inherit' }}>{previa.conflictos.length}</b></span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <button className="btn-primary" disabled={aplicando || previa.aplicables.length === 0} onClick={aplicar}>
+              {aplicando ? 'Aplicando…' : `Aplicar ${previa.aplicables.length} cambios`}
+            </button>
+            <button className="btn-secondary" disabled={aplicando} onClick={() => setPrevia(null)}>Cancelar</button>
+          </div>
+          <TablaPreviaCarga filas={previa.filas} />
+        </div>
+      )}
+      </>
+      )}
+    </ModalBase>
   );
 }
 
@@ -202,8 +197,8 @@ function TablaPreviaCarga({ filas }) {
           {filas.map((f, i) => (
             <tr key={i} style={{ borderTop: '1px solid #F0EEE5', background: !f.valido ? '#FCEBEB' : f.duplicado ? '#FAEEDA' : 'transparent' }}>
               <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.articulo}</td>
-              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.pasillo}-C{String(f.columna || 0).padStart(3, '0')}{f.nivel ? `-${f.nivel}` : ''}</td>
-              <td style={tdStyle}>{f.clase && f.clase !== '-' ? <span style={{ ...badgeStyle, background: colorDeClase(f.clase, f.tipo) }}>{f.clase}</span> : '—'}</td>
+              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{formatearPosicion(f.pasillo, f.columna, f.nivel)}</td>
+              <td style={tdStyle}>{f.clase && f.clase !== '-' ? <BadgeClase clase={f.clase} tipo={f.tipo} mostrarCE={false} /> : '—'}</td>
               <td style={{ ...tdStyle, color: !f.valido ? '#C0392B' : f.duplicado ? '#D08A1E' : '#1D9E75', fontSize: 11.5 }}>{f.motivo || 'OK'}</td>
             </tr>
           ))}
@@ -213,11 +208,8 @@ function TablaPreviaCarga({ filas }) {
   );
 }
 
-const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,58,62,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, padding: 20 };
-const cardStyle = { background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 900, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.35)' };
 const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 180, minHeight: 74, border: '2px dashed #C8C2B4', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: '#6E7A72' };
 const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', width: '100%', maxWidth: 380 };
 const theadRow = { textAlign: 'left', color: '#9A9684', fontSize: 11, textTransform: 'uppercase' };
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };
 const tdStyle = { padding: '7px 8px' };
-const badgeStyle = { display: 'inline-block', minWidth: 22, textAlign: 'center', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6 };

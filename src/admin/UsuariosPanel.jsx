@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { usuariosService } from '../services/usuarios.service.js';
 import { miPerfilService } from '../services/miPerfil.service.js';
 import { ROLES } from '../auth/roles.js';
+import ModalBase from '../components/ModalBase.jsx';
 
 const TODOS_LOS_ROLES = Object.values(ROLES);
 
@@ -68,17 +69,12 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
   }
 
   return (
-    <div style={overlayStyle} onClick={e => e.target === e.currentTarget && onCerrar()}>
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600 }}>Permisos de usuarios</h2>
-          <button onClick={onCerrar} className="btn-icon"><i className="ti ti-x" /></button>
-        </div>
-        <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
-          Cambiar el rol o desactivar una cuenta tiene efecto inmediato.
-        </p>
+    <ModalBase titulo="Permisos de usuarios" onCerrar={onCerrar} maxWidth={640} maxHeight="80vh">
+      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
+        Cambiar el rol o desactivar una cuenta tiene efecto inmediato.
+      </p>
 
-        {cargando ? (
+      {cargando ? (
           <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -103,7 +99,7 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
                         onBlur={() => confirmarNombre(u)}
                         onKeyDown={e => {
                           if (e.key === 'Enter') e.currentTarget.blur();
-                          if (e.key === 'Escape') setEditandoId(null);
+                          if (e.key === 'Escape') { e.stopPropagation(); setEditandoId(null); }
                         }}
                         style={nombreInputStyle}
                       />
@@ -130,7 +126,7 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
                         onBlur={() => confirmarApodo(u)}
                         onKeyDown={e => {
                           if (e.key === 'Enter') e.currentTarget.blur();
-                          if (e.key === 'Escape') setEditandoApodoId(null);
+                          if (e.key === 'Escape') { e.stopPropagation(); setEditandoApodoId(null); }
                         }}
                         style={nombreInputStyle}
                       />
@@ -159,13 +155,10 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
             </tbody>
           </table>
         )}
-      </div>
-    </div>
+    </ModalBase>
   );
 }
 
-const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,58,62,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 };
-const cardStyle = { background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 640, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.35)' };
 const selectStyle = { fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid #DADCE0', fontFamily: 'inherit' };
 const nombreInputStyle = { fontSize: 13, padding: '5px 8px', borderRadius: 6, border: '1px solid #15454A', fontFamily: 'inherit', width: '100%' };
 const toggleBtnStyle = { border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' };

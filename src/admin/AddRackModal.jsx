@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { pasillosConfigService } from '../services/pasillosConfig.service.js';
 import { auditService } from '../audit/audit.service.js';
 import { ACCIONES } from '../audit/audit.schema.js';
+import ModalBase from '../components/ModalBase.jsx';
 
 // Mismo listado que PAS_LR en el mapa legacy — los pasillos son fijos (8),
 // "Añadir rack" extiende uno existente, no crea pasillos nuevos.
@@ -70,64 +71,56 @@ export default function AddRackModal({ sesion, onCerrar }) {
   }
 
   return (
-    <div style={overlayStyle} onClick={e => e.target === e.currentTarget && onCerrar()}>
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600 }}>🧱 Añadir rack (extender pasillo)</h2>
-          <button onClick={onCerrar} className="btn-icon"><i className="ti ti-x" /></button>
-        </div>
-        <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 18 }}>
-          Sube el límite de columnas de un pasillo — las columnas nuevas aparecen vacías en el mapa,
-          listas para usarse. No mueve ni borra ningún artículo existente.
-        </p>
+    <ModalBase titulo="🧱 Añadir rack (extender pasillo)" onCerrar={onCerrar} maxWidth={440}>
+      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 18 }}>
+        Sube el límite de columnas de un pasillo — las columnas nuevas aparecen vacías en el mapa,
+        listas para usarse. No mueve ni borra ningún artículo existente.
+      </p>
 
-        {cargando ? (
-          <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
-        ) : (
-          <form onSubmit={confirmar}>
-            <label style={labelStyle}>Pasillo</label>
-            <select value={pasillo} onChange={e => { setPasillo(e.target.value); setHasta(''); setError(''); setExito(''); }} style={selectStyle}>
-              {PASILLOS.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
+      {cargando ? (
+        <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
+      ) : (
+        <form onSubmit={confirmar}>
+          <label style={labelStyle}>Pasillo</label>
+          <select value={pasillo} onChange={e => { setPasillo(e.target.value); setHasta(''); setError(''); setExito(''); }} style={selectStyle}>
+            {PASILLOS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
 
-            <p style={{ fontSize: 13, color: '#1C3A3E', margin: '12px 0' }}>
-              Columna actual: <b>hasta C{String(actual).padStart(3, '0')}</b>
-              {alTope && <span style={{ color: '#D08A1E' }}> — ya está al máximo que soporta el mapa (C036).</span>}
-            </p>
+          <p style={{ fontSize: 13, color: '#1C3A3E', margin: '12px 0' }}>
+            Columna actual: <b>hasta C{String(actual).padStart(3, '0')}</b>
+            {alTope && <span style={{ color: '#D08A1E' }}> — ya está al máximo que soporta el mapa (C036).</span>}
+          </p>
 
-            {!alTope && (
-              <>
-                <label style={labelStyle}>Extender hasta columna (máx. {TECHO_ABSOLUTO})</label>
-                <input
-                  type="number" min={actual + 1} max={TECHO_ABSOLUTO}
-                  value={hasta} onChange={e => setHasta(e.target.value)}
-                  placeholder={`ej. ${TECHO_ABSOLUTO}`}
-                  style={inputStyle}
-                />
-                <p style={{ fontSize: 11.5, color: '#9A9684', margin: '6px 0 0' }}>
-                  Se van a crear las columnas C{String(actual + 1).padStart(3, '0')} a C{String(hasta || TECHO_ABSOLUTO).padStart(3, '0')} como slots vacíos.
-                </p>
-              </>
-            )}
+          {!alTope && (
+            <>
+              <label style={labelStyle}>Extender hasta columna (máx. {TECHO_ABSOLUTO})</label>
+              <input
+                type="number" min={actual + 1} max={TECHO_ABSOLUTO}
+                value={hasta} onChange={e => setHasta(e.target.value)}
+                placeholder={`ej. ${TECHO_ABSOLUTO}`}
+                style={inputStyle}
+              />
+              <p style={{ fontSize: 11.5, color: '#9A9684', margin: '6px 0 0' }}>
+                Se van a crear las columnas C{String(actual + 1).padStart(3, '0')} a C{String(hasta || TECHO_ABSOLUTO).padStart(3, '0')} como slots vacíos.
+              </p>
+            </>
+          )}
 
-            {error && <p style={{ color: '#C0392B', fontSize: 12.5, marginTop: 10 }}>{error}</p>}
-            {exito && <p style={{ color: '#1D9E75', fontSize: 12.5, marginTop: 10 }}>{exito}</p>}
+          {error && <p style={{ color: '#C0392B', fontSize: 12.5, marginTop: 10 }}>{error}</p>}
+          {exito && <p style={{ color: '#1D9E75', fontSize: 12.5, marginTop: 10 }}>{exito}</p>}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-              <button type="submit" className="btn-primary" disabled={alTope || guardando || !hasta}>
-                {guardando ? 'Extendiendo…' : `Extender ${pasillo}`}
-              </button>
-              <button type="button" className="btn-secondary" onClick={onCerrar}>Cerrar</button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+            <button type="submit" className="btn-primary" disabled={alTope || guardando || !hasta}>
+              {guardando ? 'Extendiendo…' : `Extender ${pasillo}`}
+            </button>
+            <button type="button" className="btn-secondary" onClick={onCerrar}>Cerrar</button>
+          </div>
+        </form>
+      )}
+    </ModalBase>
   );
 }
 
-const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,58,62,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100, padding: 20 };
-const cardStyle = { background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,.35)' };
 const labelStyle = { fontSize: 12, fontWeight: 700, color: '#1C3A3E', display: 'block', marginBottom: 6 };
 const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', width: '100%' };
 const inputStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', width: '100%' };

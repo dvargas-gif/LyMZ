@@ -5,7 +5,8 @@ import { escenarioPosicionesService } from '../services/escenarioPosiciones.serv
 import { validarCargaMasiva, normalizarArticulo } from '../services/cargaMasiva.service.js';
 import { auditService } from '../audit/audit.service.js';
 import { ACCIONES } from '../audit/audit.schema.js';
-import { colorDeClase } from '../constants/coloresArticulo.js';
+import BadgeClase from '../components/BadgeClase.jsx';
+import { formatearPosicion } from '../utils/formatearPosicion.js';
 
 /**
  * Tabla editable en vivo: cada fila (artículo) tiene su pasillo/columna/nivel
@@ -136,12 +137,12 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
                         <button className="btn-icon" title="Cancelar" onClick={cancelarEdicion}><i className="ti ti-x" /></button>
                       </div>
                     ) : (
-                      <span style={{ fontFamily: 'monospace' }}>{f.pasillo ? `${f.pasillo}-C${String(f.columna).padStart(3, '0')}${f.nivel ? `-${f.nivel}` : ''}` : '— sin ubicación —'}</span>
+                      <span style={{ fontFamily: 'monospace' }}>{f.pasillo ? formatearPosicion(f.pasillo, f.columna, f.nivel) : '— sin ubicación —'}</span>
                     )}
                     {errorFila?.articulo === f.articulo && <div style={{ color: '#C0392B', fontSize: 11, marginTop: 4 }}>{errorFila.motivo}</div>}
                   </td>
                   <td style={tdStyle}>
-                    {f.clase ? <span style={{ ...badgeStyle, background: colorDeClase(f.clase, f.tipo) }}>{f.tipo === 'CUERPO' ? 'CE' : f.clase}</span> : '—'}
+                    {f.clase ? <BadgeClase clase={f.clase} tipo={f.tipo} /> : '—'}
                   </td>
                   <td style={tdStyle}>
                     {editando !== f.articulo && (
@@ -160,5 +161,4 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
 
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };
 const tdStyle = { padding: '7px 8px', verticalAlign: 'top' };
-const badgeStyle = { display: 'inline-block', minWidth: 22, textAlign: 'center', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6 };
 const inputMini = { fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid #DADCE0', fontFamily: 'monospace', width: 62 };
