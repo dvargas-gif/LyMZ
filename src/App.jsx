@@ -1,23 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './features/auth/AuthContext.jsx';
-import Login from './features/auth/Login.jsx';
 import ProtectedRoute from './features/auth/ProtectedRoute.jsx';
 import Header from './shared/components/Header.jsx';
-import Tabs from './shared/components/Tabs.jsx';
-import SlottingFrame from './features/mapa/SlottingFrame.jsx';
-import DashboardAnalitico from './features/dashboard/DashboardAnalitico.jsx';
-import Historial from './features/historial/Historial.jsx';
-import AuditoriaView from './features/auditoria/AuditoriaView.jsx';
-import SalasView from './features/salas/SalasView.jsx';
-import AdminFab from './shared/components/AdminFab.jsx';
+import Sidebar from './shared/components/Sidebar.jsx';
 import BienvenidaModal from './shared/components/BienvenidaModal.jsx';
 import SaludoToast from './shared/components/SaludoToast.jsx';
-import AddRackModal from './features/mapa/AddRackModal.jsx';
 import { ROLES } from './features/auth/roles.js';
 
-// Panel de administración (botón flotante) y saludo personalizado: exclusivo
-// de Administrador y Supervisor — el resto de los roles no lo ve ni lo usa.
+// Code-splitting: cada uno de estos es su propio chunk, descargado recién
+// cuando hace falta (login, o la tab/modal que se abre) en vez de ir todo
+// en el bundle principal. Sin esto, PanelCargaMasiva/PanelCargaPicks meten
+// la librería xlsx entera en el chunk principal aunque nadie haya abierto
+// carga masiva todavía.
+const Login = lazy(() => import('./features/auth/Login.jsx'));
+const SlottingFrame = lazy(() => import('./features/mapa/SlottingFrame.jsx'));
+const SalasView = lazy(() => import('./features/salas/SalasView.jsx'));
+const DashboardAnalitico = lazy(() => import('./features/dashboard/DashboardAnalitico.jsx'));
+const Historial = lazy(() => import('./features/historial/Historial.jsx'));
+const AuditoriaView = lazy(() => import('./features/auditoria/AuditoriaView.jsx'));
+const AddRackModal = lazy(() => import('./features/mapa/AddRackModal.jsx'));
+
+// Saludo personalizado: exclusivo de Administrador y Supervisor — el resto
+// de los roles no lo ve. El Sidebar (navegación + herramientas admin) es
+// aparte: siempre se renderiza, y filtra sus propios ítems por permiso.
 const ROLES_PANEL_ADMIN = [ROLES.ADMIN, ROLES.SUPERVISOR];
 
 function Shell() {
@@ -47,28 +53,35 @@ function Shell() {
   return (
     <div className="app-shell">
       <Header sesion={sesion} onLogout={logout} />
-      <Tabs rol={sesion.rol} activa={tab} onCambiar={setTab} />
+      <Sidebar sesion={sesion} activa={tab} onCambiar={setTab} />
       <main className="app-main">
-        {tab === 'mapa' && <SlottingFrame sesion={sesion} onSolicitarAddRack={() => setMostrarAddRack(true)} />}
-        {tab === 'salas' && <SalasView sesion={sesion} />}
-        {tab === 'dashboard' && <DashboardAnalitico />}
-        {tab === 'historial' && <Historial sesion={sesion} />}
-        {tab === 'auditoria' && <AuditoriaView />}
+        <Suspense fallback={<p className="muted" style={{ textAlign: 'center', padding: 40 }}>Cargando…</p>}>
+          {tab === 'mapa' && <SlottingFrame sesion={sesion} onSolicitarAddRack={() => setMostrarAddRack(true)} />}
+          {tab === 'salas' && <SalasView sesion={sesion} />}
+          {tab === 'dashboard' && <DashboardAnalitico />}
+          {tab === 'historial' && <Historial sesion={sesion} />}
+          {tab === 'auditoria' && <AuditoriaView />}
+        </Suspense>
       </main>
-      {ROLES_PANEL_ADMIN.includes(sesion.rol) && <AdminFab sesion={sesion} onNavigate={setTab} />}
       {pedirApodo && <BienvenidaModal nombre={sesion.nombre} onListo={handleApodoListo} />}
       {mostrarSaludo && <SaludoToast apodo={apodo} onCerrar={() => setMostrarSaludo(false)} />}
-      {mostrarAddRack && <AddRackModal sesion={sesion} onCerrar={() => setMostrarAddRack(false)} />}
+      {mostrarAddRack && (
+        <Suspense fallback={null}>
+          <AddRackModal sesion={sesion} onCerrar={() => setMostrarAddRack(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/" element={<ProtectedRoute><Shell /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={null}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<ProtectedRoute><Shell /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

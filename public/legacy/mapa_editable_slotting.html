@@ -2,13 +2,10 @@
 <title>Mapa editable de slotting - Mezanine</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="./css/estilos.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.44.0/tabler-icons.min.css" rel="stylesheet">
 </head><body class="horizontal-mode">
 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
   <h1 style="margin:0">Slotting Mezanine</h1>
-  <button class="btn btn-guardar" onclick="avisarGuardadoAutomatico()" title="Los cambios ya se guardan solos, esto es solo un recordatorio">💾 Guardar Cambios</button>
-  <span class="badge-cambios" id="badgeCabecera">0</span>
   <span style="flex:1"></span>
   <button class="btn btn-addrack" id="btnAddRack" onclick="solicitarAddRack()" style="display:none" title="Extender un pasillo con columnas nuevas (solo Administrador)">+ Add Rack</button>
 </div>
@@ -16,9 +13,6 @@
 <div id="vistaMapa">
 <div class="sub" style="margin-bottom:14px">Tocá un rack para ver sus artículos. Podés mover artículos, exportar el Excel con los cambios.</div>
 <div class="toolbar">
-  <button id="tabMapa" onclick="verVista('mapa')" class="btn" style="background:#558B6E;color:#fff">Mapa editable</button>
-  <button id="tabDash" onclick="verVista('dash')" class="btn" style="background:#EAE6DF;color:#4B4A45">Dashboard analítico</button>
-  <div class="banda">↑ BANDA (MZ08)</div>
   <button class="btn btn-exp" onclick="exportar()">⬇ Exportar Excel con cambios</button>
   <button class="btn btn-undo" onclick="deshacer()">↶ Deshacer último</button>
   <button class="btn btn-lock" id="btnLock" onclick="toggleModoBloqueo()">🔒 Bloquear posiciones</button>
@@ -62,59 +56,6 @@
   <div class="item"><span class="sw" style="background:#D8D2C4"></span>Pasillo</div>
 </div>
 </div>
-<div id="vistaDash" style="display:none">
-<div class="dash-filtros">
-  <select><option>Todas las fechas</option><option>Hoy</option><option>Esta semana</option></select>
-  <select><option>Todos los usuarios</option></select>
-  <select><option>Todas las bandas</option></select>
-  <select><option>Todas las zonas</option><option>A</option><option>B</option><option>C</option><option>D</option></select>
-  <select><option>Todos los pasillos</option><option>MZ01</option><option>MZ02</option><option>MZ03</option><option>MZ04</option><option>MZ05</option><option>MZ06</option><option>MZ07</option><option>MZ08</option></select>
-  <select><option>Todos los estados</option></select>
-</div>
-<div class="dash-sectit"><i class="ti ti-layout-dashboard"></i> KPIs principales</div>
-<div class="dash-kpis">
-  <div class="dk"><div class="l"><i class="ti ti-box"></i>Posiciones</div><div class="v">214</div><div class="d">3016 artículos</div></div>
-  <div class="dk"><div class="l"><i class="ti ti-circle-check"></i>Ya en su lugar</div><div class="v">2568</div><div class="d">85.1% del total</div></div>
-  <div class="dk"><div class="l"><i class="ti ti-truck-loading"></i>Por mover</div><div class="v">448</div><div class="d">14.9% pendiente</div></div>
-  <div class="dk"><div class="l"><i class="ti ti-progress"></i>Avance</div><div class="v">85.1%</div><div class="d">plan vs inventario</div></div>
-  <div class="dk"><div class="l"><i class="ti ti-gauge"></i>Ocupación</div><div class="v">38.2%</div><div class="d">367.8/963.0</div></div>
-  <div class="dk"><div class="l"><i class="ti ti-alert-triangle"></i>Errores</div><div class="v">2</div><div class="d">detectados</div></div>
-  <div class="dk pend"><div class="l"><i class="ti ti-clock"></i>Cambios hoy</div><div class="v">pendiente BD</div></div>
-  <div class="dk pend"><div class="l"><i class="ti ti-users"></i>Usuarios activos</div><div class="v">pendiente BD</div></div>
-  <div class="dk pend"><div class="l"><i class="ti ti-clock-hour-4"></i>Tiempo/mov.</div><div class="v">pendiente BD</div></div>
-  <div class="dk pend"><div class="l"><i class="ti ti-arrow-back-up"></i>Revertidos</div><div class="v">pendiente BD</div></div>
-</div>
-<div class="dash-sectit"><i class="ti ti-chart-line"></i> Progreso del proyecto</div>
-<div class="dash-g2">
-  <div class="dc"><h3><i class="ti ti-building-warehouse"></i> Avance por pasillo</h3><div class="cb"><canvas id="chPas"></canvas></div></div>
-  <div class="dc"><h3><i class="ti ti-category"></i> Distribución por zona</h3><div class="cb"><canvas id="chZon"></canvas></div></div>
-</div>
-<div class="dash-g2" style="margin-top:16px">
-  <div class="dc"><h3><i class="ti ti-chart-area-line"></i> Avance diario / semanal</h3><div class="pend-b"><i class="ti ti-database-off"></i> Requiere historial con fecha — pendiente de conexión a BD.</div></div>
-  <div class="dc"><h3><i class="ti ti-user-check"></i> Avance por usuario</h3><div class="pend-b"><i class="ti ti-database-off"></i> Requiere registro por usuario — pendiente de conexión a BD.</div></div>
-</div>
-<div class="dash-sectit"><i class="ti ti-users"></i> Rendimiento de usuarios</div>
-<div class="dc">
-  <div class="pend-b" style="margin-bottom:12px"><i class="ti ti-database-off"></i> Requiere historial de movimientos (usuario, tiempo, revertidos). Estructura lista para conectar:</div>
-  <table class="dt"><thead><tr><th>Usuario</th><th>Movimientos</th><th>Tiempo prom.</th><th>Errores</th><th>Revertidos</th><th>Productividad</th><th>Última actividad</th></tr></thead>
-  <tbody><tr><td colspan="7" style="text-align:center;color:#9A9684;padding:22px">— sin datos de historial —</td></tr></tbody></table>
-</div>
-<div class="dash-sectit"><i class="ti ti-alert-triangle"></i> Detección de errores</div>
-<div class="dash-g3">
-  <div class="dc"><h3><i class="ti ti-stack-2"></i> Sobrecarga nivel</h3><div class="v" style="font-size:26px">2</div><div style="font-size:12px;margin-top:4px"><span class="bsev medio">medio</span> &gt; 0.90</div></div>
-  <div class="dc"><h3><i class="ti ti-map-pin-off"></i> Sin ubicación</h3><div class="v" style="font-size:26px">448</div><div style="font-size:12px;margin-top:4px"><span class="bsev alto">alto</span> a localizar</div></div>
-  <div class="dc"><h3><i class="ti ti-layers-off"></i> Tope 4 excedido</h3><div class="v" style="font-size:26px">0</div><div style="font-size:12px;margin-top:4px"><span class="bsev bajo">bajo</span> &gt;4 art</div></div>
-</div>
-<div class="dc" style="margin-top:16px"><h3><i class="ti ti-list-details"></i> Detalle de errores</h3>
-  <table class="dt"><thead><tr><th>Sev.</th><th>Tipo</th><th>Ubicación</th><th>Detalle</th></tr></thead><tbody id="tbErr"></tbody></table>
-</div>
-<div class="dash-sectit"><i class="ti ti-timeline"></i> Actividad reciente</div>
-<div class="dc"><div class="pend-b"><i class="ti ti-database-off"></i> Timeline en vivo (usuario · hora · origen → destino · artículo · estado) — pendiente de conexión a BD.</div></div>
-<div class="dash-sectit"><i class="ti ti-grid-dots"></i> Mapa de calor · actividad por pasillo</div>
-<div class="dc"><div style="font-size:12px;color:#9A9684;margin-bottom:12px">Intensidad = artículos por pasillo. Verde bajo · ámbar medio · rojo alto.</div><div class="dheat" id="dheat"></div></div>
-<div class="dash-sectit"><i class="ti ti-bell"></i> Alertas</div>
-<div class="dc" id="dalertas"></div>
-</div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)cerrar()">
   <div class="modal"><div class="modal-head" id="mhead"><button class="close" onclick="cerrar()">&times;</button>
   <h2 id="mtit">—</h2><div class="meta" id="mmeta">—</div></div>
@@ -125,7 +66,6 @@
 <script src="./js/03-configuracion.js"></script>
 <script src="./js/04-sesion.js"></script>
 <script src="./js/05-ayudantes.js"></script>
-<script src="./js/06-tabs.js"></script>
 <script src="./js/07-render.js"></script>
 <script src="./js/08-interacciones.js"></script>
 <script src="./js/09-arrastre.js"></script>

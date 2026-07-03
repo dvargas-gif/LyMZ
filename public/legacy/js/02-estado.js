@@ -6,7 +6,6 @@
 // tener que inventar getters/setters sobre variables que hoy se leen y
 // reasignan desde decenas de funciones distintas).
 
-let dashDibujado=false;
 let cambios=[];           // log de movimientos
 let moviendo=null;        // {art,desdeKey,desdeNiv}
 let modalKey=null;
