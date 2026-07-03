@@ -32,6 +32,9 @@ h1{font-size:27.6px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
 .btn-lock{background:#E8E2D2;color:#6E7A72}
 .btn-lock:hover{background:#DDD6C4}
 .btn-lock.activo{background:#C0392B;color:#fff}
+.btn-edit{background:#E8E2D2;color:#6E7A72}
+.btn-edit:hover{background:#DDD6C4}
+.btn-edit.activo{background:#2E7D83;color:#fff}
 .cell.bloqueada{background:repeating-linear-gradient(45deg,#B4B2A9 0 6px,#9A988F 6px 12px)!important;cursor:pointer;opacity:.85}
 .cell.bloqueada .n,.cell.bloqueada .cestamp{text-decoration:line-through;color:#4A4636!important}
 .cell.seleccionada{outline:3px solid #7A2E2E;outline-offset:1px;box-shadow:0 0 0 3px rgba(122,46,46,.25) inset}
@@ -39,7 +42,7 @@ h1{font-size:27.6px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
 .caja{position:absolute;left:50%;margin-left:-6px;width:12px;height:10px;background:#B99A78;border:1px solid #9A7E5E;border-radius:2px;z-index:2;opacity:.85;animation:cajaBaja 7s linear infinite}
 .caja::after{content:"";position:absolute;top:50%;left:0;right:0;height:1.5px;margin-top:-0.75px;background:#9A6E42}
 @keyframes cajaBaja{0%{top:100%;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:-20px;opacity:0}}
-.grid{display:flex;flex-direction:row;gap:0;align-items:flex-start}
+.grid{display:flex;flex-direction:row;gap:0;align-items:flex-start;user-select:none;-webkit-user-select:none}
 .row{display:flex;gap:3px;align-items:center}
 .rowlabel{width:48px;font-size:13.8px;font-weight:800;color:#2E7D83;text-align:right;padding-right:6px;flex-shrink:0}
 .cell{width:40.43px;height:36.96px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -48,15 +51,17 @@ h1{font-size:27.6px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
 .cell.empty{background:#FBFAF5;border:1px dashed #E0DACE;cursor:pointer}
 .cell.hl{outline:3px solid #E07B39;outline-offset:1px;z-index:6}
 .cell.target{outline:3px dashed #2E7D83;outline-offset:1px}
-/* ---- AGREGADO: pulsación larga para arrastrar un cuerpo completo ---- */
-@keyframes pulsarLargo{from{box-shadow:0 0 0 0 rgba(192,57,43,0)}to{box-shadow:0 0 0 5px rgba(192,57,43,.45)}}
-.cell.presionando{outline:2px solid rgba(192,57,43,.35);outline-offset:2px;animation:pulsarLargo 4s linear forwards;cursor:grab;z-index:6}
-.cell.arrastrando{outline:3px solid #C0392B;opacity:.4;cursor:grabbing;z-index:7}
-.cell.destino-arrastre{outline:3px dashed #2E7D83 !important;background:rgba(46,125,131,.18) !important}
+/* ---- AGREGADO: arrastre inmediato de un cuerpo completo (solo con Modo edición activo) ---- */
+body.modo-edicion .cell:not(.empty):not(.bloqueada){cursor:grab}
+.cell.arrastrando{outline:3px solid #C0392B;opacity:.4;cursor:grabbing;z-index:7;transition:opacity .1s ease}
+.cell.destino-arrastre{outline:3px dashed #2E7D83 !important;background:rgba(46,125,131,.18) !important;transition:background .1s ease}
+/* left/top del fantasma se escriben directo en cada frame (sin transition,
+   para que siga al cursor sin retraso); solo opacity/scale animan al
+   aparecer/desaparecer, vía la clase .visible. */
 #fantasmaDrag{position:fixed;display:none;pointer-events:none;z-index:9999;padding:8px 14px;border-radius:10px;background:#C0392B;color:#fff;
-  font-size:11.5px;font-weight:700;box-shadow:0 10px 26px rgba(0,0,0,.35);transform:translate(-50%,-130%);white-space:nowrap;font-family:inherit}
-#pistaPulsacion{position:fixed;display:none;pointer-events:none;z-index:9998;padding:6px 12px;border-radius:8px;background:#1C3A3E;color:#fff;
-  font-size:11px;font-weight:600;box-shadow:0 6px 16px rgba(0,0,0,.3);transform:translate(-50%,-140%);white-space:nowrap;opacity:.95;font-family:inherit}
+  font-size:11.5px;font-weight:700;box-shadow:0 10px 26px rgba(0,0,0,.35);transform:translate(-50%,-130%) scale(.85);white-space:nowrap;font-family:inherit;
+  opacity:0;transition:opacity .12s ease,transform .12s cubic-bezier(.2,.8,.2,1);will-change:left,top}
+#fantasmaDrag.visible{opacity:1;transform:translate(-50%,-130%) scale(1)}
 .cell .n{font-size:14.95px;font-weight:600;letter-spacing:-.3px;line-height:1}
 .cell .cestamp{font-size:9.2px;font-weight:600;letter-spacing:.5px;opacity:.9}
 .gap{width:40px;background:#D8D2C4;opacity:.5;border-radius:3px;align-self:stretch;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -186,6 +191,7 @@ body.horizontal-mode #grid>.gapv span{writing-mode:horizontal-tb;transform:none;
   <button class="btn btn-exp" onclick="exportar()">⬇ Exportar Excel con cambios</button>
   <button class="btn btn-undo" onclick="deshacer()">↶ Deshacer último</button>
   <button class="btn btn-lock" id="btnLock" onclick="toggleModoBloqueo()">🔒 Bloquear posiciones</button>
+  <button class="btn btn-edit" id="btnEdit" onclick="toggleModoEdicion()">✏️ Modo edición</button>
   <span class="changes-badge" id="badge">0 cambios</span>
   <div class="search"><input id="buscar" type="text" placeholder="Buscar artículo..." oninput="buscar()"></div>
   <div class="res" id="resbuscar"></div>
@@ -456,6 +462,21 @@ function toggleModoBloqueo(){
   document.getElementById("btnLock").classList.toggle("activo",modoBloqueo);
   document.getElementById("btnLock").textContent=modoBloqueo?"🔓 Modo bloqueo ACTIVO (tocá posiciones)":"🔒 Bloquear posiciones";
 }
+// --- AGREGADO: modo edición — encierra TODO el arrastre (ver más abajo,
+// iniciarPulsacion/etc.) detrás de un toggle explícito. Fuera de este modo,
+// un pointerdown no hace absolutamente nada especial: el click de siempre
+// (abrir rack / continuar "Mover" por modal) queda intacto, sin ningún
+// umbral ni chance de dispararse por accidente. Esto es lo que permite que,
+// DENTRO del modo, el arrastre pueda ser bien sensible/fluido sin miedo a
+// romper un click normal en el resto de la app.
+let modoEdicion=false;
+function toggleModoEdicion(){
+  modoEdicion=!modoEdicion;
+  document.getElementById("btnEdit").classList.toggle("activo",modoEdicion);
+  document.getElementById("btnEdit").textContent=modoEdicion?"✏️ Modo edición ACTIVO (arrastrá para mover)":"✏️ Modo edición";
+  document.body.classList.toggle("modo-edicion",modoEdicion);
+  if(!modoEdicion)cancelarPulsacion(); // si lo apagan a mitad de un arrastre, se cancela limpio
+}
 function toggleBloqueo(key){
   if(bloqueadas.has(key))bloqueadas.delete(key);
   else bloqueadas.add(key);
@@ -714,7 +735,10 @@ function render(){
       cell.innerHTML+=`<span style="position:absolute;top:2px;left:3px;font-size:5.5px;font-weight:600;letter-spacing:-.2px;color:${colTxt};opacity:.65">${String(c).padStart(3,"0")}</span>`;
       // posición bloqueada: tachada + candado
       if(estaBloqueada){cell.classList.add("bloqueada");cell.innerHTML+=`<span class="candado">🔒</span>`;}
-      if(moviendo&&!estaBloqueada)cell.classList.add("target");
+      // Durante un arrastre activo NO se ilumina toda la grilla de posibles
+      // destinos (era carga visual innecesaria en grillas grandes) — solo se
+      // resalta la celda puntual bajo el cursor, vía marcarDestino().
+      if(moviendo&&!estaBloqueada&&!(arrastreActivo&&arrastreActivo.armado))cell.classList.add("target");
       // Pulsación larga (long-press) para arrastrar: data-key habilita ubicar
       // la celda bajo el puntero con elementFromPoint() durante el arrastre;
       // el pointerdown solo ARMA un temporizador, nunca reemplaza el onclick
@@ -924,103 +948,116 @@ function soltarCuerpoEn(destKey){
   render();
 }
 
-// --- AGREGADO: pulsación larga (long-press) para arrastrar un cuerpo completo ---
+// --- AGREGADO: arrastre inmediato (drag & drop) de un cuerpo completo ---
 // Capa NUEVA y aparte de iniciarMover/soltarEn/confirmar/iniciarMoverCuerpo/
 // soltarCuerpoEn: no cambia ni una línea de esas funciones, solo las DISPARA
-// cuando corresponde. Con click/tap corto (soltar antes de LONGPRESS_MS, o
-// mover el puntero más de LONGPRESS_TOLERANCIA_PX) nunca se llega a armar el
-// arrastre: el navegador sigue disparando el onclick normal de la celda
-// (abrir el rack o continuar el flujo de "Mover" por modal) exactamente
-// igual que antes. Funciona igual en el mapa real y en una sala porque, al
-// activarse, reutiliza iniciarMoverCuerpo()/soltarCuerpoEn() tal cual —
-// esas funciones ya llaman a notificarPosicion(), que ya manda escenarioId.
-const LONGPRESS_MS=4000;
-const LONGPRESS_TOLERANCIA_PX=10;
-let presionLarga=null; // {key,cell,timer,startX,startY,pointerId,armado}
+// cuando corresponde. Un tap/click normal (soltar sin moverse más de
+// ARRASTRE_UMBRAL_PX) nunca activa el arrastre: el navegador sigue
+// disparando el onclick de siempre (abrir el rack / continuar "Mover" por
+// modal). En cuanto el puntero se mueve más que el umbral, se activa el
+// arrastre AL INSTANTE (sin espera). Funciona igual en el mapa real y en
+// una sala porque reutiliza iniciarMoverCuerpo()/soltarCuerpoEn() tal cual
+// — esas funciones ya llaman a notificarPosicion(), que ya manda escenarioId.
+const ARRASTRE_UMBRAL_PX=3;
+let arrastreActivo=null; // {key,cell,pointerId,armado,ultimoDestino,rafId,ultimoX,ultimoY}
 
-function elPistaPulsacion(){
-  let el=document.getElementById('pistaPulsacion');
-  if(!el){el=document.createElement('div');el.id='pistaPulsacion';document.body.appendChild(el);}
-  return el;
-}
 function elFantasmaDrag(){
   let el=document.getElementById('fantasmaDrag');
   if(!el){el=document.createElement('div');el.id='fantasmaDrag';document.body.appendChild(el);}
   return el;
 }
-function mostrarPista(x,y,texto){const el=elPistaPulsacion();el.textContent=texto;el.style.left=x+'px';el.style.top=y+'px';el.style.display='block';}
-function ocultarPista(){const el=document.getElementById('pistaPulsacion');if(el)el.style.display='none';}
-function mostrarFantasma(x,y,texto){const el=elFantasmaDrag();el.textContent=texto;el.style.left=x+'px';el.style.top=y+'px';el.style.display='flex';}
-function ocultarFantasma(){const el=document.getElementById('fantasmaDrag');if(el)el.style.display='none';}
-function limpiarDestinoArrastre(){document.querySelectorAll('.cell.destino-arrastre').forEach(c=>c.classList.remove('destino-arrastre'));}
+function mostrarFantasma(texto){const el=elFantasmaDrag();el.textContent=texto;el.style.display='flex';requestAnimationFrame(()=>el.classList.add('visible'));}
+function posicionarFantasma(x,y){const el=document.getElementById('fantasmaDrag');if(el){el.style.left=x+'px';el.style.top=y+'px';}}
+function ocultarFantasma(){const el=document.getElementById('fantasmaDrag');if(el){el.classList.remove('visible');el.style.display='none';}}
 function celdaBajoPuntero(x,y){
   const el=document.elementFromPoint(x,y);
   return (el&&el.closest)?el.closest('[data-key]'):null;
 }
+// Actualiza la celda destino resaltada SOLO cuando cambia (nada de barrer
+// el DOM entero en cada pointermove) — esto es lo que evita el "salteo" al
+// arrastrar rápido sobre muchas celdas seguidas.
+function marcarDestino(x,y){
+  const destCell=celdaBajoPuntero(x,y);
+  const destino=(destCell&&destCell.dataset.key!==arrastreActivo.key)?destCell:null;
+  if(destino===arrastreActivo.ultimoDestino)return;
+  if(arrastreActivo.ultimoDestino)arrastreActivo.ultimoDestino.classList.remove('destino-arrastre');
+  if(destino)destino.classList.add('destino-arrastre');
+  arrastreActivo.ultimoDestino=destino;
+}
+// Todas las actualizaciones visuales del arrastre (fantasma + resaltado de
+// destino) se aplican una sola vez por frame con requestAnimationFrame, en
+// vez de una vez por cada evento pointermove crudo (que en mouse/trackpad
+// de alta frecuencia puede disparar mucho más rápido que 60fps) — así el
+// arrastre se ve fluido en vez de saltar.
+function actualizarFrameArrastre(){
+  if(!arrastreActivo||!arrastreActivo.armado)return;
+  arrastreActivo.rafId=null;
+  posicionarFantasma(arrastreActivo.ultimoX,arrastreActivo.ultimoY);
+  marcarDestino(arrastreActivo.ultimoX,arrastreActivo.ultimoY);
+}
 
 function iniciarPulsacion(e,key,cell){
+  if(!modoEdicion)return; // el arrastre solo existe DENTRO del modo edición — fuera de él, el click de siempre queda 100% intacto
   if(e.button!==undefined&&e.button!==0)return; // solo botón primario del mouse (touch no trae "button")
   if(modoBloqueo||modoSeleccionArea||moviendo)return; // no interferir con otros modos ya activos
   const cu=CUERPOS[key];
   if(!cu||nArts(cu)===0)return; // nada que arrastrar en un slot vacío
   if(bloqueadas.has(key))return;
   cancelarPulsacion();
+  // Evita que el navegador arranque su propia selección de texto/etiquetas
+  // mientras el mouse se mueve rápido durante el arrastre (se veían recuadros
+  // celestes de selección nativa sobre "MZ06", los números de nivel, etc.).
+  e.preventDefault();
+  document.getSelection()?.removeAllRanges();
   try{grid.setPointerCapture(e.pointerId);}catch(err){}
-  cell.classList.add('presionando');
-  mostrarPista(e.clientX,e.clientY,'⏳ Mantené presionado para mover…');
-  const timer=setTimeout(()=>activarArrastre(key,cell),LONGPRESS_MS);
-  presionLarga={key,cell,timer,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,armado:false};
+  arrastreActivo={key,cell,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,armado:false,ultimoDestino:null,rafId:null,ultimoX:e.clientX,ultimoY:e.clientY};
 }
 function activarArrastre(key,cell){
-  if(!presionLarga||presionLarga.key!==key)return;
-  presionLarga.armado=true;
-  cell.classList.remove('presionando');
+  if(!arrastreActivo||arrastreActivo.key!==key)return;
+  arrastreActivo.armado=true;
   cell.classList.add('arrastrando');
   iniciarMoverCuerpo(key); // reutiliza TAL CUAL: arma moviendo, muestra movebar y hace render()
   // iniciarMoverCuerpo() acaba de llamar a render(), que recreó todas las
   // celdas — la celda original quedó desmontada del DOM. Se reengancha la
   // marca visual de "arrastrando" sobre la celda NUEVA con la misma key.
   const nuevaCell=cellRefs[key];
-  if(nuevaCell){presionLarga.cell=nuevaCell;nuevaCell.classList.add('arrastrando');}
+  if(nuevaCell){arrastreActivo.cell=nuevaCell;nuevaCell.classList.add('arrastrando');}
+  const na=nArts(CUERPOS[key]||{niveles:{}});
+  mostrarFantasma(`✋ Moviendo ${key.replace('|','-C')} (${na} art)`);
+  posicionarFantasma(arrastreActivo.ultimoX,arrastreActivo.ultimoY);
 }
 function moverPulsacion(e){
-  if(!presionLarga||e.pointerId!==presionLarga.pointerId)return;
-  if(presionLarga.armado){
-    const cuO=CUERPOS[presionLarga.key];
-    const na=cuO?nArts(cuO):0;
-    mostrarFantasma(e.clientX,e.clientY,`✋ Moviendo ${presionLarga.key.replace('|','-C')} (${na} art)`);
-    limpiarDestinoArrastre();
-    const destCell=celdaBajoPuntero(e.clientX,e.clientY);
-    if(destCell&&destCell.dataset.key!==presionLarga.key)destCell.classList.add('destino-arrastre');
+  if(!arrastreActivo||e.pointerId!==arrastreActivo.pointerId)return;
+  e.preventDefault();
+  arrastreActivo.ultimoX=e.clientX;arrastreActivo.ultimoY=e.clientY;
+  if(arrastreActivo.armado){
+    if(arrastreActivo.rafId==null)arrastreActivo.rafId=requestAnimationFrame(actualizarFrameArrastre);
     return;
   }
-  const dx=e.clientX-presionLarga.startX, dy=e.clientY-presionLarga.startY;
-  if(Math.hypot(dx,dy)>LONGPRESS_TOLERANCIA_PX)cancelarPulsacion();
-  else mostrarPista(e.clientX,e.clientY,'⏳ Mantené presionado para mover…');
+  const dx=e.clientX-arrastreActivo.startX, dy=e.clientY-arrastreActivo.startY;
+  if(Math.hypot(dx,dy)>ARRASTRE_UMBRAL_PX)activarArrastre(arrastreActivo.key,arrastreActivo.cell);
 }
 function soltarPulsacion(e){
-  if(!presionLarga||e.pointerId!==presionLarga.pointerId)return;
-  const p=presionLarga;
+  if(!arrastreActivo||e.pointerId!==arrastreActivo.pointerId)return;
+  const p=arrastreActivo;
   try{grid.releasePointerCapture(e.pointerId);}catch(err){}
-  ocultarPista();
+  if(p.rafId!=null)cancelAnimationFrame(p.rafId);
   if(!p.armado){
-    // pulsación corta: se deja todo como estaba y el click normal de la
-    // celda sigue su curso solo (abrir rack / continuar flujo de Mover).
-    clearTimeout(p.timer);
-    p.cell.classList.remove('presionando');
-    presionLarga=null;
+    // no llegó a moverse más que el umbral: fue un click/tap normal, se
+    // deja todo como estaba y el onclick de la celda sigue su curso solo
+    // (abrir rack / continuar flujo de Mover por modal).
+    arrastreActivo=null;
     return;
   }
-  clearTimeout(p.timer);
-  limpiarDestinoArrastre();
+  if(p.ultimoDestino)p.ultimoDestino.classList.remove('destino-arrastre');
   ocultarFantasma();
-  p.cell.classList.remove('presionando','arrastrando');
-  presionLarga=null;
+  p.cell.classList.remove('arrastrando');
+  arrastreActivo=null;
 
   const destCell=celdaBajoPuntero(e.clientX,e.clientY);
   const destKey=destCell?destCell.dataset.key:null;
 
-  if(!destKey){cancelarMover();return;} // soltó afuera del mapa: se cancela, nada cambia
+  if(!destKey||destKey===p.key){cancelarMover();return;} // soltó afuera del mapa o volvió al mismo rack: se cancela en silencio, nada cambia
   if(bloqueadas.has(destKey)){
     document.getElementById('movebar').innerHTML=`⚠ Esa posición está bloqueada, no se puede soltar ahí. <button class="cancel" onclick="cancelarMover()">cerrar</button>`;
     setTimeout(()=>{ if(moviendo)cancelarMover(); },2500);
@@ -1029,17 +1066,18 @@ function soltarPulsacion(e){
   soltarCuerpoEn(destKey); // reutiliza TAL CUAL: valida vacío/mismo origen, guarda y notifica
 }
 function cancelarPulsacion(){
-  if(!presionLarga)return;
-  clearTimeout(presionLarga.timer);
-  presionLarga.cell.classList.remove('presionando','arrastrando');
-  try{grid.releasePointerCapture(presionLarga.pointerId);}catch(err){}
-  ocultarPista();ocultarFantasma();limpiarDestinoArrastre();
-  presionLarga=null;
+  if(!arrastreActivo)return;
+  if(arrastreActivo.rafId!=null)cancelAnimationFrame(arrastreActivo.rafId);
+  if(arrastreActivo.ultimoDestino)arrastreActivo.ultimoDestino.classList.remove('destino-arrastre');
+  arrastreActivo.cell.classList.remove('arrastrando');
+  try{grid.releasePointerCapture(arrastreActivo.pointerId);}catch(err){}
+  ocultarFantasma();
+  arrastreActivo=null;
 }
 grid.addEventListener('pointermove',moverPulsacion);
 grid.addEventListener('pointerup',soltarPulsacion);
 grid.addEventListener('pointercancel',()=>cancelarPulsacion());
-// --- FIN AGREGADO PULSACIÓN LARGA ---
+// --- FIN AGREGADO ARRASTRE INMEDIATO ---
 
 function buscar(){
   const q=document.getElementById("buscar").value.trim().toLowerCase();
