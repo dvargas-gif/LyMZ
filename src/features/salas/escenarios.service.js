@@ -1,0 +1,90 @@
+import { supabase } from '../../shared/services/supabaseClient.js';
+import { posicionesService } from '../../shared/services/posiciones.service.js';
+import { escenarioPosicionesService } from './escenarioPosiciones.service.js';
+import { escenarioEliminadosService } from './escenarioEliminados.service.js';
+import { escenarioBloqueosService } from './escenarioBloqueos.service.js';
+
+/**
+ * "Salas" de simulación: copias aisladas del mapa donde Admin/Supervisor
+ * pueden proponer acomodos alternativos sin tocar `posiciones_actuales`
+ * (el mapa real). Cada sala arranca como una foto del estado real al
+ * momento de crearla, y a partir de ahí vive en `escenario_posiciones`.
+ */
+const TAMANO_PAGINA = 1000; // límite por página que aplica PostgREST/Supabase por defecto
+
+export const escenariosService = {
+  /** Trae TODAS las filas paginando — un solo select() se corta en 1000 filas. */
+  async listar() {
+    const todas = [];
+    let desde = 0;
+    while (true) {
+      const { data, error } = await supabase.from('escenarios').select('*').order('creado_en', { ascending: false }).range(desde, desde + TAMANO_PAGINA - 1);
+      if (error) throw error;
+      todas.push(...data);
+      if (data.length < TAMANO_PAGINA) break;
+      desde += TAMANO_PAGINA;
+    }
+    return todas;
+  },
+
+  /** Crea la sala y copia ahí mismo el estado real actual (snapshot). */
+  async crear({ nombre, usuarioId, usuarioNombre }) {
+    const { data: escenario, error } = await supabase
+      .from('escenarios')
+      .insert({ nombre, creado_por: usuarioId, creado_por_nombre: usuarioNombre })
+      .select()
+      .single();
+    if (error) throw error;
+
+    const posicionesReales = await posicionesService.listar();
+    if (posicionesReales.length > 0) {
+      const filas = posicionesReales.map(p => ({
+        escenario_id: escenario.id,
+        articulo: p.articulo, pasillo: p.pasillo, columna: p.columna, nivel: p.nivel,
+        clase: p.clase, grupo: p.grupo, tipo: p.tipo,
+        actualizado_por: usuarioId,
+      }));
+      const { error: copiaError } = await supabase.from('escenario_posiciones').insert(filas);
+      if (copiaError) throw copiaError;
+    }
+    return escenario;
+  },
+
+  async eliminar(id) {
+    const { error } = await supabase.from('escenarios').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  /**
+   * "Volver al acomodo base": tira todo lo propio de la sala (posiciones
+   * movidas, artículos limpiados, bloqueos) y vuelve a copiar el estado REAL
+   * actual — igual que hace crear(), pero sobre una sala que ya existe. El
+   * mapa real nunca se toca acá, solo se LEE (posicionesService.listar()).
+   */
+  async restaurarDesdeBase({ escenarioId, usuarioId }) {
+    const [posicionesReales] = await Promise.all([
+      posicionesService.listar(),
+      escenarioPosicionesService.borrarTodos(escenarioId),
+      escenarioEliminadosService.borrarTodos(escenarioId),
+      // Best-effort: si escenario_bloqueos todavía no existe (falta correr
+      // el SQL de salas avanzado), no debe impedir restaurar lo demás.
+      escenarioBloqueosService.borrarTodos(escenarioId).catch(err => console.error('No se pudieron borrar los bloqueos de la sala', err)),
+    ]);
+    if (posicionesReales.length > 0) {
+      const filas = posicionesReales.map(p => ({
+        escenario_id: escenarioId,
+        articulo: p.articulo, pasillo: p.pasillo, columna: p.columna, nivel: p.nivel,
+        clase: p.clase, grupo: p.grupo, tipo: p.tipo,
+        actualizado_por: usuarioId,
+      }));
+      const { error } = await supabase.from('escenario_posiciones').insert(filas);
+      if (error) throw error;
+    }
+  },
+
+  /** Checkpoint manual del botón "Guardar simulación" — confirma al usuario que quedó todo al día. */
+  async tocar(id) {
+    const { error } = await supabase.from('escenarios').update({ actualizado_en: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+  },
+};

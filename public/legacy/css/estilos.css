@@ -1,0 +1,176 @@
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#F7F4EC;--ink:#1C3A3E;--card:#fff;--line:#E0DACE}
+body.tema-oscuro{--bg:#14201F;--ink:#E7ECE9;--card:#1D2C2A;--line:#2E3E3B}
+body.tema-alto-contraste{--bg:#FFFFFF;--ink:#000000;--card:#FFFFFF;--line:#000000}
+/* Modo simulación (sala): fondo con un leve tinte violeta para que sea obvio
+   a simple vista que esto es una copia, no el mapa real. Selector compuesto
+   (.tema-x.modo-simulacion) para que combine bien con cualquier tema. */
+body.modo-simulacion{--bg:#F1EDFA}
+body.tema-oscuro.modo-simulacion{--bg:#201A2E}
+body.tema-alto-contraste.modo-simulacion{--bg:#F2EEFF}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Inter','Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);padding:16px 10px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;transition:background .3s ease,color .3s ease}
+h1{font-size:27.6px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
+.sub{font-size:14.95px;color:#6E7A72;margin-bottom:12px}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.banda{background:#C0392B;color:#fff;font-size:14.95px;font-weight:800;padding:9px 16px;border-radius:8px;display:inline-flex;align-items:center}
+.btn{padding:9px 16px;border:1px solid transparent;border-radius:8px;font-size:14.95px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s ease,filter .12s ease,background .12s ease}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.14);filter:brightness(1.04)}
+.btn:active{transform:translateY(0) scale(.97);box-shadow:none}
+/* Paleta neutra: todos los botones de la toolbar (Exportar/Deshacer/Bloquear/
+   Editar) comparten el mismo gris suave cuando NO están activos — solo los
+   estados .activo (bloqueo/edición prendidos) conservan un color propio, a
+   modo de aviso claro de "esto está encendido ahora". */
+.btn-exp,.btn-undo,.btn-lock,.btn-edit{background:#EAE6DF;color:#4B4A45;border-color:#DDD8CC}
+.btn-exp:hover,.btn-undo:hover,.btn-lock:hover,.btn-edit:hover{background:#DED9CC}
+.search input{padding:9px 16px;border:1px solid #C8C2B4;border-radius:8px;font-size:14.95px;width:220px;font-family:inherit}
+.changes-badge{background:#E07B39;color:#fff;font-size:14.95px;font-weight:700;padding:9px 16px;border-radius:8px;display:inline-flex;align-items:center}
+.res{font-size:13.8px;color:#2E7D83;font-weight:600;width:100%;margin-top:4px}
+.wrap{overflow:hidden;padding-bottom:12px;max-width:calc(100% - 530px)}
+@keyframes bandaFlow{0%{background-position:0 22px}100%{background-position:0 0}}
+.btn-lock.activo{background:#C0392B;color:#fff;border-color:#C0392B}
+.btn-edit.activo{background:#2E7D83;color:#fff;border-color:#2E7D83}
+/* ---- AGREGADO: encabezado superior (Guardar cambios / Add Rack) ---- */
+.btn-guardar{background:#4E8766;color:#fff;border:none}
+.btn-guardar:hover{background:#43714F}
+.badge-cambios{background:#E67E22;color:#fff;font-size:12px;font-weight:800;min-width:22px;height:22px;padding:0 7px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center}
+.btn-addrack{background:#fff;color:#4B4A45;border:1px solid #DDD8CC}
+.btn-addrack:hover{background:#F5F3EE}
+.cell.bloqueada{background:repeating-linear-gradient(45deg,#B4B2A9 0 6px,#9A988F 6px 12px)!important;cursor:pointer;opacity:.85}
+.cell.bloqueada .n,.cell.bloqueada .cestamp{text-decoration:line-through;color:#4A4636!important}
+.cell.seleccionada{outline:3px solid #7A2E2E;outline-offset:1px;box-shadow:0 0 0 3px rgba(122,46,46,.25) inset}
+.cell .candado{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:16.1px;z-index:4}
+.caja{position:absolute;left:50%;margin-left:-6px;width:12px;height:10px;background:#B99A78;border:1px solid #9A7E5E;border-radius:2px;z-index:2;opacity:.85;animation:cajaBaja 7s linear infinite}
+.caja::after{content:"";position:absolute;top:50%;left:0;right:0;height:1.5px;margin-top:-0.75px;background:#9A6E42}
+@keyframes cajaBaja{0%{top:100%;opacity:0}8%{opacity:1}92%{opacity:1}100%{top:-20px;opacity:0}}
+.grid{display:flex;flex-direction:row;gap:0;align-items:flex-start;user-select:none;-webkit-user-select:none}
+.row{display:flex;gap:3px;align-items:center}
+.rowlabel{width:48px;font-size:13.8px;font-weight:800;color:#2E7D83;text-align:right;padding-right:6px;flex-shrink:0}
+.cell{width:40.43px;height:36.96px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      font-size:10.35px;font-weight:500;border:0.5px solid rgba(0,0,0,.06);transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s;position:relative;flex-shrink:0;touch-action:none}
+.cell:hover{transform:scale(1.18);box-shadow:0 6px 20px rgba(0,0,0,.18);z-index:5;border-color:rgba(0,0,0,.15)}
+.cell.empty{background:#FBFAF5;border:1px dashed #E0DACE;cursor:pointer}
+.cell.hl{outline:3px solid #E07B39;outline-offset:1px;z-index:6}
+.cell.target{outline:3px dashed #2E7D83;outline-offset:1px}
+/* ---- AGREGADO: arrastre inmediato de un cuerpo completo (solo con Modo edición activo) ---- */
+body.modo-edicion .cell:not(.empty):not(.bloqueada){cursor:grab}
+.cell.arrastrando{outline:3px solid #C0392B;opacity:.4;cursor:grabbing;z-index:7;transition:opacity .1s ease}
+.cell.destino-arrastre{outline:3px dashed #2E7D83 !important;background:rgba(46,125,131,.18) !important;transition:background .1s ease}
+/* left/top del fantasma se escriben directo en cada frame (sin transition,
+   para que siga al cursor sin retraso); solo opacity/scale animan al
+   aparecer/desaparecer, vía la clase .visible. */
+#fantasmaDrag{position:fixed;display:none;pointer-events:none;z-index:9999;padding:8px 14px;border-radius:10px;background:#C0392B;color:#fff;
+  font-size:11.5px;font-weight:700;box-shadow:0 10px 26px rgba(0,0,0,.35);transform:translate(-50%,-130%) scale(.85);white-space:nowrap;font-family:inherit;
+  opacity:0;transition:opacity .12s ease,transform .12s cubic-bezier(.2,.8,.2,1);will-change:left,top}
+#fantasmaDrag.visible{opacity:1;transform:translate(-50%,-130%) scale(1)}
+.cell .n{font-size:14.95px;font-weight:700;letter-spacing:-.3px;line-height:1}
+.cell .cestamp{font-size:9.2px;font-weight:700;letter-spacing:.5px;opacity:.9}
+.gap{width:40px;background:#D8D2C4;opacity:.5;border-radius:3px;align-self:stretch;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.gaph{height:26px;background:#D8D2C4;opacity:.5;border-radius:3px;display:flex;align-items:center;justify-content:center}
+.gaph span{font-size:8.05px;font-weight:700;color:#8A8470;white-space:nowrap}
+.gapv{width:30px;background:#CFC8B8;opacity:.55;border-radius:4px;align-self:stretch;margin:20px 4px 0;display:flex;align-items:center;justify-content:center}
+.gapv span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10.35px;font-weight:800;color:#7A745F;letter-spacing:1px}
+.gap span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:9.2px;font-weight:700;color:#8A8470}
+.collabels{display:flex;gap:3px;margin-left:48px}
+.collabel{width:30px;font-size:8.05px;color:#9A9684;text-align:center;flex-shrink:0}
+.collabel.gap-sp{width:40px}
+.legend{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;font-size:13.8px;color:#6E7A72;align-items:center}
+.legend .item{display:flex;align-items:center;gap:6px}.sw{width:13px;height:13px;border-radius:3px}
+.overlay{position:fixed;inset:0;background:rgba(28,58,62,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.modal-head{padding:16px 22px;border-radius:14px 14px 0 0;color:#fff;position:sticky;top:0;z-index:2}
+.modal-head h2{font-size:23px;font-weight:800}.modal-head .meta{font-size:13.8px;opacity:.9}
+.modal-body{padding:16px 22px}
+.nivel{margin-bottom:14px}
+.nivel-tit{font-size:14.95px;font-weight:800;color:#2E7D83;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #EEF3F1;display:flex;justify-content:space-between}
+.nivel-tit .badge{background:#EEF3F1;color:#2E7D83;font-size:11.5px;padding:2px 8px;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13.8px}
+th{text-align:left;color:#9A9684;font-weight:700;font-size:11.5px;text-transform:uppercase;padding:4px 6px;border-bottom:1px solid #EEE}
+td{padding:4px 6px;border-bottom:1px solid #F4F1E8;vertical-align:middle}
+td.art{font-weight:700;font-family:monospace}
+td.desde{font-family:monospace;font-size:12.65px;color:#C0392B}
+.mover{background:#2E7D83;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-size:12.65px;cursor:pointer;font-weight:700;transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s ease,filter .12s ease}
+.mover:hover{background:#1C5A5F;transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.18)}
+.mover:active{transform:translateY(0) scale(.96);box-shadow:none}
+.sinubic{color:#B0B0B0;font-style:italic}
+.close{position:absolute;top:14px;right:16px;background:rgba(255,255,255,.2);border:none;color:#fff;width:30px;height:30px;border-radius:50%;font-size:20.7px;cursor:pointer;transition:background .12s ease,transform .12s cubic-bezier(.2,.8,.2,1)}
+.close:hover{background:rgba(255,255,255,.32);transform:scale(1.08)}
+.close:active{transform:scale(.94)}
+.hint{background:#E3F2FD;border:1px solid #BBDEFB;border-radius:8px;padding:12px 16px;font-size:13.8px;color:#37474F;font-style:normal;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.movebar{background:#FFF4EC;border:1px solid #E07B39;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:none;font-size:14.95px}
+.movebar.show{display:block}
+.movebar b{color:#C0392B}
+.movebar .cancel{background:none;border:none;color:#C0392B;cursor:pointer;font-weight:700;text-decoration:underline;font-size:13.8px;transition:opacity .12s ease}
+.movebar .cancel:hover{opacity:.7}
+.nivelpick{display:inline-block;margin:2px;padding:4px 10px;background:#EEF3F1;border:1px solid #C8DEDB;border-radius:8px;cursor:pointer;font-size:13.8px;font-weight:700;transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s ease,background .12s ease,color .12s ease}
+.nivelpick:hover{background:#15454A;color:#fff;transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.16)}
+.nivelpick:active{transform:translateY(0) scale(.96);box-shadow:none}
+
+.dash-filtros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.dash-filtros select{font-size:13.8px;padding:7px 10px;border:1px solid #EAECEF;border-radius:8px;background:#fff;color:#1A1D23;font-family:inherit}
+.dash-sectit{font-size:14.95px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:#6B7280;margin:26px 0 14px;display:flex;align-items:center;gap:8px}
+.dash-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+.dk{background:#fff;border:1px solid #EAECEF;border-radius:14px;padding:16px 18px}
+.dk .l{font-size:13.8px;color:#6B7280;font-weight:500;display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.dk .v{font-size:28.75px;font-weight:600;letter-spacing:-.5px}
+.dk .d{font-size:12.65px;margin-top:4px;color:#9A9684}
+.dk.pend .v{color:#9A9684;font-size:16.1px;font-style:italic;font-weight:500}
+.dash-g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dash-g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.dc{background:#fff;border:1px solid #EAECEF;border-radius:14px;padding:18px 20px}
+.dc h3{font-size:16.1px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.dc .cb{position:relative;height:230px}
+.dt{width:100%;border-collapse:collapse;font-size:14.95px}
+.dt th{text-align:left;color:#6B7280;font-weight:500;font-size:12.65px;text-transform:uppercase;padding:8px 10px;border-bottom:1px solid #EAECEF}
+.dt td{padding:9px 10px;border-bottom:1px solid #EAECEF}
+.dsev{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.dsev.alto{background:#C0392B}.dsev.medio{background:#D08A1E}.dsev.bajo{background:#1D9E75}
+.bsev{font-size:12.65px;font-weight:600;padding:3px 9px;border-radius:6px}
+.bsev.alto{background:#FCEBEB;color:#C0392B}.bsev.medio{background:#FAEEDA;color:#D08A1E}.bsev.bajo{background:#EAF3EE;color:#1D9E75}
+.pend-b{background:#F1EFE8;border:1px dashed #C8C2B4;border-radius:10px;padding:12px 16px;font-size:13.8px;color:#6B7280;display:flex;align-items:center;gap:8px}
+.dheat{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.dhc{aspect-ratio:1.4;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;text-align:center}
+.dalerta{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;margin-bottom:8px;font-size:14.95px}
+.dalerta.alto{background:#FCEBEB}.dalerta.medio{background:#FAEEDA}.dalerta.bajo{background:#EAF3EE}
+.dalerta i{font-size:20.7px}
+
+/* Variante horizontal de .caja para la banda reubicada arriba del mapa.
+   Aditiva: no reemplaza .caja/@keyframes cajaBaja/bandaFlow originales. */
+.caja.cajaH{left:-14px;margin-left:0;top:50%;margin-top:-5px;animation-name:cajaBajaH}
+@keyframes bandaFlowH{0%{background-position:22px 0}100%{background-position:0 0}}
+@keyframes cajaBajaH{0%{left:100%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:-14px;opacity:0}}
+
+/* ===== Reorganización visual: mapa vertical <-> horizontal =====
+   Solo transpone los ejes flex (columna<->fila). No toca render(), datos,
+   IDs, eventos ni geometría: cada pasillo sigue teniendo exactamente las
+   mismas columnas/niveles/gaps. Ahora es TOGGLEABLE vía la clase
+   "horizontal-mode" en <body> (por defecto presente = horizontal; se
+   quita para volver a la orientación vertical original tal cual era antes
+   de cualquier cambio). Los !important son necesarios porque render() fija
+   flex-direction como estilo inline en JS; sin ellos el CSS no podría pisarlo. */
+body.horizontal-mode #grid{flex-direction:column-reverse!important}
+body.horizontal-mode #grid>div:not(.gapv){flex-direction:row!important;align-items:center}
+body.horizontal-mode #grid>div:not(.gapv)>div:first-child{min-width:44px}
+/* El corredor entre grupos de pasillos era una franja vertical; ahora es horizontal.
+   width:100% explícito (no solo align-self:stretch) para garantizar que siempre
+   llegue hasta el final del pasillo más largo, sin depender de auto-sizing. */
+body.horizontal-mode #grid>.gapv{align-self:stretch;width:100%;height:24px;margin:8px 0}
+body.horizontal-mode #grid>.gapv span{writing-mode:horizontal-tb;transform:none;font-size:8.05px}
+
+/* El registro pasa a ir DEBAJO del croquis (no al costado) y el croquis usa
+   todo el ancho liberado. toggleTerminal() sigue fijando un max-width viejo
+   (calc(100% - 530px)) como estilo inline al mostrar/ocultar el registro —
+   ese cálculo ya no aplica porque ahora no comparten fila, por eso el
+   !important: sin él, cada click en "Mostrar/Ocultar registro" volvería a
+   angostar el mapa innecesariamente. */
+.mapa-panel-row{flex-direction:column}
+.wrap{max-width:100%!important;align-self:flex-start!important}
+#terminal{width:100%!important}
+
+/* Tooltip de descripción de artículo — aparece al instante (sin el delay
+   del title nativo del navegador), sobre el código dentro del modal. */
+.tt-art{position:relative;cursor:help;border-bottom:1px dotted #9A9684}
+.tt-art:hover::after{content:attr(data-tt);position:absolute;left:0;top:calc(100% + 6px);
+  background:#1C3A3E;color:#fff;padding:7px 11px;border-radius:7px;font-size:11.5px;
+  font-weight:500;font-family:-apple-system,'Segoe UI',sans-serif;white-space:normal;
+  width:240px;z-index:100;box-shadow:0 6px 18px rgba(0,0,0,.3);line-height:1.4}

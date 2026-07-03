@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './auth/AuthContext.jsx';
-import Login from './auth/Login.jsx';
-import ProtectedRoute from './auth/ProtectedRoute.jsx';
-import Header from './components/Header.jsx';
-import Tabs from './components/Tabs.jsx';
-import SlottingFrame from './components/SlottingFrame.jsx';
-import DashboardAnalitico from './dashboard/DashboardAnalitico.jsx';
-import Historial from './historial/Historial.jsx';
-import AuditoriaView from './audit/AuditoriaView.jsx';
-import SalasView from './salas/SalasView.jsx';
-import AdminFab from './admin/AdminFab.jsx';
-import BienvenidaModal from './components/BienvenidaModal.jsx';
-import SaludoToast from './components/SaludoToast.jsx';
-import AddRackModal from './admin/AddRackModal.jsx';
-import { ROLES } from './auth/roles.js';
+import { useAuth } from './features/auth/AuthContext.jsx';
+import Login from './features/auth/Login.jsx';
+import ProtectedRoute from './features/auth/ProtectedRoute.jsx';
+import Header from './shared/components/Header.jsx';
+import Tabs from './shared/components/Tabs.jsx';
+import SlottingFrame from './features/mapa/SlottingFrame.jsx';
+import DashboardAnalitico from './features/dashboard/DashboardAnalitico.jsx';
+import Historial from './features/historial/Historial.jsx';
+import AuditoriaView from './features/auditoria/AuditoriaView.jsx';
+import SalasView from './features/salas/SalasView.jsx';
+import AdminFab from './shared/components/AdminFab.jsx';
+import BienvenidaModal from './shared/components/BienvenidaModal.jsx';
+import SaludoToast from './shared/components/SaludoToast.jsx';
+import AddRackModal from './features/mapa/AddRackModal.jsx';
+import { ROLES } from './features/auth/roles.js';
 
 // Panel de administración (botón flotante) y saludo personalizado: exclusivo
 // de Administrador y Supervisor — el resto de los roles no lo ve ni lo usa.
