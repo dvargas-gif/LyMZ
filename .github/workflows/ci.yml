@@ -1,0 +1,40 @@
+name: CI
+
+# Corre en cada push y en cada PR -- red de contencion automatica: si algo
+# rompe el build o un test, se ve en GitHub sin que nadie tenga que
+# acordarse de correrlo a mano.
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tests unitarios
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Instalar navegador para e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Tests e2e (Playwright)
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

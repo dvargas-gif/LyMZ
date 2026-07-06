@@ -55,10 +55,10 @@ export default function Login() {
         {error && <div className="login-card__error">{error}</div>}
         <button type="submit" className="btn-primary" disabled={cargando}>{cargando ? 'Ingresando…' : 'Ingresar'}</button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '2px 0', color: '#9CA3AF', fontSize: 12 }}>
-          <div style={{ flex: 1, height: 1, background: '#EAECEF' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '2px 0', color: 'var(--divisor-login)', fontSize: 12 }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--line)' }} />
           o
-          <div style={{ flex: 1, height: 1, background: '#EAECEF' }} />
+          <div style={{ flex: 1, height: 1, background: 'var(--line)' }} />
         </div>
 
         <button type="button" className="btn-secondary" onClick={handleGoogle} disabled={cargandoGoogle}>

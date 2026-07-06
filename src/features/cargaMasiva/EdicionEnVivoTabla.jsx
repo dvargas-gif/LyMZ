@@ -95,7 +95,7 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 10 }}>
+      <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 10 }}>
         Tocá el ✏️ de cualquier fila para editar su pasillo/columna/nivel ahí mismo — se guarda al instante,
         validando que el destino no lo tenga ocupado otro artículo{escenarioId ? ' de esta sala' : ' real'}.
       </p>
@@ -103,15 +103,15 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
         placeholder="Buscar por artículo, descripción o pasillo…"
         value={busqueda}
         onChange={e => setBusqueda(e.target.value)}
-        style={{ fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', marginBottom: 10 }}
+        style={{ fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', marginBottom: 10 }}
       />
       {cargando ? (
-        <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
+        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
       ) : (
         <div style={{ overflowY: 'auto', flex: 1 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead style={{ position: 'sticky', top: 0, background: '#fff' }}>
-              <tr style={{ textAlign: 'left', color: '#9A9684', fontSize: 11, textTransform: 'uppercase' }}>
+              <tr style={{ textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' }}>
                 <th style={thStyle}>Artículo</th>
                 <th style={thStyle}>Descripción</th>
                 <th style={thStyle}>Posición</th>
@@ -121,10 +121,10 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
             </thead>
             <tbody>
               {filtradas.length === 0 && (
-                <tr><td colSpan={5} style={{ textAlign: 'center', color: '#9A9684', padding: 20 }}>Sin resultados.</td></tr>
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 20 }}>Sin resultados.</td></tr>
               )}
               {filtradas.map(f => (
-                <tr key={f.articulo} style={{ borderTop: '1px solid #F0EEE5', opacity: guardandoArticulo === f.articulo ? 0.5 : 1 }}>
+                <tr key={f.articulo} style={{ borderTop: '1px solid var(--borde-sutil)', opacity: guardandoArticulo === f.articulo ? 0.5 : 1 }}>
                   <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.articulo}</td>
                   <td style={tdStyle}>{f.descripcion}</td>
                   <td style={tdStyle}>
@@ -139,7 +139,7 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
                     ) : (
                       <span style={{ fontFamily: 'monospace' }}>{f.pasillo ? formatearPosicion(f.pasillo, f.columna, f.nivel) : '— sin ubicación —'}</span>
                     )}
-                    {errorFila?.articulo === f.articulo && <div style={{ color: '#C0392B', fontSize: 11, marginTop: 4 }}>{errorFila.motivo}</div>}
+                    {errorFila?.articulo === f.articulo && <div style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{errorFila.motivo}</div>}
                   </td>
                   <td style={tdStyle}>
                     {f.clase ? <BadgeClase clase={f.clase} tipo={f.tipo} /> : '—'}
@@ -159,6 +159,6 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
   );
 }
 
-const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };
+const thStyle = { padding: '6px 8px', borderBottom: '1px solid var(--line)' };
 const tdStyle = { padding: '7px 8px', verticalAlign: 'top' };
-const inputMini = { fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid #DADCE0', fontFamily: 'monospace', width: 62 };
+const inputMini = { fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--borde-input)', fontFamily: 'monospace', width: 62 };

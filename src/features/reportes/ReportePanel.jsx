@@ -41,7 +41,7 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
       maxHeight="85vh"
       scrollContenido
     >
-      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 4 }}>
+      <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 4 }}>
         {escenario
           ? 'Datos exclusivos de esta sala — no incluye ni afecta al mapa real.'
           : 'Se actualiza solo cuando alguien mueve algo en el mapa real.'}
@@ -56,12 +56,12 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
       />
 
       {cargando ? (
-        <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
+        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
       ) : (
         <div style={{ overflowY: 'auto', maxHeight: '55vh' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead style={{ position: 'sticky', top: 0, background: '#fff' }}>
-              <tr style={{ textAlign: 'left', color: '#9A9684', fontSize: 11, textTransform: 'uppercase' }}>
+              <tr style={{ textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' }}>
                 <th style={thStyle}>Artículo</th>
                 <th style={thStyle}>Descripción</th>
                 <th style={thStyle}>Posición</th>
@@ -75,10 +75,10 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
             </thead>
             <tbody>
               {filtradas.length === 0 && (
-                <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9A9684', padding: 20 }}>Sin resultados.</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 20 }}>Sin resultados.</td></tr>
               )}
               {filtradas.map(f => (
-                <tr key={f.articulo} style={{ borderTop: '1px solid #F0EEE5' }}>
+                <tr key={f.articulo} style={{ borderTop: '1px solid var(--borde-sutil)' }}>
                   <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.articulo}</td>
                   <td style={tdStyle}>{f.descripcion}</td>
                   <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{formatearPosicion(f.pasillo, f.columna, f.nivel)}</td>
@@ -100,7 +100,7 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
   );
 }
 
-const nombreInputStyle = { fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', width: '100%' };
-const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };
+const nombreInputStyle = { fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', width: '100%' };
+const thStyle = { padding: '6px 8px', borderBottom: '1px solid var(--line)' };
 const tdStyle = { padding: '7px 8px' };
-const movidoBadge = { fontSize: 10, fontWeight: 700, color: '#D08A1E', background: '#FAEEDA', padding: '2px 7px', borderRadius: 10 };
+const movidoBadge = { fontSize: 10, fontWeight: 700, color: 'var(--amber)', background: 'var(--amber-tenue)', padding: '2px 7px', borderRadius: 10 };

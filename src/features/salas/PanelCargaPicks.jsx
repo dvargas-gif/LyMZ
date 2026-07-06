@@ -7,7 +7,7 @@ import ModalBase from '../../shared/components/ModalBase.jsx';
 import BadgeClase from '../../shared/components/BadgeClase.jsx';
 import { formatearPosicion } from '../../shared/utils/formatearPosicion.js';
 
-const COLOR_ROTACION = { Alta: '#1D9E75', Media: '#D08A1E', Baja: '#9A9684' };
+const COLOR_ROTACION = { Alta: 'var(--green)', Media: 'var(--amber)', Baja: 'var(--texto-placeholder)' };
 
 /**
  * Carga de picks (Excel/CSV o texto pegado) + análisis de rotación de UNA
@@ -100,7 +100,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
 
   return (
     <ModalBase titulo={`📈 Carga de picks — ${escenario.nombre}`} onCerrar={onCerrar} maxWidth={1080} maxHeight="88vh" scrollContenido>
-      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
+      <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
         Subí demanda real (código, picks, frecuencia, prioridad) para ver qué artículos tienen más movimiento
         y si están bien ubicados según esta sala. Estos datos son exclusivos de "{escenario.nombre}".
       </p>
@@ -108,7 +108,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
       {!previa && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
           <label style={dropStyle}>
-            <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: '#15454A' }} />
+            <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: 'var(--accent)' }} />
             <span>Subir Excel / CSV</span>
             <input type="file" accept=".xlsx,.xls,.csv" onChange={manejarArchivo} style={{ display: 'none' }} />
           </label>
@@ -117,14 +117,14 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
               placeholder={'O pegá una tabla acá (con encabezado), ej:\narticulo\tpicks\tprioridad\nABC123\t150\tAlta'}
               value={pegado}
               onChange={e => setPegado(e.target.value)}
-              style={{ width: '100%', minHeight: 74, fontSize: 12, fontFamily: 'monospace', padding: 10, borderRadius: 8, border: '1px solid #DADCE0' }}
+              style={{ width: '100%', minHeight: 74, fontSize: 12, fontFamily: 'monospace', padding: 10, borderRadius: 8, border: '1px solid var(--borde-input)' }}
             />
             <button className="btn-primary" disabled={!pegado.trim()} onClick={usarPegado} style={{ marginTop: 6 }}>Usar tabla pegada</button>
           </div>
         </div>
       )}
 
-      {error && <p style={{ color: '#C0392B', fontSize: 12.5, marginBottom: 12 }}>{error}</p>}
+      {error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginBottom: 12 }}>{error}</p>}
 
       {previa && (
         <div style={{ marginBottom: 18 }}>
@@ -136,7 +136,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
               <thead><tr style={theadRow}><th style={thStyle}>Artículo</th><th style={thStyle}>Nombre</th><th style={thStyle}>Picks</th><th style={thStyle}>Prioridad</th></tr></thead>
               <tbody>
                 {previa.slice(0, 30).map((f, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid #F0EEE5' }}>
+                  <tr key={i} style={{ borderTop: '1px solid var(--borde-sutil)' }}>
                     <td style={tdStyle}>{f.articulo}</td><td style={tdStyle}>{f.nombre}</td><td style={tdStyle}>{f.cantidad_picks}</td><td style={tdStyle}>{f.prioridad || '—'}</td>
                   </tr>
                 ))}
@@ -151,7 +151,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
       )}
 
       {cargando ? (
-        <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
+        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
       ) : !analisis ? (
         <p className="muted" style={{ padding: 12 }}>Todavía no cargaste picks en esta sala.</p>
       ) : (
@@ -192,9 +192,9 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
 
 function Kpi({ label, valor, destacar }) {
   return (
-    <div style={{ background: destacar ? '#FFF4EC' : '#F8F7F2', border: `1px solid ${destacar ? '#E07B39' : '#EEE'}`, borderRadius: 10, padding: '10px 12px' }}>
-      <div style={{ fontSize: 11, color: '#9A9684', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: destacar ? '#C0392B' : '#1C3A3E' }}>{valor}</div>
+    <div style={{ background: destacar ? 'var(--naranja-sala-tenue)' : 'var(--kpi-bg)', border: `1px solid ${destacar ? 'var(--naranja-sala)' : '#EEE'}`, borderRadius: 10, padding: '10px 12px' }}>
+      <div style={{ fontSize: 11, color: 'var(--texto-placeholder)', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: destacar ? 'var(--red)' : 'var(--ink-oscuro)' }}>{valor}</div>
     </div>
   );
 }
@@ -209,14 +209,14 @@ function TablaAnalisis({ filas }) {
         </tr></thead>
         <tbody>
           {filas.map(f => (
-            <tr key={f.articulo} style={{ borderTop: '1px solid #F0EEE5' }}>
+            <tr key={f.articulo} style={{ borderTop: '1px solid var(--borde-sutil)' }}>
               <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.articulo}</td>
               <td style={tdStyle}>{f.cantidad_picks}</td>
               <td style={tdStyle}><span style={{ ...badgeStyle, background: COLOR_ROTACION[f.rotacion] }}>{f.rotacion}</span></td>
               <td style={tdStyle}>{f.claseActual ? <BadgeClase clase={f.claseActual} mostrarCE={false} /> : '—'}</td>
               <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11 }}>{f.pasilloActual ? formatearPosicion(f.pasilloActual, f.columnaActual) : '—'}</td>
               <td style={tdStyle}>{f.estado}</td>
-              <td style={{ ...tdStyle, fontSize: 11.5, color: '#6E7A72', maxWidth: 260 }}>{f.recomendacion}</td>
+              <td style={{ ...tdStyle, fontSize: 11.5, color: 'var(--texto-tenue)', maxWidth: 260 }}>{f.recomendacion}</td>
             </tr>
           ))}
         </tbody>
@@ -225,9 +225,9 @@ function TablaAnalisis({ filas }) {
   );
 }
 
-const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 180, minHeight: 74, border: '2px dashed #C8C2B4', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: '#6E7A72' };
-const theadRow = { textAlign: 'left', color: '#9A9684', fontSize: 11, textTransform: 'uppercase' };
-const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };
+const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 180, minHeight: 74, border: '2px dashed var(--borde-medio)', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: 'var(--texto-tenue)' };
+const theadRow = { textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' };
+const thStyle = { padding: '6px 8px', borderBottom: '1px solid var(--line)' };
 const tdStyle = { padding: '7px 8px' };
-const h3Style = { fontSize: 14, fontWeight: 700, color: '#1C3A3E' };
+const h3Style = { fontSize: 14, fontWeight: 700, color: 'var(--ink-oscuro)' };
 const badgeStyle = { display: 'inline-block', minWidth: 22, textAlign: 'center', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6 };

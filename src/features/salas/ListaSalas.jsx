@@ -50,7 +50,7 @@ export default function ListaSalas({ salas, cargando, onCrear, onAbrir, onElimin
           <i className="ti ti-plus" /> {creando ? 'Creando copia del acomodo actual…' : 'Crear nuevo escenario'}
         </button>
       </form>
-      {errorCrear && <p style={{ color: '#C0392B', fontSize: 12.5, marginTop: 8 }}>{errorCrear}</p>}
+      {errorCrear && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 8 }}>{errorCrear}</p>}
 
       <table className="tabla" style={{ marginTop: 20 }}>
         <thead>
