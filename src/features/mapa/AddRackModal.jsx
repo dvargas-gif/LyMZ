@@ -72,13 +72,13 @@ export default function AddRackModal({ sesion, onCerrar }) {
 
   return (
     <ModalBase titulo="🧱 Añadir rack (extender pasillo)" onCerrar={onCerrar} maxWidth={440}>
-      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 18 }}>
+      <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 18 }}>
         Sube el límite de columnas de un pasillo — las columnas nuevas aparecen vacías en el mapa,
         listas para usarse. No mueve ni borra ningún artículo existente.
       </p>
 
       {cargando ? (
-        <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
+        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
       ) : (
         <form onSubmit={confirmar}>
           <label style={labelStyle}>Pasillo</label>
@@ -86,9 +86,9 @@ export default function AddRackModal({ sesion, onCerrar }) {
             {PASILLOS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
 
-          <p style={{ fontSize: 13, color: '#1C3A3E', margin: '12px 0' }}>
+          <p style={{ fontSize: 13, color: 'var(--ink-oscuro)', margin: '12px 0' }}>
             Columna actual: <b>hasta C{String(actual).padStart(3, '0')}</b>
-            {alTope && <span style={{ color: '#D08A1E' }}> — ya está al máximo que soporta el mapa (C036).</span>}
+            {alTope && <span style={{ color: 'var(--amber)' }}> — ya está al máximo que soporta el mapa (C036).</span>}
           </p>
 
           {!alTope && (
@@ -100,14 +100,14 @@ export default function AddRackModal({ sesion, onCerrar }) {
                 placeholder={`ej. ${TECHO_ABSOLUTO}`}
                 style={inputStyle}
               />
-              <p style={{ fontSize: 11.5, color: '#9A9684', margin: '6px 0 0' }}>
+              <p style={{ fontSize: 11.5, color: 'var(--texto-placeholder)', margin: '6px 0 0' }}>
                 Se van a crear las columnas C{String(actual + 1).padStart(3, '0')} a C{String(hasta || TECHO_ABSOLUTO).padStart(3, '0')} como slots vacíos.
               </p>
             </>
           )}
 
-          {error && <p style={{ color: '#C0392B', fontSize: 12.5, marginTop: 10 }}>{error}</p>}
-          {exito && <p style={{ color: '#1D9E75', fontSize: 12.5, marginTop: 10 }}>{exito}</p>}
+          {error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 10 }}>{error}</p>}
+          {exito && <p style={{ color: 'var(--green)', fontSize: 12.5, marginTop: 10 }}>{exito}</p>}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
             <button type="submit" className="btn-primary" disabled={alTope || guardando || !hasta}>
@@ -121,6 +121,6 @@ export default function AddRackModal({ sesion, onCerrar }) {
   );
 }
 
-const labelStyle = { fontSize: 12, fontWeight: 700, color: '#1C3A3E', display: 'block', marginBottom: 6 };
-const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', width: '100%' };
-const inputStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', width: '100%' };
+const labelStyle = { fontSize: 12, fontWeight: 700, color: 'var(--ink-oscuro)', display: 'block', marginBottom: 6 };
+const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', width: '100%' };
+const inputStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', width: '100%' };

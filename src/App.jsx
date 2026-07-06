@@ -4,6 +4,7 @@ import { useAuth } from './features/auth/AuthContext.jsx';
 import ProtectedRoute from './features/auth/ProtectedRoute.jsx';
 import Header from './shared/components/Header.jsx';
 import Sidebar from './shared/components/Sidebar.jsx';
+import ErrorBoundary from './shared/components/ErrorBoundary.jsx';
 import BienvenidaModal from './shared/components/BienvenidaModal.jsx';
 import SaludoToast from './shared/components/SaludoToast.jsx';
 import { ROLES } from './features/auth/roles.js';
@@ -55,20 +56,24 @@ function Shell() {
       <Header sesion={sesion} onLogout={logout} />
       <Sidebar sesion={sesion} activa={tab} onCambiar={setTab} />
       <main className="app-main">
-        <Suspense fallback={<p className="muted" style={{ textAlign: 'center', padding: 40 }}>Cargando…</p>}>
-          {tab === 'mapa' && <SlottingFrame sesion={sesion} onSolicitarAddRack={() => setMostrarAddRack(true)} />}
-          {tab === 'salas' && <SalasView sesion={sesion} />}
-          {tab === 'dashboard' && <DashboardAnalitico />}
-          {tab === 'historial' && <Historial sesion={sesion} />}
-          {tab === 'auditoria' && <AuditoriaView />}
-        </Suspense>
+        <ErrorBoundary mensaje="No se pudo cargar esta vista. Puede ser una conexión inestable o una versión nueva de la app.">
+          <Suspense fallback={<p className="muted" style={{ textAlign: 'center', padding: 40 }}>Cargando…</p>}>
+            {tab === 'mapa' && <SlottingFrame sesion={sesion} onSolicitarAddRack={() => setMostrarAddRack(true)} />}
+            {tab === 'salas' && <SalasView sesion={sesion} />}
+            {tab === 'dashboard' && <DashboardAnalitico />}
+            {tab === 'historial' && <Historial sesion={sesion} />}
+            {tab === 'auditoria' && <AuditoriaView />}
+          </Suspense>
+        </ErrorBoundary>
       </main>
       {pedirApodo && <BienvenidaModal nombre={sesion.nombre} onListo={handleApodoListo} />}
       {mostrarSaludo && <SaludoToast apodo={apodo} onCerrar={() => setMostrarSaludo(false)} />}
       {mostrarAddRack && (
-        <Suspense fallback={null}>
-          <AddRackModal sesion={sesion} onCerrar={() => setMostrarAddRack(false)} />
-        </Suspense>
+        <ErrorBoundary mensaje="No se pudo cargar 'Añadir rack'.">
+          <Suspense fallback={null}>
+            <AddRackModal sesion={sesion} onCerrar={() => setMostrarAddRack(false)} />
+          </Suspense>
+        </ErrorBoundary>
       )}
     </div>
   );
@@ -76,12 +81,14 @@ function Shell() {
 
 export default function App() {
   return (
-    <Suspense fallback={null}>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<ProtectedRoute><Shell /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
+    <ErrorBoundary mensaje="La aplicación no pudo cargar. Recargá la página.">
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<ProtectedRoute><Shell /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 }

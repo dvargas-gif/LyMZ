@@ -69,7 +69,7 @@ export default function SalaAbierta({ sala, sesion, onAtras }) {
   }
 
   return (
-    <div className="panel" style={{ borderTop: '3px solid #E07B39' }}>
+    <div className="panel" style={{ borderTop: '3px solid var(--naranja-sala)' }}>
       <div className="panel__header">
         <h2>🧪 {sala.nombre}</h2>
       </div>

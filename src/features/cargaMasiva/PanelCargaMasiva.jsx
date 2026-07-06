@@ -116,7 +116,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <label style={{ fontSize: 12, fontWeight: 700, color: '#1C3A3E', display: 'block', marginBottom: 6 }}>¿Dónde se aplica?</label>
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-oscuro)', display: 'block', marginBottom: 6 }}>¿Dónde se aplica?</label>
         <select value={destino} onChange={e => { setDestino(e.target.value); setPrevia(null); setResultado(null); }} style={selectStyle}>
           <option value="real">Mapa real (⚠ afecta la operación real)</option>
           {salas.map(s => <option key={s.id} value={s.id}>🧪 Sala: {s.nombre}</option>)}
@@ -129,7 +129,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
 
       {modo === 'excel' && (
       <>
-      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
+      <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
         Subí un Excel/CSV (o pegá una tabla) con el acomodo que querés — columnas de artículo, pasillo y columna
         como mínimo (nivel/clase/grupo/tipo son opcionales, se completan con lo que el artículo ya tiene hoy).
       </p>
@@ -137,7 +137,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
       {!previa && !resultado && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
           <label style={dropStyle}>
-            <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: '#15454A' }} />
+            <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: 'var(--accent)' }} />
             <span>Subir Excel / CSV</span>
             <input type="file" accept=".xlsx,.xls,.csv" onChange={manejarArchivo} style={{ display: 'none' }} />
           </label>
@@ -146,21 +146,21 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
               placeholder={'O pegá una tabla acá (con encabezado), ej:\narticulo\tpasillo\tcolumna\tnivel\nABC123\tMZ01\t5\tN02'}
               value={pegado}
               onChange={e => setPegado(e.target.value)}
-              style={{ width: '100%', minHeight: 74, fontSize: 12, fontFamily: 'monospace', padding: 10, borderRadius: 8, border: '1px solid #DADCE0' }}
+              style={{ width: '100%', minHeight: 74, fontSize: 12, fontFamily: 'monospace', padding: 10, borderRadius: 8, border: '1px solid var(--borde-input)' }}
             />
             <button className="btn-primary" disabled={!pegado.trim()} onClick={usarPegado} style={{ marginTop: 6 }}>Usar tabla pegada</button>
           </div>
         </div>
       )}
 
-      {error && <p style={{ color: '#C0392B', fontSize: 12.5, marginBottom: 12 }}>{error}</p>}
-      {cargando && <p style={{ textAlign: 'center', color: '#9A9684', padding: 20 }}>Comparando contra el estado actual…</p>}
+      {error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginBottom: 12 }}>{error}</p>}
+      {cargando && <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 20 }}>Comparando contra el estado actual…</p>}
 
       {resultado && (
-        <div style={{ background: '#EAF3EE', border: '1px solid #1D9E75', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-          <b style={{ color: '#1D9E75' }}>✓ Se aplicaron {resultado.aplicados} posiciones</b>
-          {resultado.duplicados > 0 && <span style={{ color: '#6E7A72', fontSize: 12.5 }}> — {resultado.duplicados} fila(s) duplicada(s) del mismo artículo/destino se aplicaron una sola vez.</span>}
-          {resultado.conflictos > 0 && <span style={{ color: '#6E7A72', fontSize: 12.5 }}> — {resultado.conflictos} fila(s) se omitieron por conflicto (ver abajo antes de cerrar, o volvé a cargar el archivo para revisarlas).</span>}
+        <div style={{ background: 'var(--verde-tenue)', border: '1px solid var(--green)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+          <b style={{ color: 'var(--green)' }}>✓ Se aplicaron {resultado.aplicados} posiciones</b>
+          {resultado.duplicados > 0 && <span style={{ color: 'var(--texto-tenue)', fontSize: 12.5 }}> — {resultado.duplicados} fila(s) duplicada(s) del mismo artículo/destino se aplicaron una sola vez.</span>}
+          {resultado.conflictos > 0 && <span style={{ color: 'var(--texto-tenue)', fontSize: 12.5 }}> — {resultado.conflictos} fila(s) se omitieron por conflicto (ver abajo antes de cerrar, o volvé a cargar el archivo para revisarlas).</span>}
         </div>
       )}
 
@@ -169,7 +169,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
           <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5 }}>
             <span>✅ Aplicables: <b>{previa.aplicables.length}</b></span>
             <span>♻ Duplicados: <b>{previa.duplicados.length}</b></span>
-            <span>⚠ Conflictos: <b style={{ color: previa.conflictos.length ? '#C0392B' : 'inherit' }}>{previa.conflictos.length}</b></span>
+            <span>⚠ Conflictos: <b style={{ color: previa.conflictos.length ? 'var(--red)' : 'inherit' }}>{previa.conflictos.length}</b></span>
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <button className="btn-primary" disabled={aplicando || previa.aplicables.length === 0} onClick={aplicar}>
@@ -195,11 +195,11 @@ function TablaPreviaCarga({ filas }) {
         </tr></thead>
         <tbody>
           {filas.map((f, i) => (
-            <tr key={i} style={{ borderTop: '1px solid #F0EEE5', background: !f.valido ? '#FCEBEB' : f.duplicado ? '#FAEEDA' : 'transparent' }}>
+            <tr key={i} style={{ borderTop: '1px solid var(--borde-sutil)', background: !f.valido ? 'var(--rojo-tenue)' : f.duplicado ? 'var(--amber-tenue)' : 'transparent' }}>
               <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.articulo}</td>
               <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{formatearPosicion(f.pasillo, f.columna, f.nivel)}</td>
               <td style={tdStyle}>{f.clase && f.clase !== '-' ? <BadgeClase clase={f.clase} tipo={f.tipo} mostrarCE={false} /> : '—'}</td>
-              <td style={{ ...tdStyle, color: !f.valido ? '#C0392B' : f.duplicado ? '#D08A1E' : '#1D9E75', fontSize: 11.5 }}>{f.motivo || 'OK'}</td>
+              <td style={{ ...tdStyle, color: !f.valido ? 'var(--red)' : f.duplicado ? 'var(--amber)' : 'var(--green)', fontSize: 11.5 }}>{f.motivo || 'OK'}</td>
             </tr>
           ))}
         </tbody>
@@ -208,8 +208,8 @@ function TablaPreviaCarga({ filas }) {
   );
 }
 
-const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 180, minHeight: 74, border: '2px dashed #C8C2B4', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: '#6E7A72' };
-const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid #DADCE0', fontFamily: 'inherit', width: '100%', maxWidth: 380 };
-const theadRow = { textAlign: 'left', color: '#9A9684', fontSize: 11, textTransform: 'uppercase' };
-const thStyle = { padding: '6px 8px', borderBottom: '1px solid #EAECEF' };
+const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 180, minHeight: 74, border: '2px dashed var(--borde-medio)', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: 'var(--texto-tenue)' };
+const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', width: '100%', maxWidth: 380 };
+const theadRow = { textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' };
+const thStyle = { padding: '6px 8px', borderBottom: '1px solid var(--line)' };
 const tdStyle = { padding: '7px 8px' };

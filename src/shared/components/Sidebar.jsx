@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { puede, ROLES } from '../../features/auth/roles.js';
+import ErrorBoundary from './ErrorBoundary.jsx';
 
 // Cada panel es su propio chunk, descargado recién al abrirlo.
 const UsuariosPanel = lazy(() => import('../../features/usuarios/UsuariosPanel.jsx'));
@@ -91,12 +92,14 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
       </nav>
 
       {mostrarAcciones && (
-        <Suspense fallback={null}>
-          {panel === 'usuarios' && <UsuariosPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
-          {panel === 'croquis' && <EditarCroquisPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
-          {panel === 'reporte' && <ReportePanel onCerrar={() => setPanel(null)} />}
-          {panel === 'carga-masiva' && <PanelCargaMasiva sesion={sesion} onCerrar={() => setPanel(null)} />}
-        </Suspense>
+        <ErrorBoundary mensaje="No se pudo cargar este panel.">
+          <Suspense fallback={null}>
+            {panel === 'usuarios' && <UsuariosPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
+            {panel === 'croquis' && <EditarCroquisPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
+            {panel === 'reporte' && <ReportePanel onCerrar={() => setPanel(null)} />}
+            {panel === 'carga-masiva' && <PanelCargaMasiva sesion={sesion} onCerrar={() => setPanel(null)} />}
+          </Suspense>
+        </ErrorBoundary>
       )}
     </>
   );

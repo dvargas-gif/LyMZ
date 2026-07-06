@@ -25,12 +25,12 @@ export default function EditarCroquisPanel({ sesion, onCerrar }) {
 
   return (
     <ModalBase titulo="Editar croquis" onCerrar={onCerrar} maxWidth={460}>
-      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 20 }}>
+      <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 20 }}>
         Estos cambios se ven en el mapa para todos los que lo abran (se aplican al instante si ya lo tenés abierto).
       </p>
 
       {!config ? (
-        <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
+        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
       ) : (
         <>
           <div style={{ marginBottom: 22 }}>
@@ -43,7 +43,7 @@ export default function EditarCroquisPanel({ sesion, onCerrar }) {
                   disabled={guardando}
                   style={{
                     ...temaBtnStyle,
-                    borderColor: config.tema === t.id ? '#15454A' : '#E0DACE',
+                    borderColor: config.tema === t.id ? 'var(--accent)' : 'var(--borde-claro)',
                     boxShadow: config.tema === t.id ? '0 0 0 2px rgba(21,69,74,.15)' : 'none',
                   }}
                 >
@@ -67,8 +67,8 @@ export default function EditarCroquisPanel({ sesion, onCerrar }) {
                   disabled={guardando}
                   style={{
                     ...orientBtnStyle,
-                    background: config.orientacion === o.id ? '#15454A' : '#F1EFE8',
-                    color: config.orientacion === o.id ? '#fff' : '#6E7A72',
+                    background: config.orientacion === o.id ? 'var(--accent)' : 'var(--fondo-sutil)',
+                    color: config.orientacion === o.id ? 'var(--card)' : 'var(--texto-tenue)',
                   }}
                 >
                   {o.label}
@@ -82,6 +82,6 @@ export default function EditarCroquisPanel({ sesion, onCerrar }) {
   );
 }
 
-const sectionTitle = { fontSize: 12, fontWeight: 700, color: '#1C3A3E', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.3px' };
-const temaBtnStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: '#fff', border: '2px solid #E0DACE', borderRadius: 10, padding: '10px 14px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
+const sectionTitle = { fontSize: 12, fontWeight: 700, color: 'var(--ink-oscuro)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.3px' };
+const temaBtnStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'var(--card)', border: '2px solid var(--borde-claro)', borderRadius: 10, padding: '10px 14px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
 const orientBtnStyle = { flex: 1, border: 'none', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' };

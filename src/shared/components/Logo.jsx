@@ -8,7 +8,7 @@ export default function Logo({ size = 32 }) {
       role="img"
       aria-label="OLO"
     >
-      <rect width="40" height="40" rx="10" fill="#15454A" />
+      <rect width="40" height="40" rx="10" fill="var(--accent)" />
       <text
         x="20"
         y="26"
@@ -17,7 +17,7 @@ export default function Logo({ size = 32 }) {
         fontSize="13"
         fontWeight="700"
         letterSpacing="0.5"
-        fill="#FFFFFF"
+        fill="var(--card)"
       >
         OLO
       </text>

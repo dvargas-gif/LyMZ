@@ -70,16 +70,16 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
 
   return (
     <ModalBase titulo="Permisos de usuarios" onCerrar={onCerrar} maxWidth={640} maxHeight="80vh">
-      <p style={{ fontSize: 12, color: '#6E7A72', marginBottom: 16 }}>
+      <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
         Cambiar el rol o desactivar una cuenta tiene efecto inmediato.
       </p>
 
       {cargando ? (
-          <p style={{ textAlign: 'center', color: '#9A9684', padding: 24 }}>Cargando…</p>
+          <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ textAlign: 'left', color: '#9A9684', fontSize: 11, textTransform: 'uppercase' }}>
+              <tr style={{ textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' }}>
                 <th style={{ padding: '6px 8px' }}>Nombre</th>
                 <th style={{ padding: '6px 8px' }}>Email</th>
                 <th style={{ padding: '6px 8px' }}>Cómo me saluda</th>
@@ -89,7 +89,7 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
             </thead>
             <tbody>
               {usuarios.map(u => (
-                <tr key={u.id} style={{ borderTop: '1px solid #F0EEE5', opacity: guardandoId === u.id ? 0.5 : 1 }}>
+                <tr key={u.id} style={{ borderTop: '1px solid var(--borde-sutil)', opacity: guardandoId === u.id ? 0.5 : 1 }}>
                   <td style={{ padding: '8px' }}>
                     {editandoId === u.id ? (
                       <input
@@ -107,16 +107,16 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
                       <span
                         onClick={() => iniciarEdicionNombre(u)}
                         title="Tocá para editar el nombre"
-                        style={{ cursor: 'pointer', borderBottom: '1px dotted #C8C2B4' }}
+                        style={{ cursor: 'pointer', borderBottom: '1px dotted var(--borde-medio)' }}
                       >
-                        {u.nombre} <i className="ti ti-pencil" style={{ fontSize: 11, color: '#9A9684' }} />
+                        {u.nombre} <i className="ti ti-pencil" style={{ fontSize: 11, color: 'var(--texto-placeholder)' }} />
                       </span>
                     )}
                   </td>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}>{u.email}</td>
                   <td style={{ padding: '8px' }}>
                     {u.id !== sesion.usuarioId ? (
-                      <span style={{ color: u.apodo ? 'inherit' : '#C8C2B4' }}>{u.apodo || '—'}</span>
+                      <span style={{ color: u.apodo ? 'inherit' : 'var(--borde-medio)' }}>{u.apodo || '—'}</span>
                     ) : editandoApodoId === u.id ? (
                       <input
                         autoFocus
@@ -134,9 +134,9 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
                       <span
                         onClick={() => iniciarEdicionApodo(u)}
                         title="Tocá para cambiar cómo te saluda al entrar"
-                        style={{ cursor: 'pointer', borderBottom: '1px dotted #C8C2B4', color: u.apodo ? 'inherit' : '#9A9684', fontStyle: u.apodo ? 'normal' : 'italic' }}
+                        style={{ cursor: 'pointer', borderBottom: '1px dotted var(--borde-medio)', color: u.apodo ? 'inherit' : 'var(--texto-placeholder)', fontStyle: u.apodo ? 'normal' : 'italic' }}
                       >
-                        {u.apodo || 'sin definir'} <i className="ti ti-pencil" style={{ fontSize: 11, color: '#9A9684' }} />
+                        {u.apodo || 'sin definir'} <i className="ti ti-pencil" style={{ fontSize: 11, color: 'var(--texto-placeholder)' }} />
                       </span>
                     )}
                   </td>
@@ -146,7 +146,7 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
                     </select>
                   </td>
                   <td style={{ padding: '8px' }}>
-                    <button onClick={() => handleActivo(u)} disabled={guardandoId === u.id} style={{ ...toggleBtnStyle, background: u.activo ? '#EAF3EE' : '#FCEBEB', color: u.activo ? '#1D9E75' : '#C0392B' }}>
+                    <button onClick={() => handleActivo(u)} disabled={guardandoId === u.id} style={{ ...toggleBtnStyle, background: u.activo ? 'var(--verde-tenue)' : 'var(--rojo-tenue)', color: u.activo ? 'var(--green)' : 'var(--red)' }}>
                       {u.activo ? 'Activo' : 'Inactivo'}
                     </button>
                   </td>
@@ -159,6 +159,6 @@ export default function UsuariosPanel({ sesion, onCerrar }) {
   );
 }
 
-const selectStyle = { fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid #DADCE0', fontFamily: 'inherit' };
-const nombreInputStyle = { fontSize: 13, padding: '5px 8px', borderRadius: 6, border: '1px solid #15454A', fontFamily: 'inherit', width: '100%' };
+const selectStyle = { fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--borde-input)', fontFamily: 'inherit' };
+const nombreInputStyle = { fontSize: 13, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--accent)', fontFamily: 'inherit', width: '100%' };
 const toggleBtnStyle = { border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' };
