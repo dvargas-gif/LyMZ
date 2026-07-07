@@ -7,6 +7,14 @@
 // reasignan desde decenas de funciones distintas).
 
 let cambios=[];           // log de movimientos
+// --- AGREGADO: id de lote por operación de movimiento (bugfix "Deshacer") ---
+// Mover UN artículo genera 1 entrada en `cambios`; mover un CUERPO completo
+// genera N entradas (una por artículo, ver soltarCuerpoEn). Antes, deshacer()
+// sacaba una sola entrada por click, así que deshacer un cuerpo completo
+// devolvía los artículos de uno en uno. `loteContador` le pone a cada
+// entrada de una misma operación el mismo número, para que deshacer() pueda
+// sacar y revertir el lote entero de una vez.
+let loteContador=0;
 let moviendo=null;        // {art,desdeKey,desdeNiv}
 let modalKey=null;
 let modoBloqueo=false;

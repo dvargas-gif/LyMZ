@@ -29,6 +29,9 @@ export function agruparPorRack(posicionesResueltas) {
       consumo: r.posicionBase?.consumo ?? 0,
       picks: r.posicionBase?.picks ?? null,
       rackActual: r.posicionBase?.rack_actual ?? null,
+      // ADR-006: valor CONGELADO del plan de fábrica (inventario_slotting) --
+      // nunca el cálculo en vivo (eso es nivelesOcupados(), en formulasOcupacion.js).
+      nivelesAArmar: r.posicionBase?.niveles_a_armar ?? null,
       clase,
       tipo,
     });

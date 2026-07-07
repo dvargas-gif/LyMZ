@@ -17,7 +17,7 @@
   <button class="btn btn-undo" onclick="deshacer()">↶ Deshacer último</button>
   <button class="btn btn-lock" id="btnLock" onclick="toggleModoBloqueo()">🔒 Bloquear posiciones</button>
   <button class="btn btn-edit" id="btnEdit" onclick="toggleModoEdicion()">✏️ Modo edición</button>
-  <span class="changes-badge" id="badge">0 cambios</span>
+  <span class="changes-badge" id="badge" onclick="toggleTerminal()" style="cursor:pointer" title="Ver registro de cambios">0 cambios</span>
   <div class="search"><input id="buscar" type="text" placeholder="Buscar artículo..." oninput="buscar()"></div>
   <div class="res" id="resbuscar"></div>
 </div>
@@ -35,7 +35,10 @@
 </div>
 <div class="mapa-panel-row" style="display:flex;gap:14px;align-items:stretch">
 <div class="wrap" style="flex:0 0 auto"><div id="grid" class="grid"></div></div>
-<button id="termToggle" onclick="toggleTerminal()" style="flex-shrink:0;align-self:flex-start;background:#1A1A1A;color:#B4B2A9;border:1px solid #333;border-radius:8px;padding:10px 12px;cursor:pointer;font-size:12px;font-weight:700;display:block" title="Mostrar registro">‹ Registro</button>
+<!-- El botón "‹ Registro" que vivía acá se sacó -- el badge "N cambios" de
+     la toolbar (arriba) ahora abre/cierra esta misma terminal (bugfix,
+     ver toggleTerminal() en 07-render.js). Cerrarla sigue siendo el botón
+     "Ocultar ›" de más abajo, que ya existía. -->
 <div id="terminal" style="width:100%;flex-shrink:0;background:#222222;border:1px solid #333333;border-radius:10px;padding:0;overflow:hidden;align-self:stretch;min-height:500px;display:none;flex-direction:column">
   <div style="background:#1A1A1A;padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #333333">
     <i class="ti ti-terminal-2" style="color:#888888;font-size:16px"></i>
