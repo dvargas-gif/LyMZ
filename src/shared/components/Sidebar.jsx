@@ -1,12 +1,19 @@
 import { lazy, Suspense, useState } from 'react';
 import { puede, ROLES } from '../../features/auth/roles.js';
 import ErrorBoundary from './ErrorBoundary.jsx';
+import Logo from './Logo.jsx';
 
 // Cada panel es su propio chunk, descargado recién al abrirlo.
 const UsuariosPanel = lazy(() => import('../../features/usuarios/UsuariosPanel.jsx'));
 const EditarCroquisPanel = lazy(() => import('../../features/mapa/EditarCroquisPanel.jsx'));
 const ReportePanel = lazy(() => import('../../features/reportes/ReportePanel.jsx'));
 const PanelCargaMasiva = lazy(() => import('../../features/cargaMasiva/PanelCargaMasiva.jsx'));
+// Aparte (no junto a los de arriba): trae Framer Motion, que hoy solo carga
+// el Dashboard bajo demanda. El sidebar es parte del shell (siempre
+// montado), así que si se importara Framer Motion acá arriba, se coalescería
+// en el bundle principal en vez de en su propio chunk -- medido: +131 kB
+// (+43 kB gzip) en el bundle principal si se hace mal.
+const NombreSistema = lazy(() => import('./SidebarNombreSistema.jsx'));
 
 const NAVEGACION = [
   { id: 'mapa', icon: 'ti-map-2', label: 'Mapa editable', permiso: 'ver_mapa' },
@@ -58,6 +65,13 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
       {expandido && <div className="sidebar__scrim" onClick={() => setExpandido(false)} />}
 
       <nav className={`sidebar ${expandido ? 'sidebar--expandido' : ''}`} aria-label="Navegación y herramientas">
+        <div className="sidebar__logo">
+          <Logo size={24} />
+          <Suspense fallback={null}>
+            <NombreSistema visible={expandido} />
+          </Suspense>
+        </div>
+
         <button
           className="sidebar__toggle"
           onClick={() => setExpandido(v => !v)}
@@ -82,7 +96,12 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
           <>
             <div className="sidebar__separador" />
             {ACCIONES.map(a => (
-              <button key={a.id} className="sidebar__item" onClick={() => abrirPanel(a.id)} title={a.label}>
+              <button
+                key={a.id}
+                className={`sidebar__item ${panel === a.id ? 'sidebar__item--activo' : ''}`}
+                onClick={() => abrirPanel(a.id)}
+                title={a.label}
+              >
                 <i className={`ti ${a.icon}`} />
                 {expandido && <span>{a.label}</span>}
               </button>
