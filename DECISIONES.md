@@ -180,3 +180,80 @@ Si el almacén físico alguna vez se subdivide de verdad (una segunda nave, zona
 **Decisión:** Se mantiene el diseño de G1d (Sala = instancia alternativa, no jerarquía anidada) — este ADR no lo cambia, documenta sus consecuencias por escrito, como pidió el usuario, antes de que las Fases 2-4 dependan de él.
 
 **Consecuencias:** Ninguna de código — es un ADR de documentación pura. Referencia obligatoria para quien diseñe el motor de simulación (Fase 3) o la vista 3D (Fase 4) si necesitan razonar sobre más de una sala a la vez.
+
+---
+
+## ADR-010 — Geometría física real del mezanine, extraída de un plano DXF
+
+**Fecha:** 2026-07-07
+
+**Contexto:** La Fase 2 (bridge del mapa) sigue en pausa explícita. En paralelo, el usuario confirmó que el plano del mezanine existe en CAD (diseñado por él) y que la posición física (x,y) de cada cuerpo es la fuente de verdad para decidir el layout — algo que hasta ahora no existía en ningún lado del sistema (ver diagnóstico de geometría de la sesión anterior: no había ninguna coordenada real, solo la dirección lógica pasillo+columna+nivel).
+
+**Proceso (con varios intentos fallidos documentados, no solo el resultado final):**
+1. El DXF (`docs/geometria/Claude plano.dxf`, ASCII, ~3.6 MB) se parseó con un script propio (sin librería nueva de producción) — el bloque `A$C7a458910`, repetido 304 veces en la capa `0`, es el cuerpo (rack individual).
+2. El usuario agregó 24 etiquetas de texto (`MZ0X-C001-N01-1` / `MZ0X-C0NN-N01-1`, mismo formato que ya usa el sistema) marcando el inicio y fin de cada uno de los 12 pasillos reales — `MZ01` a `MZ12` (4 más que los `MZ01-MZ08` que maneja hoy el sistema; los 4 extra son pasillos planeados sin mercadería asignada aún, confirmado por el usuario).
+3. Varios métodos de asignación automática (vecino más cercano por punto, por línea con margen fijo, interpolación) dieron resultados inconsistentes (algunos pasillos con el doble de racks, otros en cero) — la causa real: `MZ11`/`MZ12` corren **verticales** (perpendiculares a los otros 10), y mezclarlos con el clustering horizontal rompía todo. Separarlos primero, y luego usar el orden relativo (ambos ascendentes por posición) entre los 10 pasillos horizontales y las filas reales agrupadas por continuidad en Y, dio una coincidencia casi exacta en cantidad de columnas (8 de 10 exactos o ±1).
+4. Los 2 que no calzaron en cantidad (`MZ08`: 34 reales vs 41 declarados; `MZ10`: 10 reales vs 6 declarados) se explican por estado de construcción real (uno con menos racks puestos de los planeados, el otro con más) — confirmado por el usuario, no una falla de extracción.
+5. 4 racks reales (de 304) quedaron sin asignar — todos a la misma X, rotados 270°, aislados — probablemente racks-tope de esquina, no columnas de un pasillo. Documentados como excluidos, no descartados en silencio.
+
+**Decisión:** Se guarda el resultado validado en `src/domain/GeometriaMezanine.js` (schema Zod) + `src/domain/geometriaMezanine.data.json` (300 de 304 cuerpos reales, con posición x,y en metros). `MZ11` queda con `ubicaciones: []` (posición reservada, sin racks construidos todavía) en vez de omitirse — así un consumidor futuro sabe que el pasillo existe pero está vacío, no que no existe.
+
+**Consecuencias:** Es un archivo de datos real de la instalación (no configuración de la app) — si el layout físico cambia (se construyen más cuerpos, se ajusta un pasillo), hay que repetir el proceso de extracción con un DXF actualizado, no editar el JSON a mano. No toca el mapa legacy ni Supabase — es una capa de datos nueva, de solo lectura, sin conexión todavía a `WarehouseModel` (eso es un paso futuro, no hecho en esta sesión).
+
+## ADR-011 — El DXF es la fuente autoritativa de geometría; las declaraciones del sistema son derivadas
+
+**Fecha:** 2026-07-07
+
+**Contexto:** Tras ADR-010, el usuario confirmó que la construcción física y el CAD del mezanine ya están terminados y actualizados ("obra terminada"), y que el plano (`docs/geometria/Claude plano.dxf`) lo diseñó él mismo reflejando esa obra verificada físicamente. Esto plantea una pregunta de fondo: cuando el plano y lo que el sistema declara (el hardcodeo de 8 pasillos en `03-configuracion.js`, o los valores en `pasillos_config`) no coinciden, ¿cuál manda?
+
+**Decisión:** El DXF manda. El plano es la fuente de verdad de la geometría física del mezanine. Las declaraciones del sistema (`PAS`/`PAS_LR`/`MAXCOL_POR_PASILLO` en `public/legacy/js/03-configuracion.js`, y la tabla `pasillos_config` en Supabase) son **derivadas** — reflejan lo que alguien configuró en el sistema en algún momento, no necesariamente lo que existe hoy en la planta. Donde difieran, es el sistema el que está desactualizado, no el plano.
+
+Esto invierte el propósito de la comparación hecha en ADR-010: ahí se usó el conteo declarado para *validar* la extracción del DXF (¿cuadra con lo esperado?). De acá en adelante, la comparación declarado-vs-plano no es una validación de la geometría — es un **diagnóstico de qué le falta corregir al sistema** (ver tabla de cobertura abajo). La geometría extraída del DXF no se descarta ni se ajusta para calzar con lo declarado.
+
+**Tabla de cobertura (sistema declara vs. plano real), estado al cierre de esta sesión:**
+
+| Pasillo | Sistema declara | Plano (DXF) real | Diagnóstico |
+|---|---|---|---|
+| MZ01 | 27 (hardcodeado, `MAXCOL_MZ01`) | 27 | Coincide |
+| MZ02 | 36 (default) | 37 | Sistema desactualizado — falta 1 columna |
+| MZ03 | 36 (default) | 36 | Coincide |
+| MZ04 | 36 (default) | 36 | Coincide |
+| MZ05 | 36 (default) | 36 | Coincide |
+| MZ06 | 36 (default) | 36 | Coincide |
+| MZ07 | 36 (default) | 37 | Sistema desactualizado — falta 1 columna |
+| MZ08 | 36 (default) | 34 | Sistema desactualizado — declara 2 de más (obra con menos racks de los planeados originalmente, confirmado por el usuario) |
+| MZ09 | No existe en `PAS`/`PAS_LR` — el sistema no conoce este pasillo | 4 | Pasillo entero ausente del sistema |
+| MZ10 | No existe en `PAS`/`PAS_LR` | 10 | Pasillo entero ausente del sistema |
+| MZ11 | No existe en `PAS`/`PAS_LR` | 0 (vertical, reservado, sin racks construidos) | Pasillo entero ausente del sistema (y sin racks todavía, así que no es urgente) |
+| MZ12 | No existe en `PAS`/`PAS_LR` | 7 (vertical) | Pasillo entero ausente del sistema |
+
+`pasillos_config` (Supabase) es la tabla donde un usuario puede haber extendido un pasillo manualmente vía "Añadir rack" — el resultado de `select pasillo, max_columna from pasillos_config order by pasillo;` todavía no fue confirmado con datos reales pegados como texto (se compartió una captura de pantalla del editor SQL, sin filas legibles). Independientemente de lo que devuelva, no cambia esta tabla de diagnóstico para MZ09-MZ12: si esos pasillos no aparecen en `pasillos_config`, es porque nunca se configuraron ahí — el plano sigue siendo la única referencia real para esos 4. Si aparecen con valores distintos a los del plano, se agrega una fila de diagnóstico adicional en la próxima sesión.
+
+**Hallazgo pendiente, no resuelto en esta sesión:** re-verificando la extracción, los racks rotados 270° no son 4 sino **12**, agrupados en dos columnas paralelas cerca de la esquina donde se cruzan `MZ11`/`MZ12` (verticales) con `MZ02` (horizontal), en `x≈301.08` y `x≈303.157`. El algoritmo de asignación por distancia absorbió 8 de esos 12 dentro de `MZ12` (6), `MZ02` (1) y `MZ07` (1) por pura cercanía geométrica — no porque haya una etiqueta que los confirme como parte de esos pasillos. Los 4 restantes (todos en `x≈303.157`) quedaron sin asignar, igual que en ADR-010. No hay ninguna etiqueta de texto ni capa DXF distinta que identifique qué es esta estructura — se le preguntó al usuario qué representa (no se descarta en silencio); la respuesta queda pendiente para la próxima sesión. Mientras no se resuelva, `geometriaMezanine.data.json` no cambia: como el DXF es el mismo archivo ya procesado en ADR-010, el resultado de re-correr el mismo pipeline (`extraer-final.mjs`) es idéntico — no hubo obra nueva que capturar en este plano.
+
+**Consecuencias:** La corrección de `03-configuracion.js` (agregar `MZ09`-`MZ12` a `PAS`/`PAS_LR`, ajustar `MZ02`/`MZ07`/`MZ08`) y de `pasillos_config` (si aplica) queda anotada como trabajo futuro derivado de este diagnóstico — no se toca el mapa legacy en esta sesión (Fase 2 sigue en pausa). Este ADR no reemplaza ni edita ADR-010; lo confirma como base y agrega la política de qué hacer cuando el plano y el sistema no coinciden.
+
+## ADR-012 — Cierre del hallazgo de los racks rotados 270°: los 304 cuerpos del plano quedan asignados, ninguno descartado
+
+**Fecha:** 2026-07-07
+
+**Contexto:** ADR-011 dejó abierto el hallazgo de 12 racks rotados 270° sin explicación (8 absorbidos por el algoritmo dentro de `MZ12`/`MZ02`/`MZ07` por cercanía, sin etiqueta que los confirme; 4 sin asignar). El usuario subió una versión del DXF con 13 etiquetas de columna intermedia nuevas (`MZ09`, `MZ10`, `MZ11`, `MZ12`) y aclaró en dos rondas la identidad real de esos racks.
+
+**Verificación antes de aceptar la aclaración:** se revisó directamente qué bloques DXF existen en la franja de `MZ11` (x 297-299.5) — resultado: **cero** instancias de `A$C7a458910` ahí. Las 7 celdas dibujadas para `MZ11-C001` a `C007` que se ven en el plano son geometría de referencia (`LWPOLYLINE`), no racks reales insertados — consistente con "posición reservada, sin construir" (ADR-010). La franja de `MZ12` (x 300-302) sí tiene exactamente 7 instancias reales, confirmando que el conteo de `MZ12` ya era correcto.
+
+**Aclaración del usuario:**
+1. El rack aislado en `x=401.134` (el que el algoritmo había metido, sin corresponder, dentro del renglón de `MZ07`) es un cuerpo real de `MZ08` — su "cuerpo 37" en la numeración física de la instalación. Está pegado a la etiqueta `MZ08-C001` (a 0.09 m), no a la fila real de `MZ08` (que está ~2.45 m más lejos, el mismo patrón de desplazamiento etiqueta↔fila ya documentado) — es un cuerpo de cabecera, no un miembro más del renglón.
+2. Los 5 racks de la columna `x=303.157` (4 que habían quedado sin asignar + 1 que el algoritmo había metido, sin corresponder, dentro de `MZ02`) son todos cuerpos de `MZ11` — sus "cuerpos fin".
+
+**Verificación de conservación (evidencia de que la aclaración es consistente, no solo aceptada de palabra):** al aplicar la corrección, **los 304 cuerpos reales del plano quedan asignados a algún pasillo — cero descartados.** Antes de esta sesión, 4 quedaban fuera sin explicación; ahora la suma exacta (27+36+36+36+36+36+36+35+4+10+5+7 = 304) cierra perfecta.
+
+**Decisión:** Se corrige `geometriaMezanine.data.json`:
+- `MZ02`: 37 → 36 (se retira el cuerpo que en realidad es de `MZ11`, se renumeran columnas 1-36).
+- `MZ07`: 37 → 36 (se retira el cuerpo que en realidad es de `MZ08`, se renumeran columnas 1-36).
+- `MZ08`: 34 → 35 (se agrega el cuerpo de cabecera, columna 35).
+- `MZ11`: 0 → 5 (los 5 "cuerpos fin", columnas 1-5, ordenados por Y ascendente).
+- El resto de los pasillos no cambia.
+
+Nota de transparencia: la numeración `columna` en el schema es un **orden relativo** (posición 1..N dentro del pasillo), no el número físico que el usuario usa en la instalación — por eso el "cuerpo 37" de `MZ08` se guarda como `columna: 35` (el trigésimo quinto en orden, no literalmente "37"). Si en el futuro se necesita el número físico real de cada rack, hay que agregar un campo nuevo al schema (no reemplazar `columna`), porque hoy no hay una fuente que lo declare para el resto de los cuerpos tampoco.
+
+**Consecuencias:** La tabla de diagnóstico de ADR-011 queda desactualizada en 2 filas y se corrige acá, no se reedita ADR-011: `MZ07` pasa de "sistema desactualizado, falta 1" a **coincide exacto** (36=36); `MZ08` pasa de "declara 2 de más" a **declara 1 de más** (36 declarado vs 35 real). `MZ02` sigue con el mismo diagnóstico (36 declarado vs 36... espera, no: con la corrección `MZ02` real pasa a 36, que coincide con lo declarado — también se resuelve). `MZ11` sigue sin declaración en el sistema, pero ahora con 5 cuerpos reales en vez de 0 — más urgente de incorporar a `PAS`/`PAS_LR` que antes. Ningún archivo del mapa legacy ni de Supabase se tocó — esto es solo el archivo de datos de geometría.
