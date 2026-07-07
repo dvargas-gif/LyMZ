@@ -1,23 +1,28 @@
 import Timeline from '../../shared/components/Timeline.jsx';
 import Productividad from './Productividad.jsx';
+import ResumenOcupacion from './ResumenOcupacion.jsx';
 
 /**
- * Contenedor del dashboard: reutiliza el Productividad.jsx (nuevo, basado en
- * auditoría real) + Timeline. El dashboard analítico "de solo lectura" que
- * ya existía dentro del mapa legacy (KPIs de slotting, heatmap, etc.) sigue
- * disponible tal cual dentro de la pestaña "Mapa editable" → botón interno
- * "Dashboard analítico" del propio HTML legacy — no se duplicó ni se tocó.
+ * Contenedor del dashboard: ResumenOcupacion (nuevo, agregado de todo el
+ * mezanine vía WarehouseModel) arriba, Productividad + Timeline abajo. El
+ * antiguo botón "Dashboard analítico" dentro del mapa legacy (KPIs/heatmap
+ * por celda) ya se eliminó en una sesión anterior por ser dead code
+ * duplicado -- esta vista es la que lo reemplaza, con datos agregados que
+ * esa versión vieja nunca tuvo.
  */
 export default function DashboardAnalitico() {
   return (
-    <div className="dash-g2">
-      <div>
-        <Productividad />
+    <>
+      <ResumenOcupacion />
+      <div className="dash-g2" style={{ marginTop: 24 }}>
+        <div>
+          <Productividad />
+        </div>
+        <div className="panel">
+          <h2>Actividad reciente</h2>
+          <Timeline limite={20} />
+        </div>
       </div>
-      <div className="panel">
-        <h2>Actividad reciente</h2>
-        <Timeline limite={20} />
-      </div>
-    </div>
+    </>
   );
 }
