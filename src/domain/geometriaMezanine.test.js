@@ -20,10 +20,10 @@ describe('geometriaMezanine.data.json', () => {
     expect(nombres).toEqual(['MZ01','MZ02','MZ03','MZ04','MZ05','MZ06','MZ07','MZ08','MZ09','MZ10','MZ11','MZ12']);
   });
 
-  it('MZ11 no tiene racks construidos todavía (posición reservada, sin ubicaciones)', () => {
+  it('MZ11 tiene 5 cuerpos reales construidos (ver ADR-012 -- antes 0, corregido tras aclaración del usuario)', () => {
     const g = validarGeometria(datosCrudos);
     const mz11 = g.pasillos.find(p => p.pasillo === 'MZ11');
-    expect(mz11.ubicaciones).toEqual([]);
+    expect(mz11.ubicaciones).toHaveLength(5);
   });
 
   it('MZ11 y MZ12 son verticales -- los demás, horizontales', () => {
@@ -48,10 +48,10 @@ describe('geometriaMezanine.data.json', () => {
     expect(mz04c1.x).toBeCloseTo(305.427, 1);
   });
 
-  it('el total de cuerpos reales con posición es 300 (304 en el plano, 4 descartados como ruido -- ver DECISIONES.md)', () => {
+  it('el total de cuerpos reales con posición es 304 -- los 304 del plano, ninguno descartado (ver ADR-012)', () => {
     const g = validarGeometria(datosCrudos);
     const total = g.pasillos.reduce((s, p) => s + p.ubicaciones.length, 0);
-    expect(total).toBe(300);
+    expect(total).toBe(304);
   });
 });
 

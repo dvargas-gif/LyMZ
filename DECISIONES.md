@@ -232,3 +232,28 @@ Esto invierte el propósito de la comparación hecha en ADR-010: ahí se usó el
 **Hallazgo pendiente, no resuelto en esta sesión:** re-verificando la extracción, los racks rotados 270° no son 4 sino **12**, agrupados en dos columnas paralelas cerca de la esquina donde se cruzan `MZ11`/`MZ12` (verticales) con `MZ02` (horizontal), en `x≈301.08` y `x≈303.157`. El algoritmo de asignación por distancia absorbió 8 de esos 12 dentro de `MZ12` (6), `MZ02` (1) y `MZ07` (1) por pura cercanía geométrica — no porque haya una etiqueta que los confirme como parte de esos pasillos. Los 4 restantes (todos en `x≈303.157`) quedaron sin asignar, igual que en ADR-010. No hay ninguna etiqueta de texto ni capa DXF distinta que identifique qué es esta estructura — se le preguntó al usuario qué representa (no se descarta en silencio); la respuesta queda pendiente para la próxima sesión. Mientras no se resuelva, `geometriaMezanine.data.json` no cambia: como el DXF es el mismo archivo ya procesado en ADR-010, el resultado de re-correr el mismo pipeline (`extraer-final.mjs`) es idéntico — no hubo obra nueva que capturar en este plano.
 
 **Consecuencias:** La corrección de `03-configuracion.js` (agregar `MZ09`-`MZ12` a `PAS`/`PAS_LR`, ajustar `MZ02`/`MZ07`/`MZ08`) y de `pasillos_config` (si aplica) queda anotada como trabajo futuro derivado de este diagnóstico — no se toca el mapa legacy en esta sesión (Fase 2 sigue en pausa). Este ADR no reemplaza ni edita ADR-010; lo confirma como base y agrega la política de qué hacer cuando el plano y el sistema no coinciden.
+
+## ADR-012 — Cierre del hallazgo de los racks rotados 270°: los 304 cuerpos del plano quedan asignados, ninguno descartado
+
+**Fecha:** 2026-07-07
+
+**Contexto:** ADR-011 dejó abierto el hallazgo de 12 racks rotados 270° sin explicación (8 absorbidos por el algoritmo dentro de `MZ12`/`MZ02`/`MZ07` por cercanía, sin etiqueta que los confirme; 4 sin asignar). El usuario subió una versión del DXF con 13 etiquetas de columna intermedia nuevas (`MZ09`, `MZ10`, `MZ11`, `MZ12`) y aclaró en dos rondas la identidad real de esos racks.
+
+**Verificación antes de aceptar la aclaración:** se revisó directamente qué bloques DXF existen en la franja de `MZ11` (x 297-299.5) — resultado: **cero** instancias de `A$C7a458910` ahí. Las 7 celdas dibujadas para `MZ11-C001` a `C007` que se ven en el plano son geometría de referencia (`LWPOLYLINE`), no racks reales insertados — consistente con "posición reservada, sin construir" (ADR-010). La franja de `MZ12` (x 300-302) sí tiene exactamente 7 instancias reales, confirmando que el conteo de `MZ12` ya era correcto.
+
+**Aclaración del usuario:**
+1. El rack aislado en `x=401.134` (el que el algoritmo había metido, sin corresponder, dentro del renglón de `MZ07`) es un cuerpo real de `MZ08` — su "cuerpo 37" en la numeración física de la instalación. Está pegado a la etiqueta `MZ08-C001` (a 0.09 m), no a la fila real de `MZ08` (que está ~2.45 m más lejos, el mismo patrón de desplazamiento etiqueta↔fila ya documentado) — es un cuerpo de cabecera, no un miembro más del renglón.
+2. Los 5 racks de la columna `x=303.157` (4 que habían quedado sin asignar + 1 que el algoritmo había metido, sin corresponder, dentro de `MZ02`) son todos cuerpos de `MZ11` — sus "cuerpos fin".
+
+**Verificación de conservación (evidencia de que la aclaración es consistente, no solo aceptada de palabra):** al aplicar la corrección, **los 304 cuerpos reales del plano quedan asignados a algún pasillo — cero descartados.** Antes de esta sesión, 4 quedaban fuera sin explicación; ahora la suma exacta (27+36+36+36+36+36+36+35+4+10+5+7 = 304) cierra perfecta.
+
+**Decisión:** Se corrige `geometriaMezanine.data.json`:
+- `MZ02`: 37 → 36 (se retira el cuerpo que en realidad es de `MZ11`, se renumeran columnas 1-36).
+- `MZ07`: 37 → 36 (se retira el cuerpo que en realidad es de `MZ08`, se renumeran columnas 1-36).
+- `MZ08`: 34 → 35 (se agrega el cuerpo de cabecera, columna 35).
+- `MZ11`: 0 → 5 (los 5 "cuerpos fin", columnas 1-5, ordenados por Y ascendente).
+- El resto de los pasillos no cambia.
+
+Nota de transparencia: la numeración `columna` en el schema es un **orden relativo** (posición 1..N dentro del pasillo), no el número físico que el usuario usa en la instalación — por eso el "cuerpo 37" de `MZ08` se guarda como `columna: 35` (el trigésimo quinto en orden, no literalmente "37"). Si en el futuro se necesita el número físico real de cada rack, hay que agregar un campo nuevo al schema (no reemplazar `columna`), porque hoy no hay una fuente que lo declare para el resto de los cuerpos tampoco.
+
+**Consecuencias:** La tabla de diagnóstico de ADR-011 queda desactualizada en 2 filas y se corrige acá, no se reedita ADR-011: `MZ07` pasa de "sistema desactualizado, falta 1" a **coincide exacto** (36=36); `MZ08` pasa de "declara 2 de más" a **declara 1 de más** (36 declarado vs 35 real). `MZ02` sigue con el mismo diagnóstico (36 declarado vs 36... espera, no: con la corrección `MZ02` real pasa a 36, que coincide con lo declarado — también se resuelve). `MZ11` sigue sin declaración en el sistema, pero ahora con 5 cuerpos reales en vez de 0 — más urgente de incorporar a `PAS`/`PAS_LR` que antes. Ningún archivo del mapa legacy ni de Supabase se tocó — esto es solo el archivo de datos de geometría.
