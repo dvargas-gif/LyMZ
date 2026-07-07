@@ -10,6 +10,14 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # Valores dummy -- ningun test/build toca un Supabase real (los servicios
+    # se prueban con fakes inyectados), pero supabaseClient.js llama a
+    # createClient() apenas se importa el modulo y tira si faltan. Localmente
+    # esto lo tapa el .env de cada dev; en CI no existe, asi que hace falta
+    # declararlo aca (no son credenciales, no van a ningun Supabase real).
+    env:
+      VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key
     steps:
       - uses: actions/checkout@v4
 
