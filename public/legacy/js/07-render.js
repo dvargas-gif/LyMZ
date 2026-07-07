@@ -43,12 +43,15 @@ function solicitarAddRack(){
     }
   }catch(e){}
 }
+// BUGFIX: el botón separado "‹ Registro" (#termToggle) se sacó -- ahora el
+// badge "N cambios" de la toolbar es el único control que abre la terminal
+// (ver mapa_editable_slotting.html). Cerrarla sigue siendo "Ocultar ›",
+// dentro de la terminal misma, que ya llamaba a esta misma función.
 function toggleTerminal(){
   const t=document.getElementById("terminal");
-  const b=document.getElementById("termToggle");
   const w=document.querySelector(".wrap");
-  if(t.style.display==="none"){t.style.display="flex";b.style.display="none";w.style.maxWidth="calc(100% - 530px)";}
-  else{t.style.display="none";b.style.display="block";w.style.maxWidth="calc(100% - 90px)";}
+  if(t.style.display==="none"){t.style.display="flex";w.style.maxWidth="calc(100% - 530px)";}
+  else{t.style.display="none";w.style.maxWidth="";}
 }
 function render(){
   grid.innerHTML="";

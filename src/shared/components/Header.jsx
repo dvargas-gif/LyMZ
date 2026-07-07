@@ -1,9 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../../features/auth/auth.service.js';
-import Logo from './Logo.jsx';
 
 /**
  * El usuario autenticado permanece visible en el encabezado (requisito).
+ * El nombre del sistema y el logo viven en el Sidebar, no acá (bugfix --
+ * ver Sidebar.jsx). El div vacío se mantiene como spacer: `.app-header`
+ * usa `justify-content: space-between` entre dos hijos, así que sin él
+ * `.app-header__user` saltaría a la izquierda en vez de quedar a la derecha.
  */
 export default function Header({ sesion, onLogout }) {
   const navigate = useNavigate();
@@ -16,10 +19,7 @@ export default function Header({ sesion, onLogout }) {
 
   return (
     <header className="app-header">
-      <div className="app-header__brand">
-        <Logo size={24} />
-        <span>WMS · Slotting Mezanine</span>
-      </div>
+      <div className="app-header__brand" />
       <div className="app-header__user">
         <div className="app-header__user-info">
           <span className="app-header__nombre">{sesion.nombre}</span>

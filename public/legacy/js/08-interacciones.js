@@ -130,11 +130,16 @@ function confirmar(destKey,niv){
   if(idx<0){cancelarMover();return;}
   const articulo=cuO.niveles[desdeNiv].splice(idx,1)[0];
   if(cuO.niveles[desdeNiv].length===0)delete cuO.niveles[desdeNiv];
+  // BUGFIX: si el rack de origen quedó sin ningún artículo, se borra del
+  // todo -- mismo criterio que ya usaba deshacer() al reconstruir estado.
+  // Antes esto NO pasaba acá, así que el slot vaciado por completo se
+  // quedaba pintado como "0" en vez de aparecer vacío.
+  if(nArts(cuO)===0)delete CUERPOS[desdeKey];
   const cuD=CUERPOS[destKey];
   cuD.niveles[niv]=cuD.niveles[niv]||[];
   cuD.niveles[niv].push(articulo);
   const dcol=String(cuD.col).padStart(3,'0');
-  cambios.push({art, tipo:'suelto',
+  cambios.push({art, tipo:'suelto', lote:++loteContador,
     hpas:cuD.pas, hcol:cuD.col, hniv:niv,
     dpas:cuO.pas, dcol:cuO.col, dniv:desdeNiv,
     dclase:cuO.clase, dgrupo:cuO.grupo, dtipo:cuO.tipo,
@@ -149,28 +154,39 @@ function confirmar(destKey,niv){
 }
 function deshacer(){
   if(cambios.length===0)return;
-  const c=cambios.pop();
-  // reconstruir keys/niveles desde los campos guardados (robusto)
-  const hkey=c.hpas+"|"+c.hcol, hniv=c.hniv;
-  const dkey=c.dpas+"|"+c.dcol, dniv=c.dniv;
-  const cuH=CUERPOS[hkey];
-  if(cuH && cuH.niveles[hniv]){
-    const i=cuH.niveles[hniv].findIndex(a=>a.art===c.art);
-    if(i>=0){
-      const a=cuH.niveles[hniv].splice(i,1)[0];
-      if(cuH.niveles[hniv].length===0)delete cuH.niveles[hniv];
-      // si el cuerpo destino quedó vacío, borrarlo del mapa
-      if(nArts(cuH)===0)delete CUERPOS[hkey];
-      // recrear el cuerpo de origen si fue borrado (caso mover cuerpo completo)
-      if(!CUERPOS[dkey]){
-        CUERPOS[dkey]={pas:c.dpas,col:parseInt(c.dcol),clase:c.dclase||"-",grupo:c.dgrupo||"-",tipo:c.dtipo||"NORMAL",niveles:{}};
-      }
-      CUERPOS[dkey].niveles[dniv]=CUERPOS[dkey].niveles[dniv]||[];
-      CUERPOS[dkey].niveles[dniv].push(a);
-      notificarPosicion(c.art, c.dpas, c.dcol, dniv);
-      notificarDeshecho(c.art, `${c.hpas}-C${String(c.hcol).padStart(3,'0')}-${hniv}`, `${c.dpas}-C${String(c.dcol).padStart(3,'0')}-${dniv}`);
-    }
+  // BUGFIX: antes se sacaba UNA sola entrada de `cambios` por click -- si el
+  // último movimiento fue un cuerpo completo (N entradas, mismo `lote`),
+  // "Deshacer" solo devolvía un artículo por vez en vez del cuerpo entero.
+  // Ahora se saca y revierte TODO el lote (todas las entradas contiguas con
+  // el mismo id) de una sola vez.
+  const loteId=cambios[cambios.length-1].lote;
+  const lote=[];
+  while(cambios.length>0 && cambios[cambios.length-1].lote===loteId){
+    lote.push(cambios.pop());
   }
+  lote.forEach(c=>{
+    // reconstruir keys/niveles desde los campos guardados (robusto)
+    const hkey=c.hpas+"|"+c.hcol, hniv=c.hniv;
+    const dkey=c.dpas+"|"+c.dcol, dniv=c.dniv;
+    const cuH=CUERPOS[hkey];
+    if(cuH && cuH.niveles[hniv]){
+      const i=cuH.niveles[hniv].findIndex(a=>a.art===c.art);
+      if(i>=0){
+        const a=cuH.niveles[hniv].splice(i,1)[0];
+        if(cuH.niveles[hniv].length===0)delete cuH.niveles[hniv];
+        // si el cuerpo destino quedó vacío, borrarlo del mapa
+        if(nArts(cuH)===0)delete CUERPOS[hkey];
+        // recrear el cuerpo de origen si fue borrado (caso mover cuerpo completo)
+        if(!CUERPOS[dkey]){
+          CUERPOS[dkey]={pas:c.dpas,col:parseInt(c.dcol),clase:c.dclase||"-",grupo:c.dgrupo||"-",tipo:c.dtipo||"NORMAL",niveles:{}};
+        }
+        CUERPOS[dkey].niveles[dniv]=CUERPOS[dkey].niveles[dniv]||[];
+        CUERPOS[dkey].niveles[dniv].push(a);
+        notificarPosicion(c.art, c.dpas, c.dcol, dniv);
+        notificarDeshecho(c.art, `${c.hpas}-C${String(c.hcol).padStart(3,'0')}-${hniv}`, `${c.dpas}-C${String(c.dcol).padStart(3,'0')}-${dniv}`);
+      }
+    }
+  });
   actualizarBadgeCambios();render();
 }
 function iniciarMoverCuerpo(desdeKey){
@@ -201,10 +217,14 @@ function soltarCuerpoEn(destKey){
   const colO=String(cuO.col).padStart(3,'0'), colD=String(dcol).padStart(3,'0');
   // COPIA PROFUNDA de los niveles del origen (para no perder la referencia al borrar)
   const nivelesCopia={};
+  // BUGFIX "Deshacer": las N entradas que este movimiento genera (una por
+  // artículo) comparten el mismo `lote` -- así deshacer() las revierte todas
+  // juntas, en vez de una por click.
+  const loteActual=++loteContador;
   for(const niv in cuO.niveles){
     nivelesCopia[niv]=cuO.niveles[niv].map(a=>({art:a.art,picks:a.picks,consumo:a.consumo,actual:a.actual}));
     nivelesCopia[niv].forEach(a=>{
-      cambios.push({art:a.art, tipo:'cuerpo',
+      cambios.push({art:a.art, tipo:'cuerpo', lote:loteActual,
         hpas:dpas, hcol:dcol, hniv:niv,
         dpas:cuO.pas, dcol:cuO.col, dniv:niv,
         dclase:cuO.clase, dgrupo:cuO.grupo, dtipo:cuO.tipo,

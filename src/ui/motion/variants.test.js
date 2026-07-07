@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { entradaConStagger, pulsoCambio, transicionLayout } from './variants.js';
+import { entradaConStagger, pulsoCambio, transicionLayout, revelarHorizontal } from './variants.js';
 import { DURACION, STAGGER_MS } from './tokens.js';
 
 describe('entradaConStagger', () => {
@@ -40,5 +40,22 @@ describe('transicionLayout', () => {
   });
   it('con reducido=true, instantánea', () => {
     expect(transicionLayout(true).duration).toBe(0);
+  });
+});
+
+describe('revelarHorizontal', () => {
+  it('fade + slide horizontal corto, con exit simétrico y duración de navegación', () => {
+    const v = revelarHorizontal(false);
+    expect(v.initial).toEqual({ opacity: 0, x: -8 });
+    expect(v.animate).toEqual({ opacity: 1, x: 0 });
+    expect(v.exit).toEqual({ opacity: 0, x: -8 });
+    expect(v.transition.duration).toBe(DURACION.navegacion);
+  });
+
+  it('con reducido=true, sin animación (duración 0, sin salto entre initial/animate/exit)', () => {
+    const v = revelarHorizontal(true);
+    expect(v.transition.duration).toBe(0);
+    expect(v.initial).toEqual(v.animate);
+    expect(v.exit).toEqual(v.animate);
   });
 });

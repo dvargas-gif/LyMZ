@@ -57,7 +57,7 @@ body {
 .app-header__rol { display: block; font-size: 11px; color: var(--muted); }
 .btn-logout {
   background: var(--fondo-sutil); border: none; border-radius: 8px; width: 34px; height: 34px;
-  cursor: pointer; color: var(--muted); font-size: 15px;
+  cursor: pointer; color: var(--muted); font-size: 15px; transition: background .15s ease;
 }
 .btn-logout:hover { background: #E4E0D3; }
 .app-main { flex: 1; padding: 24px; max-width: 1500px; margin: 0 auto; width: 100%; }
@@ -100,6 +100,12 @@ body {
   padding: 12px 8px; overflow: hidden; transition: width .2s ease, box-shadow .2s ease;
 }
 .sidebar--expandido { width: 240px; box-shadow: 4px 0 24px rgba(0, 0, 0, .16); }
+.sidebar__logo {
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  height: 36px; padding: 0 11px; margin-bottom: 10px;
+  font-weight: 700; font-size: 13px; letter-spacing: .5px; color: var(--accent);
+  white-space: nowrap; overflow: hidden;
+}
 .sidebar__toggle, .sidebar__item {
   display: flex; align-items: center; gap: 12px; flex-shrink: 0;
   height: 44px; padding: 0 11px; border-radius: 10px;
@@ -139,6 +145,10 @@ body {
 .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
 .panel__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .panel h2 { font-size: 17px; font-weight: 600; letter-spacing: -.2px; }
+/* Sub-título dentro de un .panel (ej. "Ranking de usuarios" bajo el h2 del
+   panel, antes de una tabla) -- un escalón entre .panel h2 (17px) y .dc h3
+   (14px) en vez de heredar el tamaño default del navegador. */
+.panel > h3 { font-size: 15px; font-weight: 600; }
 .filtros-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
 .filtros-bar input, .filtros-bar select { font-size: 13px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; font-family: inherit; }
 
@@ -178,6 +188,8 @@ body {
 .tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tabla th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .tabla td { padding: 9px 10px; border-bottom: 1px solid var(--line); }
+.tabla tbody tr { transition: background .12s ease; }
+.tabla tbody tr:hover { background: var(--bg); }
 .estado-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 6px; }
 .estado-badge--ok { background: #EAF3EE; color: var(--green); }
 .estado-badge--warn { background: #FCEBEB; color: var(--red); }
@@ -198,7 +210,7 @@ body {
 .lista-simple li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .pend-banner { background: var(--fondo-sutil); border: 1px dashed var(--borde-medio); border-radius: 10px; padding: 12px 16px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .kpis-mini { display: flex; gap: 14px; }
-.kpi-mini { background: #F6F7F9; border-radius: 12px; padding: 14px 18px; }
+.kpi-mini { background: #F6F7F9; border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }
 .kpi-mini .v { font-size: 22px; font-weight: 600; }
 .kpi-mini .l { font-size: 11px; color: var(--muted); }
 .kpi-mini--warn .v { color: var(--red); }

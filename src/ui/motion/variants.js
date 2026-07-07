@@ -31,3 +31,16 @@ export function pulsoCambio(reducido = false) {
 export function transicionLayout(reducido = false) {
   return { duration: reducido ? 0 : DURACION.estado, ease: EASING.cambio };
 }
+
+/** Fade + slide horizontal corto (para usar con AnimatePresence) -- texto que aparece/desaparece junto a un ícono fijo, ej. el nombre del sistema al expandir el sidebar. */
+export function revelarHorizontal(reducido = false) {
+  if (reducido) {
+    return { initial: { opacity: 1, x: 0 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 1, x: 0 }, transition: { duration: 0 } };
+  }
+  return {
+    initial: { opacity: 0, x: -8 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -8 },
+    transition: { duration: DURACION.navegacion, ease: EASING.entrada },
+  };
+}
