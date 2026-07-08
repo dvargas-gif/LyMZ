@@ -44,3 +44,18 @@ export function colorLlenura(proporcion, configuracionOcupacion) {
   if (proporcion > u.medio) return '#2E7D83';
   return '#7FB069';
 }
+
+/**
+ * Color de alerta por ARTÍCULO individual -- mide concentración de UN
+ * artículo (su propio `consumo`), no un agregado de rack o nivel. Portado
+ * tal cual desde `07-render.js:205` del mapa legacy (mismos cortes 0.90/0.60,
+ * mismos hex) -- ver ADR-005 (umbralArticulo) e INVENTARIO-LOGICA-MAPA.md
+ * sección 1: el domino ya tenía los números centralizados desde G1d, pero
+ * nunca existía la función que los aplicara.
+ */
+export function colorArticulo(consumo, configuracionOcupacion) {
+  const u = configuracionOcupacion.umbralArticulo;
+  if (consumo > u.alto) return '#C0392B';
+  if (consumo > u.medio) return '#D08A1E';
+  return '#2E7D83';
+}

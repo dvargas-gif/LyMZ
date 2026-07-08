@@ -136,6 +136,39 @@
   .mapa-toolbar__boton, .mapa-toolbar__buscar, .mapa-toolbar__buscar input { transition: none; }
 }
 
+/* Terminal de cambios -- mismo glassmorphism oscuro que el resto del chrome
+   flotante del canvas (toolbar/tooltip/movebar). Colores desde/hacia
+   heredados tal cual de logMov() del mapa legacy (ver TerminalCambios.jsx). */
+.mapa-terminal {
+  width: 280px; max-height: 320px; display: flex; flex-direction: column;
+  background: rgba(27, 31, 32, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #4A4038; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  animation: mapa-pestana-entrada .2s var(--ease-ios);
+}
+.mapa-terminal__header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border-bottom: 1px solid #4A4038; color: #F2EDE4; font-size: 12px; font-weight: 700; flex-shrink: 0;
+}
+.mapa-terminal__cerrar {
+  background: rgba(255,255,255,.08); border: none; color: #B9B3A8; font-size: 11px; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+  transition: background .15s var(--ease-ios), color .15s var(--ease-ios);
+}
+.mapa-terminal__cerrar:hover { background: rgba(255,255,255,.14); color: #F2EDE4; }
+.mapa-terminal__log { overflow-y: auto; padding: 4px 10px; }
+.mapa-terminal__vacio { color: #B9B3A8; font-size: 11.5px; padding: 14px 0; text-align: center; }
+.mapa-terminal__linea { padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 11.5px; }
+.mapa-terminal__linea:last-child { border-bottom: none; }
+.mapa-terminal__articulo { color: #F2EDE4; font-weight: 700; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; margin-bottom: 2px; }
+.mapa-terminal__badge { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #C99A4A; background: rgba(201,154,74,.15); padding: 1px 5px; border-radius: 4px; }
+.mapa-terminal__desde { color: #B47A6A; font-variant-numeric: tabular-nums; }
+.mapa-terminal__flecha { color: #5F5E5A; }
+.mapa-terminal__hacia { color: #9FBF9F; font-variant-numeric: tabular-nums; }
+.mapa-terminal__hora { color: #5F5E5A; font-size: 10px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mapa-terminal, .mapa-terminal__cerrar { animation: none; transition: none; }
+}
+
 /* Movebar -- guía el flujo de mover artículo/cuerpo (ver BarraMovimiento.jsx). Fija abajo-centro, mismo criterio que .movebar del mapa legacy. */
 .mapa-movebar {
   position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 25;

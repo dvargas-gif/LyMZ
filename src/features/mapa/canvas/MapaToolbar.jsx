@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { BLANCO_CALIDO_TENUE, ESTADOS } from './paleta.js';
 import { interaccionBoton } from '../../../ui/motion/variants.js';
 import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
+import TerminalCambios from './TerminalCambios.jsx';
 
 /**
  * Barra de herramientas del canvas -- reemplaza al toolbar HTML del mapa
@@ -21,11 +22,13 @@ export default function MapaToolbar({
   modoEdicion, onToggleEdicion,
   modoBloqueo, onToggleBloqueo,
   puedeDeshacer, onDeshacer,
-  cantidadCambios,
+  cambios,
   mostrarAnadirRack, onAnadirRack,
   soloLectura,
 }) {
   const [buscarEnfocado, setBuscarEnfocado] = useState(false);
+  const [terminalAbierta, setTerminalAbierta] = useState(false);
+  const cantidadCambios = cambios.length;
 
   return (
     <div style={contenedorStyle}>
@@ -54,6 +57,12 @@ export default function MapaToolbar({
             <BotonToolbar icono="ti-edit" titulo="Modo edición (arrastrá para mover un rack completo)" onClick={onToggleEdicion} activo={modoEdicion} />
             <BotonToolbar icono={modoBloqueo ? 'ti-lock-open' : 'ti-lock'} titulo={modoBloqueo ? 'Modo bloqueo ACTIVO -- tocá posiciones' : 'Bloquear posiciones'} onClick={onToggleBloqueo} activo={modoBloqueo} />
             <BotonToolbar icono="ti-arrow-back-up" titulo="Deshacer último movimiento" onClick={onDeshacer} deshabilitado={!puedeDeshacer} badge={cantidadCambios > 0 ? cantidadCambios : null} />
+            <BotonToolbar
+              icono="ti-terminal-2"
+              titulo={terminalAbierta ? 'Ocultar registro de cambios' : 'Ver registro de cambios'}
+              onClick={() => setTerminalAbierta(v => !v)}
+              activo={terminalAbierta}
+            />
           </>
         )}
 
@@ -78,6 +87,10 @@ export default function MapaToolbar({
         <div className="mapa-toolbar__aviso">
           <i className="ti ti-lock" /> Solo lectura
         </div>
+      )}
+
+      {terminalAbierta && !soloLectura && (
+        <TerminalCambios cambios={cambios} onCerrar={() => setTerminalAbierta(false)} />
       )}
     </div>
   );

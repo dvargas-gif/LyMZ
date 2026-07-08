@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nArts, nivelesOcupados, consumoTotal, llenura, colorLlenura } from './formulasOcupacion.js';
+import { nArts, nivelesOcupados, consumoTotal, llenura, colorLlenura, colorArticulo } from './formulasOcupacion.js';
 import { CONFIGURACION_OCUPACION_DEFAULT as CFG } from './configuracionOcupacion.js';
 
 // Estos tests fijan el comportamiento ACTUAL del mapa legacy (05-ayudantes.js)
@@ -64,5 +64,18 @@ describe('colorLlenura', () => {
   it('<=0.4 -> verde', () => {
     expect(colorLlenura(0.3, CFG)).toBe('#7FB069');
     expect(colorLlenura(0.4, CFG)).toBe('#7FB069'); // exactamente 0.4 no es ">0.4" -> verde, igual que el original
+  });
+});
+
+describe('colorArticulo', () => {
+  it('>0.90 (alto) -> rojo', () => {
+    expect(colorArticulo(0.95, CFG)).toBe('#C0392B');
+  });
+  it('>0.60 y <=0.90 (medio) -> ámbar', () => {
+    expect(colorArticulo(0.75, CFG)).toBe('#D08A1E');
+  });
+  it('<=0.60 -> teal (sin nivel "verde ok" para artículo individual, a diferencia de colorLlenura)', () => {
+    expect(colorArticulo(0.6, CFG)).toBe('#2E7D83');
+    expect(colorArticulo(0.1, CFG)).toBe('#2E7D83');
   });
 });

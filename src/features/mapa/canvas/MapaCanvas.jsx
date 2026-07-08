@@ -62,7 +62,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [busqueda, setBusqueda] = useState('');
   const [resultadoBusqueda, setResultadoBusqueda] = useState(null);
   const [celdaResaltada, setCeldaResaltada] = useState(null); // clave "pasillo|columna" con flash momentáneo (ver buscarArticulo)
-  const [cambios, setCambios] = useState([]); // pila de LOTES (cada lote = 1+ artículos movidos juntos) -- alimenta Deshacer Y Exportar, misma fuente para que no puedan desincronizarse
+  const [cambios, setCambios] = useState([]); // pila de LOTES {entradas, articuloEtiqueta, desde, hacia, tipoMovimiento, timestamp} -- alimenta Deshacer, Exportar Y la Terminal de cambios, misma fuente para que no puedan desincronizarse
   const [modoEdicion, setModoEdicion] = useState(false); // arrastrar para mover un cuerpo completo (mismo nombre que "Modo edición" del mapa legacy)
   const [modoBloqueo, setModoBloqueo] = useState(false);
   const [bloqueadas, setBloqueadas] = useState(new Set()); // claves "pasillo|columna" bloqueadas -- no admiten ser origen ni destino de un movimiento
@@ -238,7 +238,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filas), 'Slotting');
     if (cambios.length > 0) {
       const filasCambios = [['Articulo', 'DESDE (slot original)', 'HACIA (editado)']];
-      cambios.forEach(lote => lote.forEach(c => filasCambios.push([c.articulo, c.desde, c.hacia])));
+      cambios.forEach(lote => filasCambios.push([lote.articuloEtiqueta, lote.desde, lote.hacia]));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filasCambios), 'Cambios');
     }
     XLSX.writeFile(wb, 'Slotting_editado.xlsx');
@@ -326,7 +326,14 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   async function aplicarLote(entradas, { articuloEtiqueta, desde, hacia, tipoMovimiento }) {
     setGuardando(true);
     setRacks(actuales => aplicarMovimientosLocales(actuales, entradas));
-    setCambios(actuales => [...actuales, entradas]);
+    // Se guarda el LOTE completo (no solo `entradas`) -- desde/hacia/timestamp
+    // alimentan la Terminal de cambios Y la hoja "Cambios" del Excel, misma
+    // fuente que Deshacer, nunca pueden desincronizarse. Antes solo se
+    // guardaba `entradas` (sin desde/hacia): exportarExcel() leía `c.desde`/
+    // `c.hacia` de ahí, que nunca existieron -- la hoja "Cambios" siempre
+    // salía con esas columnas vacías, bug real corregido acá de paso.
+    const lote = { entradas, articuloEtiqueta, desde, hacia, tipoMovimiento, timestamp: Date.now() };
+    setCambios(actuales => [...actuales, lote]);
     try {
       await guardarLotePosiciones(entradas.map(entrada => ({
         articulo: entrada.articulo, pasillo: entrada.destino.pasillo, columna: entrada.destino.columna,
@@ -403,30 +410,26 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     if (cambios.length === 0) return;
     const ultimoLote = cambios[cambios.length - 1];
     setGuardando(true);
-    setRacks(actuales => aplicarMovimientosLocales(actuales, invertirLote(ultimoLote)));
+    setRacks(actuales => aplicarMovimientosLocales(actuales, invertirLote(ultimoLote.entradas)));
     setCambios(actuales => actuales.slice(0, -1));
-    guardarLotePosiciones(ultimoLote.map(entrada => ({
+    guardarLotePosiciones(ultimoLote.entradas.map(entrada => ({
       articulo: entrada.articulo, pasillo: entrada.origen.pasillo, columna: entrada.origen.columna,
       nivel: entrada.origen.nivel, clase: entrada.clase, tipo: entrada.tipo,
     })))
       .then(async () => {
         if (!escenarioId) {
-          const primera = ultimoLote[0];
-          const esCuerpo = ultimoLote.length > 1;
-          const colDestino = String(primera.destino.columna).padStart(3, '0');
-          const colOrigen = String(primera.origen.columna).padStart(3, '0');
+          // Auditoría del deshecho: misma etiqueta que el movimiento original,
+          // desde/hacia invertidos (se está volviendo de "hacia" a "desde").
           await auditService.registrarDeshecho({
             usuarioId: sesion?.usuarioId, usuarioNombre: sesion?.nombre, ip: sesion?.ip,
-            articulo: esCuerpo ? `cuerpo completo (${ultimoLote.length} art)` : primera.articulo,
-            desde: esCuerpo ? `${primera.destino.pasillo}-C${colDestino}` : formatoUbicacion(primera.destino.pasillo, primera.destino.columna, primera.destino.nivel),
-            hacia: esCuerpo ? `${primera.origen.pasillo}-C${colOrigen}` : formatoUbicacion(primera.origen.pasillo, primera.origen.columna, primera.origen.nivel),
+            articulo: ultimoLote.articuloEtiqueta, desde: ultimoLote.hacia, hacia: ultimoLote.desde,
           });
         } else {
           onCambio?.();
         }
       })
       .catch(() => {
-        setRacks(actuales => aplicarMovimientosLocales(actuales, ultimoLote));
+        setRacks(actuales => aplicarMovimientosLocales(actuales, ultimoLote.entradas));
         setCambios(actuales => [...actuales, ultimoLote]);
         mostrarError('No se pudo deshacer. Revisá tu conexión e intentá de nuevo.');
       })
@@ -443,27 +446,41 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     });
   }
 
-  /** "Limpiar área" -- SOLO sala, invocado externamente (ver useImperativeHandle). Misma confirmación y mismo efecto que limpiarAreaSeleccionada() legacy: vacía TODOS los artículos de las posiciones seleccionadas, vía escenarioEliminadosService (nunca toca el mapa real). */
-  async function limpiarAreaSeleccionada() {
-    if (!escenarioId) return;
-    if (seleccionArea.size === 0) { mostrarError('Primero tocá "Seleccionar área" y elegí al menos una posición.'); return; }
-    if (!confirm(`¿Vaciar ${seleccionArea.size} posición(es) seleccionada(s) en esta sala? Esta acción no se puede deshacer.`)) return;
-
-    const claves = [...seleccionArea];
+  /** Vacía un conjunto de posiciones (SOLO sala) -- vía escenarioEliminadosService, nunca toca el mapa real. Compartido por limpiarAreaSeleccionada() (multi-selección) y limpiarSlotIndividual() (un solo rack, desde el panel de detalle). */
+  async function vaciarPosiciones(claves) {
     const articulos = [];
     for (const clave of claves) {
       const rack = racks.get(clave);
       if (!rack) continue;
       for (const nivel in rack.niveles) for (const a of rack.niveles[nivel]) articulos.push(a.articulo);
     }
+    await Promise.all(articulos.map(articulo => escenarioEliminadosService.marcarEliminado({ escenarioId, articulo, usuarioId: sesion?.usuarioId })));
+    setRacks(actuales => { const copia = new Map(actuales); claves.forEach(c => copia.delete(c)); return copia; });
+    onCambio?.();
+  }
+
+  /** "Limpiar área" -- SOLO sala, invocado externamente (ver useImperativeHandle). Misma confirmación y mismo efecto que limpiarAreaSeleccionada() legacy: vacía TODOS los artículos de las posiciones seleccionadas. */
+  async function limpiarAreaSeleccionada() {
+    if (!escenarioId) return;
+    if (seleccionArea.size === 0) { mostrarError('Primero tocá "Seleccionar área" y elegí al menos una posición.'); return; }
+    if (!confirm(`¿Vaciar ${seleccionArea.size} posición(es) seleccionada(s) en esta sala? Esta acción no se puede deshacer.`)) return;
     try {
-      await Promise.all(articulos.map(articulo => escenarioEliminadosService.marcarEliminado({ escenarioId, articulo, usuarioId: sesion?.usuarioId })));
-      setRacks(actuales => { const copia = new Map(actuales); claves.forEach(c => copia.delete(c)); return copia; });
+      await vaciarPosiciones([...seleccionArea]);
       setSeleccionArea(new Set());
       setModoSeleccionArea(false);
-      onCambio?.();
     } catch {
       mostrarError('No se pudo limpiar el área. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  /** "🧹 Limpiar slot" -- SOLO sala, vacía UN rack puntual desde el botón del panel de detalle (distinto de "Limpiar área", que es multi-selección). Mismo criterio que limpiarSlot() del mapa legacy (07-render.js/08-interacciones.js): solo visible con artículos, con la misma confirmación. */
+  async function limpiarSlotIndividual(pasillo, columna) {
+    if (!escenarioId) return;
+    if (!confirm(`¿Vaciar la posición ${pasillo}-C${String(columna).padStart(3, '0')} en esta sala? Esta acción no se puede deshacer.`)) return;
+    try {
+      await vaciarPosiciones([`${pasillo}|${columna}`]);
+    } catch {
+      mostrarError('No se pudo vaciar el slot. Revisá tu conexión e intentá de nuevo.');
     }
   }
 
@@ -674,7 +691,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           onToggleBloqueo={() => { setModoBloqueo(v => !v); setModoEdicion(false); cancelarMovimiento(); }}
           puedeDeshacer={cambios.length > 0 && !guardando}
           onDeshacer={deshacerUltimo}
-          cantidadCambios={cambios.length}
+          cambios={cambios}
           soloLectura={soloLectura}
           mostrarAnadirRack={mostrarAnadirRack}
           onAnadirRack={() => onSolicitarAddRack?.()}
@@ -721,6 +738,8 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
               onMoverArticulo={(articulo, nivel, clase, tipo) => iniciarMoverArticulo(pestanaActiva, articulo, nivel, clase, tipo)}
               moviendoAlgo={!!moviendo || guardando}
               soloLectura={soloLectura}
+              enSala={!!escenarioId}
+              onLimpiarSlot={() => { const [p, c] = pestanaActiva.split('|'); limpiarSlotIndividual(p, Number(c)); }}
             />
           )}
         </div>

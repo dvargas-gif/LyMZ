@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
-import { nArts, consumoTotal, llenura, colorLlenura } from '../../../domain/formulasOcupacion.js';
-import { VERDE_ESTRUCTURA, BLANCO_CALIDO, BLANCO_HUESO_TARJETA, GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO } from './paleta.js';
+import { nArts, consumoTotal, llenura, colorLlenura, colorArticulo } from '../../../domain/formulasOcupacion.js';
+import { VERDE_ESTRUCTURA, BLANCO_CALIDO, BLANCO_HUESO_TARJETA, GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO, ESTADOS } from './paleta.js';
 import { interaccionBoton } from '../../../ui/motion/variants.js';
 import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
 
@@ -27,6 +27,7 @@ export default function PanelDetalle({
   onMoverCuerpo, onMoverArticulo, moviendoAlgo,
   bloqueada, onToggleBloqueo,
   soloLectura = false,
+  enSala = false, onLimpiarSlot,
 }) {
   const [pasillo, columna] = clave.split('|');
   const niveles = ORDEN_NIVELES.filter(n => rack.niveles[n]?.length);
@@ -55,6 +56,10 @@ export default function PanelDetalle({
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <BotonAccion icono="ti-arrows-move" etiqueta="Mover cuerpo" onClick={onMoverCuerpo} deshabilitado={moviendoAlgo || nArts(rack) === 0} />
             <BotonAccion icono={bloqueada ? 'ti-lock-open' : 'ti-lock'} etiqueta={bloqueada ? 'Desbloquear' : 'Bloquear'} onClick={onToggleBloqueo} activo={bloqueada} />
+            {/* "Limpiar slot" -- SOLO sala, mismo criterio que el botón "🧹 Limpiar slot" del mapa legacy (07-render.js): vacía ESTE rack puntual, distinto de "Limpiar área" (multi-selección, ver barra de acciones de la sala). No existe para el mapa real. */}
+            {enSala && (
+              <BotonAccion icono="ti-trash" etiqueta="Vaciar rack" onClick={onLimpiarSlot} deshabilitado={moviendoAlgo || nArts(rack) === 0} destructivo />
+            )}
           </div>
         )}
       </div>
@@ -86,8 +91,9 @@ export default function PanelDetalle({
   );
 }
 
-function BotonAccion({ icono, etiqueta, onClick, activo, deshabilitado }) {
+function BotonAccion({ icono, etiqueta, onClick, activo, deshabilitado, destructivo }) {
   const reducido = useReducedMotion();
+  const colorDestructivo = ESTADOS.sobrecargado; // mismo rojo que "sobrecargado" en el resto de la app -- no se inventa un rojo nuevo
   return (
     <motion.button
       onClick={onClick}
@@ -95,9 +101,9 @@ function BotonAccion({ icono, etiqueta, onClick, activo, deshabilitado }) {
       title={etiqueta}
       style={{
         display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-        border: `1px solid ${BORDE_CLARO}`, cursor: deshabilitado ? 'default' : 'pointer',
-        background: activo ? VERDE_ESTRUCTURA : 'transparent', color: activo ? BLANCO_CALIDO : GRIS_TEXTO_TENUE,
-        opacity: deshabilitado ? 0.4 : 1, transition: 'background .15s var(--ease-ios), opacity .15s var(--ease-ios)',
+        border: `1px solid ${destructivo ? colorDestructivo : BORDE_CLARO}`, cursor: deshabilitado ? 'default' : 'pointer',
+        background: activo ? VERDE_ESTRUCTURA : 'transparent', color: activo ? BLANCO_CALIDO : (destructivo ? colorDestructivo : GRIS_TEXTO_TENUE),
+        opacity: deshabilitado ? 0.4 : 1, transition: 'background .15s var(--ease-ios), opacity .15s var(--ease-ios), color .15s var(--ease-ios)',
       }}
       {...(deshabilitado ? {} : interaccionBoton(reducido))}
     >
@@ -185,7 +191,11 @@ function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupaci
             </span>
           </div>
           <div style={{ color: GRIS_TEXTO_TENUE, fontSize: 10.5, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
-            consumo {(a.consumo ?? 0).toFixed(2)} · {a.picks ?? 0} picks
+            consumo{' '}
+            <span style={{ fontWeight: 700, color: configuracionOcupacion ? colorArticulo(a.consumo ?? 0, configuracionOcupacion) : GRIS_TEXTO_TENUE }}>
+              {(a.consumo ?? 0).toFixed(2)}
+            </span>
+            {' '}· {a.picks ?? 0} picks
           </div>
         </div>
       ))}
