@@ -1,5 +1,8 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { BLANCO_CALIDO_TENUE, ESTADOS } from './paleta.js';
+import { interaccionBoton } from '../../../ui/motion/variants.js';
+import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
 
 /**
  * Barra de herramientas del canvas -- reemplaza al toolbar HTML del mapa
@@ -81,17 +84,19 @@ export default function MapaToolbar({
 }
 
 function BotonToolbar({ icono, titulo, onClick, activo, deshabilitado, badge }) {
+  const reducido = useReducedMotion();
   return (
-    <button
+    <motion.button
       className={`mapa-toolbar__boton ${activo ? 'mapa-toolbar__boton--activo' : ''}`}
       title={titulo}
       aria-label={titulo}
       onClick={onClick}
       disabled={deshabilitado}
+      {...(deshabilitado ? {} : interaccionBoton(reducido))}
     >
       <i className={`ti ${icono}`} />
       {badge != null && <span className="mapa-toolbar__badge">{badge}</span>}
-    </button>
+    </motion.button>
   );
 }
 

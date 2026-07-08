@@ -95,16 +95,19 @@
   display: flex; align-items: center; justify-content: center; position: relative;
   width: 32px; height: 32px; border: none; border-radius: 8px; cursor: pointer;
   background: transparent; color: #B9B3A8; font-size: 15px;
-  transition: background .15s var(--ease-ios), color .15s var(--ease-ios), transform .15s var(--ease-ios);
+  /* El transform (elevación en hover, compresión en tap) lo maneja Framer
+     Motion (interaccionBoton(), ver MapaToolbar.jsx) -- acá solo transicionan
+     color/fondo, para no animar "transform" desde dos sistemas a la vez. */
+  transition: background .15s var(--ease-ios), color .15s var(--ease-ios);
 }
 .mapa-toolbar__boton:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #F2EDE4; }
-.mapa-toolbar__boton:active:not(:disabled) { transform: scale(.92); }
 .mapa-toolbar__boton--activo { background: #3A6358; color: #F2EDE4; }
 .mapa-toolbar__boton--activo:hover { background: #3A6358; }
 .mapa-toolbar__boton:disabled { opacity: .35; cursor: default; }
 .mapa-toolbar__badge {
-  position: absolute; top: -3px; right: -3px; min-width: 14px; height: 14px; padding: 0 3px;
-  border-radius: 7px; background: #C99A4A; color: #121415; font-size: 9px; font-weight: 700;
+  position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 8px; background: #C99A4A; color: #121415; font-size: 10.5px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
   display: flex; align-items: center; justify-content: center; line-height: 1;
 }
 .mapa-toolbar__separador { width: 1px; height: 20px; background: #4A4038; margin: 0 3px; flex-shrink: 0; }

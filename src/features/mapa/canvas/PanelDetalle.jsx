@@ -1,5 +1,8 @@
+import { motion } from 'framer-motion';
 import { nArts, consumoTotal, llenura, colorLlenura } from '../../../domain/formulasOcupacion.js';
 import { VERDE_ESTRUCTURA, BLANCO_CALIDO, BLANCO_HUESO_TARJETA, GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO } from './paleta.js';
+import { interaccionBoton } from '../../../ui/motion/variants.js';
+import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
 
 const ORDEN_NIVELES = ['N05', 'N04', 'N03', 'N02', 'N01', 'CUERPO']; // mismo criterio que NIVORDER del mapa legacy
 
@@ -43,10 +46,10 @@ export default function PanelDetalle({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
             <i className="ti ti-box" style={{ fontSize: 18, color: VERDE_ESTRUCTURA }} />
-            <div style={{ fontSize: 17, fontWeight: 700 }}>{pasillo} · C{String(columna).padStart(3, '0')}</div>
+            <div style={{ fontSize: 17, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{pasillo} · C{String(columna).padStart(3, '0')}</div>
             {bloqueada && <i className="ti ti-lock" title="Posición bloqueada" style={{ fontSize: 14, color: '#C99A4A' }} />}
           </div>
-          <div style={{ fontSize: 11.5, color: GRIS_TEXTO_TENUE, marginLeft: 26 }}>{nArts(rack)} artículo(s) en {nivelesOcupados} nivel(es)</div>
+          <div style={{ fontSize: 11.5, color: GRIS_TEXTO_TENUE, marginLeft: 26, fontVariantNumeric: 'tabular-nums' }}>{nArts(rack)} artículo(s) en {nivelesOcupados} nivel(es)</div>
         </div>
         {!soloLectura && (
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -72,6 +75,7 @@ export default function PanelDetalle({
             nivel={nivel}
             articulos={rack.niveles[nivel]}
             configuracionOcupacion={configuracionOcupacion}
+            llenuraRack={llenuraTotal}
             descripcionDe={descripcionDe}
             onMoverArticulo={soloLectura ? null : onMoverArticulo}
             moviendoAlgo={moviendoAlgo}
@@ -83,8 +87,9 @@ export default function PanelDetalle({
 }
 
 function BotonAccion({ icono, etiqueta, onClick, activo, deshabilitado }) {
+  const reducido = useReducedMotion();
   return (
-    <button
+    <motion.button
       onClick={onClick}
       disabled={deshabilitado}
       title={etiqueta}
@@ -94,10 +99,11 @@ function BotonAccion({ icono, etiqueta, onClick, activo, deshabilitado }) {
         background: activo ? VERDE_ESTRUCTURA : 'transparent', color: activo ? BLANCO_CALIDO : GRIS_TEXTO_TENUE,
         opacity: deshabilitado ? 0.4 : 1, transition: 'background .15s var(--ease-ios), opacity .15s var(--ease-ios)',
       }}
+      {...(deshabilitado ? {} : interaccionBoton(reducido))}
     >
       <i className={`ti ${icono}`} style={{ fontSize: 12 }} />
       {etiqueta}
-    </button>
+    </motion.button>
   );
 }
 
@@ -108,32 +114,29 @@ function TarjetaKpi({ icono, etiqueta, valor }) {
         <i className={`ti ${icono}`} style={{ fontSize: 13 }} />
         {etiqueta}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 700 }}>{valor}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
     </div>
   );
 }
 
 /** Un nivel del rack como tarjeta propia -- barra de llenado en vez de solo el número, mismo cálculo de llenura()/colorLlenura() del dominio, aplicado a este nivel solo (no al rack entero). */
-function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupacion, descripcionDe, onMoverArticulo, moviendoAlgo }) {
+function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo }) {
   const rackDeEsteNivel = { niveles: { [nivel]: articulos } };
   const proporcion = configuracionOcupacion ? llenura(rackDeEsteNivel, configuracionOcupacion) : 0;
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : VERDE_ESTRUCTURA;
-  // Nombre completo de esta ubicación -- pasillo+columna+nivel, el mismo criterio
-  // que ya usan las pestañas (BarraPestanas.jsx), pero acá varía según el nivel
-  // (cada nivel es una ubicación física distinta dentro del mismo rack).
-  const nombreCompleto = `${pasillo}-C${String(columna).padStart(3, '0')}-${nivel}`;
 
   return (
     <div className="mapa-panel-nivel" style={{ background: BLANCO_HUESO_TARJETA, border: `1px solid ${BORDE_CLARO}`, borderRadius: 10, padding: '12px 14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>
-            <i className="ti ti-layers-intersect" style={{ fontSize: 13 }} />
-            {nivel === 'CUERPO' ? 'Cuerpo entero' : nivel}
-          </div>
-          <div style={{ fontFamily: 'monospace', fontSize: 10.5, color: GRIS_TEXTO_TENUE, opacity: 0.85, marginTop: 2, marginLeft: 19 }}>{nombreCompleto}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>
+          <i className="ti ti-layers-intersect" style={{ fontSize: 13 }} />
+          {nivel === 'CUERPO' ? 'Cuerpo entero' : nivel}
         </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color }}>{Math.round(proporcion * 100)}%</div>
+        {/* % de ESTE NIVEL -- ver ChipPorcentaje() para el % del RACK completo, que va por artículo más abajo. Etiqueta explícita en ambos para que nunca parezcan el mismo dato. */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>Nivel</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{Math.round(proporcion * 100)}%</span>
+        </div>
       </div>
 
       <div style={{ height: 4, borderRadius: 2, background: 'rgba(0,0,0,.08)', overflow: 'hidden', marginBottom: 10 }}>
@@ -141,34 +144,83 @@ function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupaci
       </div>
 
       {articulos.map(a => (
-        <div key={a.articulo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 12, padding: '5px 0', borderTop: '1px solid rgba(0,0,0,.08)' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: 'monospace', fontWeight: 600 }}>{a.articulo}</div>
-            <div style={{ color: GRIS_TEXTO_TENUE, fontSize: 10.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{descripcionDe(a.articulo)}</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <div style={{ textAlign: 'right', color: GRIS_TEXTO_TENUE, fontSize: 10.5 }}>
-              <div>consumo {(a.consumo ?? 0).toFixed(2)}</div>
-              <div>{a.picks ?? 0} picks</div>
-              <div>{a.rackActual || 'sin ubic.'}</div>
+        <div key={a.articulo} style={{ padding: '8px 0', borderTop: '1px solid rgba(0,0,0,.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 12 }}>{a.articulo}</div>
+              <div style={{ color: GRIS_TEXTO, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 }}>{descripcionDe(a.articulo)}</div>
             </div>
-            {onMoverArticulo && (
-              <button
-                onClick={() => onMoverArticulo(a.articulo, nivel, a.clase, a.tipo)}
-                disabled={moviendoAlgo}
-                title={`Mover ${a.articulo}`}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6,
-                  border: `1px solid ${BORDE_CLARO}`, background: 'transparent', color: GRIS_TEXTO_TENUE, fontSize: 11,
-                  cursor: moviendoAlgo ? 'default' : 'pointer', opacity: moviendoAlgo ? 0.4 : 1,
-                }}
-              >
-                <i className="ti ti-arrows-move" />
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <ChipPorcentaje etiqueta="Rack" proporcion={llenuraRack} configuracionOcupacion={configuracionOcupacion} />
+              {onMoverArticulo && (
+                <BotonMoverArticulo
+                  onClick={() => onMoverArticulo(a.articulo, nivel, a.clase, a.tipo)}
+                  deshabilitado={moviendoAlgo}
+                  etiqueta={`Mover ${a.articulo}`}
+                />
+              )}
+            </div>
+          </div>
+
+          {/*
+            Viaje origen -> destino: RCL (rack_actual, foto de fábrica -- el
+            mezzanine VIEJO) hacia MZ (pasillo/columna/nivel -- el layout
+            NUEVO). Confirmado con el usuario que son dos datos reales, no
+            uno legado y otro vigente -- el operador arma un rack nuevo con
+            artículos dispersos por el mezzanine viejo, así que necesita
+            SIEMPRE los dos, con el mismo peso visual (ninguno es "el dato
+            secundario"). No hay indicador de "ya reacomodado" a propósito:
+            el dominio no distingue hoy "reasignado en el sistema" (movido)
+            de "trasladado físicamente" -- ver DECISIONES.md.
+          */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, fontSize: 16, fontWeight: 800, color: GRIS_TEXTO, fontVariantNumeric: 'tabular-nums', flexWrap: 'wrap' }}>
+            <span>{a.rackActual || 'sin origen registrado'}</span>
+            <i className="ti ti-arrow-narrow-right" style={{ fontSize: 15, fontWeight: 400, color: GRIS_TEXTO_TENUE, flexShrink: 0 }} />
+            <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
+              <span>{pasillo}</span>
+              <span style={{ color: BORDE_CLARO, fontWeight: 400 }}>·</span>
+              <span>C{String(columna).padStart(3, '0')}</span>
+              <span style={{ color: BORDE_CLARO, fontWeight: 400 }}>·</span>
+              <span>{nivel}</span>
+            </span>
+          </div>
+          <div style={{ color: GRIS_TEXTO_TENUE, fontSize: 10.5, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+            consumo {(a.consumo ?? 0).toFixed(2)} · {a.picks ?? 0} picks
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Botón "Mover" por artículo -- componente propio (no inline dentro del .map()) porque useReducedMotion() es un hook: llamarlo directo dentro del callback de un array.map() rompe las reglas de hooks si la cantidad de artículos cambia entre renders. */
+function BotonMoverArticulo({ onClick, deshabilitado, etiqueta }) {
+  const reducido = useReducedMotion();
+  return (
+    <motion.button
+      onClick={onClick}
+      disabled={deshabilitado}
+      title={etiqueta}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6,
+        border: `1px solid ${BORDE_CLARO}`, background: 'transparent', color: GRIS_TEXTO_TENUE, fontSize: 11,
+        cursor: deshabilitado ? 'default' : 'pointer', opacity: deshabilitado ? 0.4 : 1,
+        transition: 'opacity .15s var(--ease-ios)',
+      }}
+      {...(deshabilitado ? {} : interaccionBoton(reducido))}
+    >
+      <i className="ti ti-arrows-move" />
+    </motion.button>
+  );
+}
+
+/** Chip de % con etiqueta corta -- distingue visualmente (fondo de color + etiqueta) del % de nivel de arriba (texto plano sin fondo), para que nunca parezcan el mismo dato repetido. Mismo colorLlenura() del dominio, nunca un color inventado. */
+function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion }) {
+  const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : GRIS_TEXTO_TENUE;
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, padding: '2px 7px', borderRadius: 999, background: `${color}22`, border: `1px solid ${color}66` }}>
+      <span style={{ fontSize: 8.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color }}>{etiqueta}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{Math.round(proporcion * 100)}%</span>
     </div>
   );
 }

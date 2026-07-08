@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { entradaConStagger, pulsoCambio, transicionLayout, revelarHorizontal } from './variants.js';
+import { entradaConStagger, pulsoCambio, transicionLayout, revelarHorizontal, interaccionBoton } from './variants.js';
 import { DURACION, STAGGER_MS } from './tokens.js';
 
 describe('entradaConStagger', () => {
@@ -57,5 +57,22 @@ describe('revelarHorizontal', () => {
     expect(v.transition.duration).toBe(0);
     expect(v.initial).toEqual(v.animate);
     expect(v.exit).toEqual(v.animate);
+  });
+});
+
+describe('interaccionBoton', () => {
+  it('usa transición tween explícita (nunca spring) con DURACION.micro y EASING.entrada', () => {
+    const v = interaccionBoton(false);
+    expect(v.transition.type).toBe('tween');
+    expect(v.transition.duration).toBe(DURACION.micro);
+    expect(v.whileHover.y).toBeLessThan(0); // leve elevación, no un salto de borde
+    expect(v.whileTap.scale).toBeLessThan(1); // compresión al presionar, sin rebote
+  });
+
+  it('con reducido=true, sin hover/tap ni transición', () => {
+    const v = interaccionBoton(true);
+    expect(v.whileHover).toEqual({});
+    expect(v.whileTap).toEqual({});
+    expect(v.transition.duration).toBe(0);
   });
 });

@@ -6,7 +6,8 @@ test-results
 playwright-report
 blob-report
 
-# Archivos de bloqueo temporal de Office/AutoCAD (se crean solos mientras el archivo está abierto)
+# Archivos de bloqueo/backup temporal de Office/AutoCAD (se crean solos mientras el archivo está abierto)
 ~$*
 *.dwl
 *.dwl2
+*.bak

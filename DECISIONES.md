@@ -257,3 +257,27 @@ Esto invierte el propósito de la comparación hecha en ADR-010: ahí se usó el
 Nota de transparencia: la numeración `columna` en el schema es un **orden relativo** (posición 1..N dentro del pasillo), no el número físico que el usuario usa en la instalación — por eso el "cuerpo 37" de `MZ08` se guarda como `columna: 35` (el trigésimo quinto en orden, no literalmente "37"). Si en el futuro se necesita el número físico real de cada rack, hay que agregar un campo nuevo al schema (no reemplazar `columna`), porque hoy no hay una fuente que lo declare para el resto de los cuerpos tampoco.
 
 **Consecuencias:** La tabla de diagnóstico de ADR-011 queda desactualizada en 2 filas y se corrige acá, no se reedita ADR-011: `MZ07` pasa de "sistema desactualizado, falta 1" a **coincide exacto** (36=36); `MZ08` pasa de "declara 2 de más" a **declara 1 de más** (36 declarado vs 35 real). `MZ02` sigue con el mismo diagnóstico (36 declarado vs 36... espera, no: con la corrección `MZ02` real pasa a 36, que coincide con lo declarado — también se resuelve). `MZ11` sigue sin declaración en el sistema, pero ahora con 5 cuerpos reales en vez de 0 — más urgente de incorporar a `PAS`/`PAS_LR` que antes. Ningún archivo del mapa legacy ni de Supabase se tocó — esto es solo el archivo de datos de geometría.
+
+## ADR-013 — `movido` mide reasignación en el sistema nuevo, no traslado físico ejecutado — pregunta abierta de negocio, no de código
+
+**Fecha:** 2026-07-08 (rama `feat/mapa-canvas`)
+
+**Contexto:** al rediseñar la fila de artículo del panel de detalle del Canvas para mostrar el viaje físico real de cada artículo (`RCLxxx-Cxxx-Nxx-x`, su rack en el mezanine VIEJO, hacia `MZ0X-C0YY-N0Z`, su posición planificada en el layout NUEVO), el usuario corrigió una asunción previa: `rack_actual` (RCL) no es un código legado sin uso -- es el ORIGEN real de un traslado físico pendiente. El propósito del sistema es justamente reacomodar el mezanine viejo (organizado por códigos RCL) al layout nuevo (MZ01-MZ12); un rack MZ nuevo se arma con artículos que hoy están dispersos por todo el mezanine viejo.
+
+Esto llevó a preguntar: ¿el dominio ya sabe si ese traslado físico (RCL → MZ) **ya se ejecutó** para un artículo dado?
+
+**Hallazgo:** `resolverPosicionesActuales()` (`src/domain/resolverPosicionesActuales.js`) expone un campo `movido: boolean`, pero mide algo distinto de "¿ya se trasladó físicamente?":
+
+- `movido = true` cuando existe un registro en `posiciones_actuales` (o `escenario_posiciones`) que reasigna al artículo a una posición MZ **distinta** de la que traía `inventario_slotting` (el plan de fábrica) -- es decir, "¿alguien corrigió/reasignó la posición planificada usando la app?".
+- `movido = false` significa "nadie reasignó este artículo desde el plan original" -- **no** significa "ya está físicamente en su lugar". Un artículo con `movido: false` puede perfectamente seguir físicamente en su rack RCL viejo, esperando el traslado: el sistema no tiene ningún campo que registre si el traslado físico ya ocurrió.
+
+Se buscó explícitamente (grep sobre `db/schema.sql`, `supabase/sql/*.sql`, `src/domain/*.js`, `src/shared/services/*.js`) cualquier campo de estado de ejecución (`completado`, `ejecutado`, `confirmado`, `pendiente`, etc.) -- no existe ninguno. `niveles_a_armar` es lo más cercano, pero mide completitud de un RACK (cuántos niveles le faltan por armar), no el estado de traslado de un artículo individual.
+
+**Decisión tomada en esta sesión (alcance de UI, no de dominio):** el panel de detalle del Canvas muestra siempre el viaje `RCL → MZ` con el mismo peso visual para ambos extremos, **sin ningún indicador de "ya reacomodado"** -- mostrar un estado que el sistema no puede respaldar con datos reales sería peor que no mostrar ninguno.
+
+**Pregunta abierta, explícitamente de negocio, no de código:** ¿cómo se confirma en la operación real que un traslado físico RCL→MZ ya ocurrió? Ejemplos de rutas posibles (ninguna elegida todavía):
+1. Un checkbox/acción explícita del operador ("confirmar traslado") que agregue un campo de estado nuevo (a `posiciones_actuales` o una tabla dedicada).
+2. Asumir que **todo** artículo con una fila en `posiciones_actuales` (aunque no haya cambiado de posición respecto al plan) ya fue confirmado físicamente, si el flujo real es "cargar la posición en la app ES la confirmación del traslado" -- a validar con quien opera el mezanine hoy, no asumido acá.
+3. No trackear esto en el sistema todavía -- dejar el viaje RCL→MZ como información de referencia, y el seguimiento del traslado físico en un proceso aparte (papel, otra herramienta), hasta que se decida integrarlo.
+
+No se implementa ninguna de las tres sin decisión explícita del usuario/negocio.

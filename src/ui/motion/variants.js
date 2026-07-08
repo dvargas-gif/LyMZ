@@ -32,6 +32,27 @@ export function transicionLayout(reducido = false) {
   return { duration: reducido ? 0 : DURACION.estado, ease: EASING.cambio };
 }
 
+/**
+ * Micro-interacción de botón (hover + presionado) -- pensada para toolbars/
+ * botones de acción (ver MapaToolbar.jsx/PanelDetalle.jsx), donde antes
+ * cada uno tenía su propia transición CSS suelta con timings/curvas
+ * distintas. `type: 'tween'` explícito en ambos estados: sin esto,
+ * Framer Motion usa spring por default en whileTap, que es el "rebote"
+ * que se pidió evitar (esto es una herramienta de trabajo, no un juego).
+ * Misma duración/curva para hover Y tap -- nunca un botón más lento que
+ * el de al lado por la misma clase de interacción.
+ */
+export function interaccionBoton(reducido = false) {
+  if (reducido) {
+    return { whileHover: {}, whileTap: {}, transition: { duration: 0 } };
+  }
+  return {
+    whileHover: { y: -1, boxShadow: '0 4px 10px rgba(0,0,0,.25)' },
+    whileTap: { scale: 0.94, y: 0, boxShadow: '0 1px 2px rgba(0,0,0,.2)' },
+    transition: { type: 'tween', duration: DURACION.micro, ease: EASING.entrada },
+  };
+}
+
 /** Fade + slide horizontal corto (para usar con AnimatePresence) -- texto que aparece/desaparece junto a un ícono fijo, ej. el nombre del sistema al expandir el sidebar. */
 export function revelarHorizontal(reducido = false) {
   if (reducido) {
