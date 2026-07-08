@@ -18,6 +18,8 @@ function crearServiciosFake(estadoInicial) {
       listarDescripciones: () => Promise.resolve(estado.descripciones ?? []),
       listarBloqueos: () => Promise.resolve(estado.bloqueos ?? []),
       listarMovimientosHistoricos: () => Promise.resolve(estado.movimientosHistoricos ?? []),
+      listarConfiguracionMapa: () => Promise.resolve(estado.configuracionMapa ?? { tema: 'claro', orientacion: 'horizontal' }),
+      listarPasillosConfig: () => Promise.resolve(estado.pasillosConfig ?? []),
       suscribirCambios(callback) {
         callbackRealtime = callback;
         return () => { callbackRealtime = null; };
@@ -46,6 +48,23 @@ describe('crearWarehouseModel -- construcción desde fixtures', () => {
     expect(modelo.estaBloqueado('MZ01|1')).toBe(false);
     expect(modelo.descripcion('A1')).toBe('Tornillo hex');
     expect(modelo.descripcion('DESCONOCIDO')).toBe('Sin descripción disponible');
+    expect(modelo.descripciones()).toEqual([{ articulo: 'A1', descripcion: 'Tornillo hex' }]); // sin el fallback -- lista cruda
+  });
+
+  it('configuracionMapa()/maxColumnas() -- nuevas fuentes globales (config_mapa, pasillos_config), no dependen de escenarioId', async () => {
+    const { servicios } = crearServiciosFake({
+      configuracionMapa: { tema: 'oscuro', orientacion: 'vertical' },
+      pasillosConfig: [{ pasillo: 'MZ01', max_columna: 30 }, { pasillo: 'MZ02', max_columna: 36 }],
+    });
+    const modelo = await crearWarehouseModel({ servicios }).cargar();
+    expect(modelo.configuracionMapa()).toEqual({ tema: 'oscuro', orientacion: 'vertical' });
+    expect(modelo.maxColumnas()).toEqual({ MZ01: 30, MZ02: 36 });
+  });
+
+  it('configuracionMapa() usa el mismo fallback que mensajesMapa.js si config_mapa no tiene fila', async () => {
+    const { servicios } = crearServiciosFake({});
+    const modelo = await crearWarehouseModel({ servicios }).cargar();
+    expect(modelo.configuracionMapa()).toEqual({ tema: 'claro', orientacion: 'horizontal' });
   });
 
   it('escenarioId viaja tal cual, sin transformarlo', async () => {

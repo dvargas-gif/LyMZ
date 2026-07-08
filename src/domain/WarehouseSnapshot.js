@@ -74,6 +74,15 @@ export const ConfiguracionOcupacionSchema = z.object({
   umbralArticulo: z.object({ alto: z.number(), medio: z.number() }),
 });
 
+/** Tema/orientación del croquis (config_mapa) -- global, no depende de escenarioId. */
+export const ConfiguracionMapaSchema = z.object({
+  tema: z.string(),
+  orientacion: z.string(),
+});
+
+/** {pasillo: max_columna} -- hasta qué columna dibuja cada pasillo (pasillos_config). */
+export const MaxColumnasSchema = z.record(z.string(), z.number());
+
 export const WarehouseSnapshotSchema = z.object({
   version: z.literal(SNAPSHOT_VERSION),
   escenarioId: z.number().nullable(),
@@ -82,6 +91,11 @@ export const WarehouseSnapshotSchema = z.object({
   bloqueos: z.array(BloqueoSchema),
   descripciones: z.record(z.string(), z.string()),
   configuracionOcupacion: ConfiguracionOcupacionSchema,
+  // Agregados en Fase 2 paso 1 (bridge del mapa) -- v1 todavía no tenía
+  // consumidores reales (ver DOMAIN.md), así que se amplía en vez de crear
+  // v2. El bridge es el primer consumidor real de estos dos campos.
+  configuracionMapa: ConfiguracionMapaSchema,
+  maxColumnas: MaxColumnasSchema,
 });
 
 /**
@@ -90,7 +104,7 @@ export const WarehouseSnapshotSchema = z.object({
  * ruidoso acá que mandar un snapshot corrupto a un consumidor futuro
  * (postMessage, Web Worker) que va a fallar mucho más lejos del origen.
  */
-export function crearSnapshot({ escenarioId, posiciones, bloqueos, descripciones, configuracionOcupacion }) {
+export function crearSnapshot({ escenarioId, posiciones, bloqueos, descripciones, configuracionOcupacion, configuracionMapa, maxColumnas }) {
   const snapshot = {
     version: SNAPSHOT_VERSION,
     escenarioId,
@@ -99,6 +113,8 @@ export function crearSnapshot({ escenarioId, posiciones, bloqueos, descripciones
     bloqueos,
     descripciones: Object.fromEntries(descripciones),
     configuracionOcupacion,
+    configuracionMapa,
+    maxColumnas,
   };
   return WarehouseSnapshotSchema.parse(snapshot);
 }

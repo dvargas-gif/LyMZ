@@ -1,0 +1,164 @@
+/* Estilos del canvas nuevo del mapa (Fase A/B) -- solo lo que los estilos
+   inline de los componentes no pueden cubrir (:hover, transiciones,
+   animaciones de entrada/salida). Todo con CSS puro (el panel es HTML
+   normal, no Konva) -- sin Framer Motion acá, para no sumarle peso al
+   chunk del canvas.
+   --ease-ios es la curva "sheet" de UIKit (desacelera fuerte, sin rebote
+   exagerado) -- se pidió explícitamente que las animaciones del panel se
+   sientan como iOS, no lineales. */
+:root {
+  --ease-ios: cubic-bezier(.32, .72, 0, 1);
+}
+
+.mapa-pestana__cerrar {
+  transition: background .12s ease, opacity .12s ease;
+}
+.mapa-pestana__cerrar:hover {
+  background: rgba(0, 0, 0, .08);
+  opacity: 1;
+}
+
+.mapa-panel-nivel {
+  transition: transform .15s var(--ease-ios), box-shadow .15s var(--ease-ios), border-color .15s var(--ease-ios);
+}
+.mapa-panel-nivel:hover {
+  transform: translateY(-1px);
+  border-color: #B9AF9C;
+}
+
+.mapa-panel-barra__relleno {
+  transition: width .35s var(--ease-ios);
+}
+
+/* Panel de detalle: entra con un fade + escala + deslizamiento corto, sale
+   igual pero invertido. El contenedor SIEMPRE está montado (ver
+   MapaCanvas.jsx) -- lo que cambia es esta clase, así la salida también
+   anima (a diferencia de un mount/unmount instantáneo de React). */
+.mapa-panel {
+  transform-origin: top center;
+  transition: opacity .32s var(--ease-ios), transform .32s var(--ease-ios), max-height .32s var(--ease-ios);
+  animation: mapa-panel-entrada .32s var(--ease-ios); /* corre UNA vez al montar -- la transition de arriba maneja los cambios de estado después */
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  max-height: 900px;
+}
+@keyframes mapa-panel-entrada {
+  from { opacity: 0; transform: scale(.94) translateY(-10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.mapa-panel--oculto {
+  opacity: 0;
+  transform: scale(.96) translateY(-8px);
+  max-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Pestaña: entra con un pop corto (fade + escala), sale encogiéndose hacia
+   su propio centro -- mismo espíritu que una app cerrándose en iOS, sin
+   modelar el "genio" real (demasiado costoso para una pestaña chica). */
+.mapa-pestana {
+  animation: mapa-pestana-entrada .28s var(--ease-ios);
+  overflow: hidden;
+}
+.mapa-pestana--cerrando {
+  animation: mapa-pestana-salida .18s var(--ease-ios) forwards;
+  pointer-events: none;
+  overflow: hidden;
+}
+@keyframes mapa-pestana-entrada {
+  from { opacity: 0; transform: scale(.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes mapa-pestana-salida {
+  from { opacity: 1; transform: scale(1); max-width: 160px; }
+  to { opacity: 0; transform: scale(.8); max-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mapa-panel-nivel, .mapa-panel-barra__relleno, .mapa-pestana__cerrar, .mapa-panel { transition: none; }
+  .mapa-pestana, .mapa-pestana--cerrando, .mapa-panel { animation: none; }
+}
+
+/* Toolbar del canvas -- reemplaza al toolbar HTML del mapa legacy. Mismo
+   glassmorphism que .mapa-panel (fondo NEGRO_GRAFITO_CLARO translúcido +
+   blur), colores tomados de paleta.js (no se puede importar JS acá, se
+   repiten los hex a mano -- si paleta.js cambia, actualizar esto también). */
+.mapa-toolbar {
+  display: flex; align-items: center; gap: 2px; padding: 4px;
+  background: rgba(27, 31, 32, .82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #4A4038; border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  width: fit-content;
+}
+.mapa-toolbar__boton {
+  display: flex; align-items: center; justify-content: center; position: relative;
+  width: 32px; height: 32px; border: none; border-radius: 8px; cursor: pointer;
+  background: transparent; color: #B9B3A8; font-size: 15px;
+  transition: background .15s var(--ease-ios), color .15s var(--ease-ios), transform .15s var(--ease-ios);
+}
+.mapa-toolbar__boton:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #F2EDE4; }
+.mapa-toolbar__boton:active:not(:disabled) { transform: scale(.92); }
+.mapa-toolbar__boton--activo { background: #3A6358; color: #F2EDE4; }
+.mapa-toolbar__boton--activo:hover { background: #3A6358; }
+.mapa-toolbar__boton:disabled { opacity: .35; cursor: default; }
+.mapa-toolbar__badge {
+  position: absolute; top: -3px; right: -3px; min-width: 14px; height: 14px; padding: 0 3px;
+  border-radius: 7px; background: #C99A4A; color: #121415; font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.mapa-toolbar__separador { width: 1px; height: 20px; background: #4A4038; margin: 0 3px; flex-shrink: 0; }
+.mapa-toolbar__buscar {
+  display: flex; align-items: center; gap: 6px; padding: 0 8px; height: 32px;
+  border-radius: 8px; transition: background .15s var(--ease-ios);
+}
+.mapa-toolbar__buscar input {
+  background: transparent; border: none; outline: none; color: #F2EDE4; font-size: 12px; font-family: inherit;
+  width: 110px; transition: width .2s var(--ease-ios);
+}
+.mapa-toolbar__buscar input::placeholder { color: #B9B3A8; }
+.mapa-toolbar__buscar--activo { background: rgba(255,255,255,.06); }
+.mapa-toolbar__buscar--activo input { width: 170px; }
+.mapa-toolbar__resultado {
+  font-size: 11px; padding: 4px 10px; border-radius: 8px; background: rgba(27,31,32,.82);
+  backdrop-filter: blur(12px); border: 1px solid #4A4038; width: fit-content; max-width: 260px;
+  animation: mapa-pestana-entrada .2s var(--ease-ios);
+}
+.mapa-toolbar__aviso {
+  display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #C99A4A;
+  padding: 4px 10px; border-radius: 8px; background: rgba(27,31,32,.82); border: 1px solid #4A4038; width: fit-content;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mapa-toolbar__boton, .mapa-toolbar__buscar, .mapa-toolbar__buscar input { transition: none; }
+}
+
+/* Movebar -- guía el flujo de mover artículo/cuerpo (ver BarraMovimiento.jsx). Fija abajo-centro, mismo criterio que .movebar del mapa legacy. */
+.mapa-movebar {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 25;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 10px;
+  background: rgba(27, 31, 32, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #4A4038; color: #F2EDE4; font-size: 12px;
+  animation: mapa-pestana-entrada .22s var(--ease-ios);
+}
+.mapa-movebar__niveles { display: flex; gap: 4px; flex-wrap: wrap; }
+.mapa-movebar__nivel {
+  padding: 4px 9px; border-radius: 6px; border: 1px solid #6B5F54; background: #1F3D34; color: #F2EDE4;
+  font-size: 11px; font-weight: 600; cursor: pointer; transition: background .15s var(--ease-ios), transform .15s var(--ease-ios);
+}
+.mapa-movebar__nivel:hover { background: #3A6358; }
+.mapa-movebar__nivel:active { transform: scale(.94); }
+.mapa-movebar__cancelar {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid #4A4038; background: transparent; color: #B9B3A8;
+  font-size: 11px; cursor: pointer; transition: background .15s var(--ease-ios), color .15s var(--ease-ios);
+}
+.mapa-movebar__cancelar:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #F2EDE4; }
+.mapa-movebar__cancelar:disabled { opacity: .5; cursor: default; }
+
+.mapa-error-flotante {
+  position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); z-index: 25;
+  padding: 6px 14px; border-radius: 8px; background: rgba(181, 83, 63, .92); color: #F2EDE4;
+  font-size: 11.5; font-weight: 600; max-width: calc(100% - 32px); text-align: center;
+  animation: mapa-pestana-entrada .2s var(--ease-ios);
+}

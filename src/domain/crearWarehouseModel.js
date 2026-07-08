@@ -3,6 +3,9 @@ import { inventarioService } from '../shared/services/inventario.service.js';
 import { posicionesService } from '../shared/services/posiciones.service.js';
 import { articulosService } from '../shared/services/articulos.service.js';
 import { bloqueosService } from '../shared/services/bloqueos.service.js';
+import { posicionesEliminadasService } from '../shared/services/posicionesEliminadas.service.js';
+import { configMapaService } from '../shared/services/configMapa.service.js';
+import { pasillosConfigService } from '../shared/services/pasillosConfig.service.js';
 import { escenarioPosicionesService } from '../features/salas/escenarioPosiciones.service.js';
 import { escenarioEliminadosService } from '../features/salas/escenarioEliminados.service.js';
 import { escenarioBloqueosService } from '../features/salas/escenarioBloqueos.service.js';
@@ -33,11 +36,19 @@ function crearServiciosReales(escenarioId) {
   return {
     async listarBase() { return inventarioService.listar(); },
     async listarMovimientos() { return escenarioId ? escenarioPosicionesService.listar(escenarioId) : posicionesService.listar(); },
-    async listarEliminados() { return escenarioId ? escenarioEliminadosService.listar(escenarioId) : []; },
+    // Antes esto era siempre [] para el mapa real -- no existía forma de
+    // "eliminar" un artículo fuera de una sala (ver posicionesEliminadas.service.js).
+    async listarEliminados() { return escenarioId ? escenarioEliminadosService.listar(escenarioId) : posicionesEliminadasService.listar(); },
     async listarDescripciones() { return articulosService.listarDescripciones(); },
     async listarBloqueos() { return escenarioId ? escenarioBloqueosService.listar(escenarioId) : bloqueosService.listar(); },
     // Una sala de simulación nunca genera auditoría real (ver PROTOCOLO-MAPA.md).
     async listarMovimientosHistoricos() { return escenarioId ? [] : auditService.listar({}); },
+    // Tema/orientación y el límite de columnas por pasillo son globales -- NO
+    // dependen de escenarioId (una sala usa el mismo croquis "de fábrica" que
+    // el mapa real, ver mensajesMapa.js). Mismo fallback que ya tenía
+    // mensajesMapa.js si config_mapa todavía no tiene fila.
+    async listarConfiguracionMapa() { return configMapaService.obtener().catch(() => ({ tema: 'claro', orientacion: 'horizontal' })); },
+    async listarPasillosConfig() { return pasillosConfigService.listar(); },
     suscribirCambios(callback) {
       const canal = escenarioId
         ? supabase
@@ -74,6 +85,8 @@ export function crearWarehouseModel({ escenarioId = null, servicios, configuraci
     bloqueos: [],
     descripciones: new Map(),
     movimientos: [],
+    configuracionMapa: { tema: 'claro', orientacion: 'horizontal' },
+    maxColumnas: {},
   };
 
   function notificar() {
@@ -88,18 +101,22 @@ export function crearWarehouseModel({ escenarioId = null, servicios, configuraci
   }
 
   async function cargarTodo() {
-    const [base, movidas, eliminados, descripciones, bloqueosRaw, movimientos] = await Promise.all([
+    const [base, movidas, eliminados, descripciones, bloqueosRaw, movimientos, configuracionMapa, pasillosConfig] = await Promise.all([
       fuente.listarBase(),
       fuente.listarMovimientos(),
       fuente.listarEliminados(),
       fuente.listarDescripciones(),
       fuente.listarBloqueos(),
       fuente.listarMovimientosHistoricos(),
+      fuente.listarConfiguracionMapa(),
+      fuente.listarPasillosConfig(),
     ]);
     estado.posiciones = resolverPosicionesActuales(base, movidas, eliminados);
     estado.bloqueos = bloqueosRaw.map(b => b.rack_key);
     estado.descripciones = new Map(descripciones.map(d => [d.articulo, d.descripcion]));
     estado.movimientos = movimientos;
+    estado.configuracionMapa = configuracionMapa;
+    estado.maxColumnas = Object.fromEntries(pasillosConfig.map(p => [p.pasillo, p.max_columna]));
     notificar();
   }
 
@@ -145,7 +162,13 @@ export function crearWarehouseModel({ escenarioId = null, servicios, configuraci
     bloqueos() { return estado.bloqueos; },
     estaBloqueado(rackKey) { return estado.bloqueos.includes(rackKey); },
     descripcion(articulo) { return estado.descripciones.get(articulo) || 'Sin descripción disponible'; },
+    /** Lista cruda [{articulo,descripcion}] -- SIN el fallback de descripcion(), para quien necesite reconstruir el formato original (ej. el bridge del mapa). */
+    descripciones() { return [...estado.descripciones.entries()].map(([articulo, descripcion]) => ({ articulo, descripcion })); },
     movimientos() { return estado.movimientos; },
+    /** Tema/orientación del croquis -- global, no depende de escenarioId. */
+    configuracionMapa() { return estado.configuracionMapa; },
+    /** {pasillo: max_columna} -- hasta qué columna dibuja cada pasillo. */
+    maxColumnas() { return estado.maxColumnas; },
 
     /** Derivado: agrupación por rack (Map, nunca persistido -- Ley 3). */
     racks() { return agruparPorRack(estado.posiciones); },
@@ -172,6 +195,8 @@ export function crearWarehouseModel({ escenarioId = null, servicios, configuraci
         bloqueos: estado.bloqueos,
         descripciones: estado.descripciones,
         configuracionOcupacion,
+        configuracionMapa: estado.configuracionMapa,
+        maxColumnas: estado.maxColumnas,
       });
     },
 

@@ -8,6 +8,7 @@ const UsuariosPanel = lazy(() => import('../../features/usuarios/UsuariosPanel.j
 const EditarCroquisPanel = lazy(() => import('../../features/mapa/EditarCroquisPanel.jsx'));
 const ReportePanel = lazy(() => import('../../features/reportes/ReportePanel.jsx'));
 const PanelCargaMasiva = lazy(() => import('../../features/cargaMasiva/PanelCargaMasiva.jsx'));
+const PanelEliminarArticulosReales = lazy(() => import('../../features/eliminarArticulos/PanelEliminarArticulosReales.jsx'));
 // Aparte (no junto a los de arriba): trae Framer Motion, que hoy solo carga
 // el Dashboard bajo demanda. El sidebar es parte del shell (siempre
 // montado), así que si se importara Framer Motion acá arriba, se coalescería
@@ -28,6 +29,10 @@ const ACCIONES = [
   { id: 'reporte', icon: 'ti-table', label: 'Reporte de posiciones' },
   { id: 'carga-masiva', icon: 'ti-upload', label: 'Carga masiva de posiciones' },
   { id: 'croquis', icon: 'ti-palette', label: 'Editar croquis' },
+  // Único item con `permiso` -- a diferencia del resto (visible para
+  // Admin+Supervisor por `mostrarAcciones`), esto queda solo para
+  // Administrador (ver roles.js: 'eliminar_articulos').
+  { id: 'eliminar-articulos', icon: 'ti-trash', label: 'Eliminar artículos del mapa real', permiso: 'eliminar_articulos' },
 ];
 
 /**
@@ -45,10 +50,11 @@ const ACCIONES = [
  */
 export default function Sidebar({ sesion, activa, onCambiar }) {
   const [expandido, setExpandido] = useState(false);
-  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte' | 'carga-masiva'
+  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte' | 'carga-masiva' | 'eliminar-articulos'
 
   const navVisible = NAVEGACION.filter(n => puede(sesion.rol, n.permiso));
   const mostrarAcciones = sesion.rol === ROLES.ADMIN || sesion.rol === ROLES.SUPERVISOR;
+  const accionesVisibles = ACCIONES.filter(a => !a.permiso || puede(sesion.rol, a.permiso));
 
   function irA(id) {
     onCambiar(id);
@@ -95,7 +101,7 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
         {mostrarAcciones && (
           <>
             <div className="sidebar__separador" />
-            {ACCIONES.map(a => (
+            {accionesVisibles.map(a => (
               <button
                 key={a.id}
                 className={`sidebar__item ${panel === a.id ? 'sidebar__item--activo' : ''}`}
@@ -117,6 +123,7 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
             {panel === 'croquis' && <EditarCroquisPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'reporte' && <ReportePanel onCerrar={() => setPanel(null)} />}
             {panel === 'carga-masiva' && <PanelCargaMasiva sesion={sesion} onCerrar={() => setPanel(null)} />}
+            {panel === 'eliminar-articulos' && <PanelEliminarArticulosReales sesion={sesion} onCerrar={() => setPanel(null)} />}
           </Suspense>
         </ErrorBoundary>
       )}
