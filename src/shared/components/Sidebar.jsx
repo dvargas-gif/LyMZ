@@ -71,12 +71,24 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
       {expandido && <div className="sidebar__scrim" onClick={() => setExpandido(false)} />}
 
       <nav className={`sidebar ${expandido ? 'sidebar--expandido' : ''}`} aria-label="Navegación y herramientas">
-        <div className="sidebar__logo">
+        {/*
+          El logo es el disparador PRINCIPAL de expandir/contraer -- mismo
+          estado que el botón ☰ de abajo (que se mantiene como respaldo de
+          accesibilidad, no se duplica ningún estado). Logo.jsx NO se toca:
+          se usa en Header.jsx/Login.jsx/App.jsx también, así que el botón
+          envuelve al logo acá adentro, acotado al Sidebar.
+        */}
+        <button
+          className="sidebar__logo sidebar__logo--boton"
+          onClick={() => setExpandido(v => !v)}
+          aria-label={expandido ? 'Contraer menú' : 'Expandir menú'}
+          title={expandido ? 'Contraer menú' : 'Expandir menú'}
+        >
           <Logo size={24} />
           <Suspense fallback={null}>
             <NombreSistema visible={expandido} />
           </Suspense>
-        </div>
+        </button>
 
         <button
           className="sidebar__toggle"

@@ -106,6 +106,19 @@ body {
   font-weight: 700; font-size: 13px; letter-spacing: .5px; color: var(--accent);
   white-space: nowrap; overflow: hidden;
 }
+/* Disparador de expandir/contraer -- mismos 150ms/curva ease-out que
+   src/ui/motion/tokens.js (DURACION.micro/EASING.entrada), repetidos como
+   valor literal en vez de Framer Motion: el Sidebar es parte del shell
+   siempre montado, así se evita colar Framer Motion al bundle principal
+   (~43KB gzip, ver comentario de Sidebar.jsx sobre NombreSistema). */
+.sidebar__logo--boton {
+  width: 100%; border: none; background: none; font: inherit; text-align: left; cursor: pointer;
+  border-radius: 10px; transition: background .15s cubic-bezier(.16, 1, .3, 1);
+}
+.sidebar__logo--boton:hover { background: var(--bg); }
+@media (prefers-reduced-motion: reduce) {
+  .sidebar__logo--boton { transition: none; }
+}
 .sidebar__toggle, .sidebar__item {
   display: flex; align-items: center; gap: 12px; flex-shrink: 0;
   height: 44px; padding: 0 11px; border-radius: 10px;

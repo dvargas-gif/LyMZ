@@ -711,8 +711,11 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       {pestanasAbiertas.length > 0 && (
         <div
           style={{
-            position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-            width: 'min(640px, calc(100% - 32px))', maxHeight: 'calc(100% - 32px)',
+            // top:72 -- separado de la toolbar (que vive en top:16, ver
+            // MapaToolbar.jsx) para que la pestaña/panel nunca se pisen con
+            // sus botones, sin cambiar el estilo de la barra de pestañas.
+            position: 'absolute', top: 72, left: '50%', transform: 'translateX(-50%)',
+            width: 'min(640px, calc(100% - 32px))', maxHeight: 'calc(100% - 88px)',
             display: 'flex', flexDirection: 'column', zIndex: 20,
           }}
         >
@@ -784,17 +787,28 @@ function CorteVisual({ corte }) {
  * refleja que esa pieza física existe. Mismo espíritu que `.caja`/`cajaBaja`
  * del mapa legacy (un cuadradito que recorre la banda en loop), redibujado
  * acá con las primitivas de Konva -- sin librería nueva.
+ *
+ * Ancla corregida: hasta acá se anclaba contra MZ10 (la fila más arriba),
+ * contradiciendo este mismo comentario que siempre dijo "cerca de MZ08" --
+ * ahora sí se posiciona contra MZ08.
  */
 function Banda({ celdas, anchoTotal }) {
-  // Corre arriba de MZ10 (la fila más alta) a lo largo de casi todo el ancho.
   // La curva/espiral va al INICIO (izquierda, de donde entra el producto),
-  // el resto corre recto hacia la derecha -- confirmado contra el plano DXF
-  // real que compartió el usuario.
-  const primeraCeldaMZ10 = celdas.find(c => c.pasillo === 'MZ10' && c.columna === 1);
-  if (!primeraCeldaMZ10) return null;
-  const yBanda = primeraCeldaMZ10.y - 35;
-  const xInicio = primeraCeldaMZ10.x - 10;
-  const puntos = [xInicio - 30, yBanda + 55, xInicio + 55, yBanda, anchoTotal + 20, yBanda];
+  // el resto corre recto hacia la derecha.
+  //
+  // Ancla: el borde DERECHO de MZ08-C004 -- la espiral nace justo después
+  // de esa celda (como si continuara en la posición de MZ08-C005, aunque
+  // esa columna no exista como slot real), sin invadir ni superponerse a
+  // ningún slot real de MZ08 o MZ09.
+  const celdaMZ08C4 = celdas.find(c => c.pasillo === 'MZ08' && c.columna === 4);
+  if (!celdaMZ08C4) return null;
+  const yBanda = celdaMZ08C4.y - 35;
+  const xInicio = celdaMZ08C4.x + celdaMZ08C4.ancho;
+  // La geometría (curva+espiral) mantiene las mismas proporciones de
+  // siempre, pero corrida +35px para que su punto más a la izquierda caiga
+  // EN xInicio (el borde de MZ08-C004), nunca antes -- antes el primer
+  // punto estaba en xInicio-30, es decir, adentro del slot de MZ08-C004.
+  const puntos = [xInicio + 5, yBanda + 55, xInicio + 90, yBanda, anchoTotal + 20, yBanda];
   const ANCHO_BANDA = 20;
 
   return (
@@ -805,9 +819,9 @@ function Banda({ celdas, anchoTotal }) {
       <Line points={puntos} stroke={CAFE_CENIZA} strokeWidth={ANCHO_BANDA} lineCap="round" lineJoin="round" tension={0.4} opacity={0.55} listening={false} />
       <RodillosBanda puntos={puntos} anchoBanda={ANCHO_BANDA} />
       {/* espiral simplificada -- un anillo decorativo en el punto de entrada, sin modelar la vuelta completa del plano real */}
-      <Circle x={xInicio - 20} y={yBanda + 45} radius={16} stroke={CAFE_CENIZA} strokeWidth={2.5} opacity={0.6} listening={false} />
-      <Circle x={xInicio - 20} y={yBanda + 45} radius={7} stroke={CAFE_CENIZA} strokeWidth={2} opacity={0.6} listening={false} />
-      <Text x={xInicio + 40} y={yBanda - 24} text="BANDA" fontSize={10} fontStyle="700" fill={BLANCO_CALIDO_TENUE} letterSpacing={1} listening={false} />
+      <Circle x={xInicio + 15} y={yBanda + 45} radius={16} stroke={CAFE_CENIZA} strokeWidth={2.5} opacity={0.6} listening={false} />
+      <Circle x={xInicio + 15} y={yBanda + 45} radius={7} stroke={CAFE_CENIZA} strokeWidth={2} opacity={0.6} listening={false} />
+      <Text x={xInicio + 75} y={yBanda - 24} text="BANDA" fontSize={10} fontStyle="700" fill={BLANCO_CALIDO_TENUE} letterSpacing={1} listening={false} />
       <CajasAnimadas puntos={puntos} />
     </>
   );
