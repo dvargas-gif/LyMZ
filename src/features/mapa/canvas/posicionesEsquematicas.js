@@ -14,10 +14,19 @@ export const CELDA_ANCHO = 44;
 export const CELDA_ALTO = 40;
 export const GAP = 4;
 
-/** Cantidad real de columnas por pasillo (ver ADR-010/011/012 -- mismos números que public/legacy/js/03-configuracion.js más los 4 nuevos). */
+/**
+ * Cantidad real de columnas por pasillo (ver ADR-010/011/012 -- mismos
+ * números que public/legacy/js/03-configuracion.js más los 4 nuevos).
+ *
+ * MZ08=41 y MZ10=6 corregidos (ver ADR nuevo): las etiquetas REALES del DXF
+ * confirman `MZ08-C041` (último cuerpo real) y `MZ10-C006` (no hay ninguna
+ * etiqueta MZ10-C007 en adelante) -- la extracción anterior había asignado
+ * por proximidad geométrica 4 cuerpos sin etiqueta a MZ10, al otro lado del
+ * hueco físico de 76 unidades que ocupa la banda transportadora.
+ */
 export const COLUMNAS_POR_PASILLO = {
-  MZ01: 27, MZ02: 36, MZ03: 36, MZ04: 36, MZ05: 36, MZ06: 36, MZ07: 36, MZ08: 35,
-  MZ09: 4, MZ10: 10, MZ11: 5, MZ12: 7,
+  MZ01: 27, MZ02: 36, MZ03: 36, MZ04: 36, MZ05: 36, MZ06: 36, MZ07: 36, MZ08: 41,
+  MZ09: 4, MZ10: 6, MZ11: 5, MZ12: 7,
 };
 
 /** MZ11/MZ12 son perpendiculares en la realidad -- se dibujan en su propia franja, no en la pila horizontal. */

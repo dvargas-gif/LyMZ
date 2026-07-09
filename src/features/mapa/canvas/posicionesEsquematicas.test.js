@@ -57,7 +57,7 @@ describe('calcularCortesPasillo', () => {
     expect(cortes).toHaveLength(3);
   });
 
-  it('MZ08 (35 columnas reales, pero clase "larga" igual que sus vecinos) usa el MISMO patrón de cortes que MZ02-07 -- regresión del bug de desalineación reportado', () => {
+  it('MZ08 (41 columnas reales, pero clase "larga" igual que sus vecinos) usa el MISMO patrón de cortes que MZ02-07 -- regresión del bug de desalineación reportado', () => {
     const mz02 = calcularCortesPasillo().filter(c => c.pasillo === 'MZ02');
     const mz08 = calcularCortesPasillo().filter(c => c.pasillo === 'MZ08');
     expect(mz08).toHaveLength(3);

@@ -281,3 +281,27 @@ Se buscó explícitamente (grep sobre `db/schema.sql`, `supabase/sql/*.sql`, `sr
 3. No trackear esto en el sistema todavía -- dejar el viaje RCL→MZ como información de referencia, y el seguimiento del traslado físico en un proceso aparte (papel, otra herramienta), hasta que se decida integrarlo.
 
 No se implementa ninguna de las tres sin decisión explícita del usuario/negocio.
+
+## ADR-014 — Corrección de conteo real: MZ10 (10→6) y MZ08 (35→41) — 4 cuerpos mal asignados por proximidad al hueco de la banda
+
+**Fecha:** 2026-07-09 (rama `feat/mapa-canvas`)
+
+**Contexto:** al ajustar la posición de la banda transportadora decorativa del Canvas, el usuario reportó (con captura del DXF real) que MZ10 declarado (10 columnas) no coincidía con el plano, que muestra solo 6 columnas etiquetadas (`MZ10-C001` a `C006`) antes de que la banda ocupe el espacio físico siguiente. El usuario sospechó explícitamente un vínculo con MZ08 (41 cuerpos reales según el plano, no los 35 que declaraba el sistema).
+
+**Nota de proceso:** el script de extracción (`extraer-final.mjs`, ADR-010/011/012) ya no existe -- es un script puntual, ejecutado y borrado, como es convención en este proyecto. La verificación de este ADR se hizo releyendo el DXF crudo directamente (`Docs/Geometria/Claude plano.dxf`, grep de texto) y cruzando contra `geometriaMezanine.data.json`, no revisando el código de extracción (ausente).
+
+**Verificación (evidencia, no suposición):**
+- `grep` de todas las etiquetas `MZ10-C0XX` en el DXF: solo existen `C001` a `C006`. Ninguna `C007` en adelante, con cualquier variante de sufijo.
+- `grep` de `MZ08-C0XX`: solo existen `C001` (primero) y `C041` (último) -- la convención real del plano es etiquetar primer y último cuerpo, no cada uno (mismo criterio ya usado para MZ01/MZ02-07/etc., confirmado también en este ADR: sus etiquetas de inicio/fin coinciden exactamente con los conteos ya declarados, cero discrepancia ahí).
+- Las coordenadas crudas de `MZ10` muestran columnas 1-6 contiguas (~2.45 unidades entre sí, patrón normal), después un salto de **76.6 unidades** hasta 4 cuerpos más (columnas "7-10" en el dato viejo), que vuelven a ser contiguos entre sí. Ese salto coincide con el espacio físico real de la banda transportadora (ver la captura del DXF que compartió el usuario, donde la espiral y el tramo largo ocupan justo esa zona).
+- Esos 4 cuerpos **no tienen ninguna etiqueta real que los confirme como MZ10** -- el algoritmo de extracción los asignó por proximidad/alineación de Y (comparten la misma Y que MZ10, `239.276`), el mismo tipo de error ya documentado en ADR-012 para los racks rotados 270°.
+
+**Decisión:** se corrige `COLUMNAS_POR_PASILLO` (`posicionesEsquematicas.js`): `MZ10: 10 → 6`, `MZ08: 35 → 41`. En `geometriaMezanine.data.json`, los 4 cuerpos sin etiqueta se retiran de `MZ10` y se agregan a `MZ08` (columnas 35-38, renumerando la "cabecera" ya documentada en ADR-012 de columna 35 a 39) -- **el total general se mantiene en 304, ningún cuerpo descartado**, mismo criterio que ADR-012.
+
+**Honestidad sobre el límite de esta corrección:** la evidencia de que esos 4 cuerpos pertenecen a MZ08 es circunstancial (proximidad en X con la cola de MZ08, columnas 25-34), **no una etiqueta real que lo confirme** -- de hecho, comparten Y con MZ10, no con MZ08 (cuya fila real está ~2.5 unidades más abajo). Con esos 4 sumados, `MZ08` llega a 39 cuerpos con coordenadas reales confirmadas -- **quedan 2 cuerpos del total declarado (`C041`) sin ubicación conocida**, pendientes de una futura sesión con el mismo nivel de verificación que cerró ADR-012 (o una nueva revisión del DXF con el usuario). `COLUMNAS_POR_PASILLO.MZ08 = 41` refleja el conteo real correcto para el Canvas esquemático (que solo necesita el NÚMERO, no coordenadas), aunque el JSON de geometría real todavía no tiene los 41 confirmados con posición.
+
+**Verificación de que el bug es aislado:** se revisaron las etiquetas reales de inicio/fin de MZ01, MZ02-07 contra los conteos declarados -- los 7 coinciden exactamente. El problema no se repite fuera de la zona MZ08/MZ09/MZ10, donde vive la banda.
+
+**Hallazgo aparte, NO resuelto en este ADR:** al verificar, se encontró que el DXF tiene etiquetas reales `MZ11-C001` a `C007` (7) y `MZ12-C001` a `C005` (5) -- valores que **contradicen** lo declarado hoy (`MZ11:5, MZ12:7`, posiblemente invertidos). Dado que MZ11/MZ12 ya tienen una historia de asignación mucho más compleja e irregular (ADR-012: cuerpos de MZ11 que físicamente no viven en su propia franja), este hallazgo se registra pero **no se investiga ni se corrige acá** -- requiere el mismo nivel de rigor dedicado que cerró ADR-012, no una corrección de paso.
+
+**Consecuencias:** `posicionesEsquematicas.test.js` actualizado (comentario de test, sin cambiar aserciones -- ya eran dinámicas). `geometriaMezanine.test.js` sigue en verde sin cambios (el total de 304 y el conteo de MZ11 no se tocan). El ancla de la banda (ADR previo de esta misma sesión, MZ08-C004) no se ve afectada -- la columna 4 de MZ08 no cambia de posición con este ajuste.
