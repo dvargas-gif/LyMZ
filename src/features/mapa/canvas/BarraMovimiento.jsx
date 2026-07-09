@@ -13,7 +13,7 @@ export default function BarraMovimiento({ moviendo, guardando, nivelesDisponible
   let mensaje;
   if (guardando) {
     mensaje = 'Guardando…';
-  } else if (moviendo.tipo === 'cuerpo') {
+  } else if (moviendo.modo === 'cuerpo') {
     mensaje = `Moviendo CUERPO COMPLETO ${origenTexto}. Tocá un rack destino VACÍO.`;
   } else if (!moviendo.destino) {
     mensaje = `Moviendo artículo ${moviendo.articulo} (desde ${origenTexto}). Tocá el rack destino.`;
@@ -24,7 +24,7 @@ export default function BarraMovimiento({ moviendo, guardando, nivelesDisponible
   return (
     <div className="mapa-movebar">
       <span>{mensaje}</span>
-      {!guardando && moviendo.tipo === 'individual' && moviendo.destino && (
+      {!guardando && moviendo.modo === 'individual' && moviendo.destino && (
         <div className="mapa-movebar__niveles">
           {nivelesDisponibles.map(n => (
             <button key={n} className="mapa-movebar__nivel" onClick={() => onElegirNivel(n)}>

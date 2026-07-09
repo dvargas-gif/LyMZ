@@ -66,7 +66,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [modoEdicion, setModoEdicion] = useState(false); // arrastrar para mover un cuerpo completo (mismo nombre que "Modo edición" del mapa legacy)
   const [modoBloqueo, setModoBloqueo] = useState(false);
   const [bloqueadas, setBloqueadas] = useState(new Set()); // claves "pasillo|columna" bloqueadas -- no admiten ser origen ni destino de un movimiento
-  const [moviendo, setMoviendo] = useState(null); // null | {tipo:'cuerpo', origen:{pasillo,columna}} | {tipo:'individual', articulo, nivel, clase, tipo, origen:{pasillo,columna,nivel}, destino:null|{pasillo,columna}}
+  const [moviendo, setMoviendo] = useState(null); // null | {modo:'cuerpo', origen:{pasillo,columna}} | {modo:'individual', articulo, nivel, clase, tipo, origen:{pasillo,columna,nivel}, destino:null|{pasillo,columna}}
   const [guardando, setGuardando] = useState(false); // evita doble-click mientras un movimiento persiste
   const [errorAccion, setErrorAccion] = useState(null); // mensaje transitorio (destino ocupado/bloqueado/mismo origen, error de guardado)
   const [modoSeleccionArea, setModoSeleccionArea] = useState(false); // SOLO sala -- activado externamente por la barra de acciones (ver useImperativeHandle)
@@ -299,14 +299,14 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   /** Botón "Mover cuerpo" del panel -- arma el estado, el próximo click en el mapa (ver manejarClickCelda) es el destino. */
   function iniciarMoverCuerpo(pasillo, columna) {
     if (bloqueadas.has(`${pasillo}|${columna}`)) { mostrarError('Esa posición está bloqueada.'); return; }
-    setMoviendo({ tipo: 'cuerpo', origen: { pasillo, columna } });
+    setMoviendo({ modo: 'cuerpo', origen: { pasillo, columna } });
   }
 
   /** Botón "Mover" de un artículo puntual del panel -- primero destino (click en el mapa), después nivel (chips de la barra de movimiento). */
   function iniciarMoverArticulo(clave, articulo, nivel, clase, tipo) {
     const [pasillo, columna] = clave.split('|');
     if (bloqueadas.has(clave)) { mostrarError('Esa posición está bloqueada.'); return; }
-    setMoviendo({ tipo: 'individual', articulo, clase, tipo, origen: { pasillo, columna: Number(columna), nivel }, destino: null });
+    setMoviendo({ modo: 'individual', articulo, clase, tipo, origen: { pasillo, columna: Number(columna), nivel }, destino: null });
   }
 
   function cancelarMovimiento() {
@@ -491,8 +491,8 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     if (guardando) return;
     if (modoBloqueo) { alternarBloqueo(celda.pasillo, celda.columna); return; }
     if (modoSeleccionArea) { alternarSeleccionArea(clave); return; }
-    if (moviendo?.tipo === 'cuerpo') { ejecutarMoverCuerpo(moviendo.origen.pasillo, moviendo.origen.columna, celda.pasillo, celda.columna); return; }
-    if (moviendo?.tipo === 'individual' && !moviendo.destino) {
+    if (moviendo?.modo === 'cuerpo') { ejecutarMoverCuerpo(moviendo.origen.pasillo, moviendo.origen.columna, celda.pasillo, celda.columna); return; }
+    if (moviendo?.modo === 'individual' && !moviendo.destino) {
       if (bloqueadas.has(clave)) { mostrarError('Esa posición está bloqueada.'); return; }
       setMoviendo(m => ({ ...m, destino: { pasillo: celda.pasillo, columna: celda.columna } }));
       return;
@@ -538,7 +538,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   }
 
   const nivelesDisponibles = useMemo(() => {
-    if (moviendo?.tipo !== 'individual' || !moviendo.destino || !racks) return [];
+    if (moviendo?.modo !== 'individual' || !moviendo.destino || !racks) return [];
     const rackDestino = racks.get(`${moviendo.destino.pasillo}|${moviendo.destino.columna}`);
     const permiteCuerpo = moviendo.origen.nivel === 'CUERPO' || !!rackDestino?.niveles?.CUERPO;
     return permiteCuerpo ? [...NIVELES_ESTANDAR, 'CUERPO'] : NIVELES_ESTANDAR;
