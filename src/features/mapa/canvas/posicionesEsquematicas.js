@@ -221,7 +221,11 @@ export function calcularEtiquetas() {
   const yPorPasillo = calcularYPorPasillo();
 
   ORDEN_HORIZONTAL.forEach(pasillo => {
-    const x = xInicioHorizontal + offsetXDe(pasillo) - ETIQUETA_ANCHO;
+    // SIN offsetXDe(pasillo) a propósito -- las celdas de MZ01 están corridas
+    // a la derecha (ver OFFSET_X_PASILLO), pero su ETIQUETA debe seguir en la
+    // misma columna que las demás filas, no arrastrar el corrimiento y romper
+    // la alineación visual del bloque de nombres.
+    const x = xInicioHorizontal - ETIQUETA_ANCHO;
     etiquetas.push({ pasillo, x, y: yPorPasillo.get(pasillo), ancho: ETIQUETA_ANCHO, alto: CELDA_ALTO, vertical: false });
   });
 

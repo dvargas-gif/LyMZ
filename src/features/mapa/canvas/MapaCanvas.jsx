@@ -23,7 +23,6 @@ import './canvas.css';
 const NIVELES_ESTANDAR = ['N01', 'N02', 'N03', 'N04', 'N05'];
 
 const FONDO = GRIS_MAPA;
-const LINEA_GRILLA = '#3A3E40';
 const ZOOM_MIN = 0.2;
 const ZOOM_MAX = 4;
 const ZOOM_PASO = 1.05;
@@ -114,10 +113,20 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   // Casi toda la pantalla, no el 100% -- deja el margen normal de .app-main
   // (mismo criterio que .slotting-frame en el mapa legacy). Se mide el
   // contenedor real en vez de un tamaño fijo, para que se adapte a
-  // cualquier ancho de ventana. La PRIMERA medida real también fija la
-  // cámara inicial ya ajustada a pantalla (antes era un {x:40,y:40} fijo
-  // que no tenía en cuenta el tamaño real del contenedor ni del layout).
-  const inicializadoRef = useRef(false);
+  // cualquier ancho de ventana.
+  //
+  // Se re-ajusta a pantalla en CADA resize real del contenedor, no solo en
+  // el primero -- antes (`inicializadoRef`, solo una vez) un resize
+  // posterior (scrollbar que aparece, ventana redimensionada, DevTools) NO
+  // recalculaba la cámara: el Stage cambiaba de tamaño pero el encuadre
+  // seguía siendo el viejo, dejando contenido cortado en el borde (bug
+  // reportado por el usuario). `interactuadoRef` es la salvedad: en cuanto
+  // el usuario paneó o hizo zoom a mano (rueda, botones, drag del Stage),
+  // se congela -- un resize no debe pisarle un encuadre elegido a propósito.
+  // "Restablecer vista" vuelve a poner `interactuadoRef` en `false` (ver
+  // restablecerVista()): volver a modo automático es justo lo que ese botón
+  // promete.
+  const interactuadoRef = useRef(false);
   useEffect(() => {
     const el = contenedorRef.current;
     if (!el) return;
@@ -125,8 +134,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       const { width, height } = entries[0].contentRect;
       const nuevoTamano = { ancho: Math.round(width), alto: Math.round(height) };
       setTamano(nuevoTamano);
-      if (!inicializadoRef.current) {
-        inicializadoRef.current = true;
+      if (!interactuadoRef.current) {
         const vista = calcularVistaAjustada(limites, nuevoTamano);
         setPos({ x: vista.x, y: vista.y });
         setEscala(vista.escala);
@@ -151,6 +159,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
 
   function manejarRueda(e) {
     e.evt.preventDefault();
+    interactuadoRef.current = true;
     const stage = stageRef.current;
     if (!stage) return;
     const puntero = stage.getPointerPosition();
@@ -181,12 +190,14 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     animacionRafRef.current = requestAnimationFrame(cuadro);
   }
 
-  /** "Restablecer vista" (Reset View): centra TODO el layout y ajusta el zoom para que entre completo -- fit to screen. */
+  /** "Restablecer vista" (Reset View): centra TODO el layout y ajusta el zoom para que entre completo -- fit to screen. Vuelve a modo automático (ver interactuadoRef arriba): un resize posterior vuelve a reajustar solo. */
   function restablecerVista() {
+    interactuadoRef.current = false;
     animarVistaA(calcularVistaAjustada(limites, tamano));
   }
 
   function zoomBoton(factor) {
+    interactuadoRef.current = true;
     const centro = { x: tamano.ancho / 2, y: tamano.alto / 2 };
     const actual = vistaActualRef.current;
     const puntoReal = { x: (centro.x - actual.x) / actual.escala, y: (centro.y - actual.y) / actual.escala };
@@ -615,10 +626,9 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           y={pos.y}
           scaleX={escala}
           scaleY={escala}
-          onDragEnd={e => { if (e.target === e.currentTarget) setPos({ x: e.target.x(), y: e.target.y() }); }}
+          onDragEnd={e => { if (e.target === e.currentTarget) { interactuadoRef.current = true; setPos({ x: e.target.x(), y: e.target.y() }); } }}
         >
           <Layer listening={false}>
-            <Grilla ancho={limites.ancho} alto={limites.alto} />
             {divisores.map(y => (
               <Line key={y} points={[0, y, limites.ancho, y]} stroke={CAFE_CENIZA} strokeWidth={1} dash={[2, 6]} opacity={0.6} />
             ))}
@@ -894,13 +904,6 @@ function CajasAnimadas({ puntos }) {
       })}
     </>
   );
-}
-
-function Grilla({ ancho, alto, paso = 50 }) {
-  const lineas = [];
-  for (let x = 0; x <= ancho; x += paso) lineas.push(<Line key={`v${x}`} points={[x, 0, x, alto]} stroke={LINEA_GRILLA} strokeWidth={1} />);
-  for (let y = 0; y <= alto; y += paso) lineas.push(<Line key={`h${y}`} points={[0, y, ancho, y]} stroke={LINEA_GRILLA} strokeWidth={1} />);
-  return <>{lineas}</>;
 }
 
 /**
