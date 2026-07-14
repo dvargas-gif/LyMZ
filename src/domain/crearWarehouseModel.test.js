@@ -20,6 +20,7 @@ function crearServiciosFake(estadoInicial) {
       listarMovimientosHistoricos: () => Promise.resolve(estado.movimientosHistoricos ?? []),
       listarConfiguracionMapa: () => Promise.resolve(estado.configuracionMapa ?? { tema: 'claro', orientacion: 'horizontal' }),
       listarPasillosConfig: () => Promise.resolve(estado.pasillosConfig ?? []),
+      listarEnBuffer: () => Promise.resolve(estado.enBuffer ?? []),
       suscribirCambios(callback) {
         callbackRealtime = callback;
         return () => { callbackRealtime = null; };
@@ -49,6 +50,18 @@ describe('crearWarehouseModel -- construcción desde fixtures', () => {
     expect(modelo.descripcion('A1')).toBe('Tornillo hex');
     expect(modelo.descripcion('DESCONOCIDO')).toBe('Sin descripción disponible');
     expect(modelo.descripciones()).toEqual([{ articulo: 'A1', descripcion: 'Tornillo hex' }]); // sin el fallback -- lista cruda
+  });
+
+  it('un artículo con fila en migracion_buffer (F2) desaparece del rack -- enBuffer llega hasta racks()', async () => {
+    const { servicios } = crearServiciosFake({
+      base: [{ articulo: 'A1', pasillo: 'MZ01', columna: 1, nivel: 'N01', clase: 'A', tipo: 'NORMAL' }],
+      enBuffer: ['A1'],
+    });
+    const modelo = await crearWarehouseModel({ servicios }).cargar();
+
+    expect(modelo.posiciones()[0].enBuffer).toBe(true);
+    expect(modelo.posiciones()[0].posicionActual).toBeNull();
+    expect(modelo.racks().get('MZ01|1')).toBeUndefined(); // el rack queda vacío, agruparPorRack no tiene con qué agruparlo
   });
 
   it('configuracionMapa()/maxColumnas() -- nuevas fuentes globales (config_mapa, pasillos_config), no dependen de escenarioId', async () => {

@@ -3,6 +3,8 @@ import { nArts, consumoTotal, llenura, colorLlenura, colorArticulo } from '../..
 import { VERDE_ESTRUCTURA, BLANCO_CALIDO, BLANCO_HUESO_TARJETA, GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO, ESTADOS } from './paleta.js';
 import { interaccionBoton } from '../../../ui/motion/variants.js';
 import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
+import { puedeIniciarTraslado, puedeConfirmar } from '../../migracion/flujoMigracionSlot.js';
+import FlujoMigracionSlot from './FlujoMigracionSlot.jsx';
 
 const ORDEN_NIVELES = ['N05', 'N04', 'N03', 'N02', 'N01', 'CUERPO']; // mismo criterio que NIVORDER del mapa legacy
 
@@ -28,6 +30,11 @@ export default function PanelDetalle({
   bloqueada, onToggleBloqueo,
   soloLectura = false,
   enSala = false, onLimpiarSlot,
+  // F2 -- migración RCL->MZ, ver DECISIONES.md ADR-015. Todo esto es
+  // undefined/no-op fuera del mapa real (enSala=true nunca lo usa).
+  migracionEstado, puedeMigrar = false, puedeConfirmarMigracion = false,
+  onIniciarTraslado, onConfirmarFinalizado, onDepositarBuffer, onMarcarListoMigracion, onCancelarTraslado,
+  movimientosPendientesSlot = [], bufferDelSlot = [],
 }) {
   const [pasillo, columna] = clave.split('|');
   const niveles = ORDEN_NIVELES.filter(n => rack.niveles[n]?.length);
@@ -60,6 +67,13 @@ export default function PanelDetalle({
             {enSala && (
               <BotonAccion icono="ti-trash" etiqueta="Vaciar rack" onClick={onLimpiarSlot} deshabilitado={moviendoAlgo || nArts(rack) === 0} destructivo />
             )}
+            {/* F2 -- visibilidad CONTEXTUAL, sin un "modo migración" global (decisión explícita del usuario): el botón aparece solo cuando hay trabajo real que hacer en ESTE slot. */}
+            {!enSala && puedeMigrar && puedeIniciarTraslado(migracionEstado) && (
+              <BotonAccion icono="ti-truck-delivery" etiqueta="Iniciar traslado" onClick={onIniciarTraslado} deshabilitado={moviendoAlgo} />
+            )}
+            {!enSala && puedeConfirmarMigracion && puedeConfirmar(migracionEstado) && (
+              <BotonAccion icono="ti-shield-check" etiqueta="Confirmar finalizado" onClick={onConfirmarFinalizado} deshabilitado={moviendoAlgo} />
+            )}
           </div>
         )}
       </div>
@@ -70,6 +84,18 @@ export default function PanelDetalle({
         <TarjetaKpi icono="ti-layers-intersect" etiqueta="Niveles" valor={nivelesOcupados} />
         <TarjetaKpi icono="ti-chart-bar" etiqueta="Consumo" valor={consumoTotal(rack).toFixed(2)} />
       </div>
+
+      {!enSala && (
+        <FlujoMigracionSlot
+          estado={migracionEstado}
+          puedeMigrar={puedeMigrar}
+          onMarcarListo={onMarcarListoMigracion}
+          onCancelarTraslado={onCancelarTraslado}
+          movimientosPendientes={movimientosPendientesSlot}
+          bufferDelSlot={bufferDelSlot}
+          ocupado={moviendoAlgo}
+        />
+      )}
 
       <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {niveles.map(nivel => (
@@ -84,6 +110,7 @@ export default function PanelDetalle({
             descripcionDe={descripcionDe}
             onMoverArticulo={soloLectura ? null : onMoverArticulo}
             moviendoAlgo={moviendoAlgo}
+            onDepositarBuffer={migracionEstado === 'vaciando' ? onDepositarBuffer : null}
           />
         ))}
       </div>
@@ -126,7 +153,7 @@ function TarjetaKpi({ icono, etiqueta, valor }) {
 }
 
 /** Un nivel del rack como tarjeta propia -- barra de llenado en vez de solo el número, mismo cálculo de llenura()/colorLlenura() del dominio, aplicado a este nivel solo (no al rack entero). */
-function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo }) {
+function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer }) {
   const rackDeEsteNivel = { niveles: { [nivel]: articulos } };
   const proporcion = configuracionOcupacion ? llenura(rackDeEsteNivel, configuracionOcupacion) : 0;
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : VERDE_ESTRUCTURA;
@@ -163,6 +190,15 @@ function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupaci
                   onClick={() => onMoverArticulo(a.articulo, nivel, a.clase, a.tipo)}
                   deshabilitado={moviendoAlgo}
                   etiqueta={`Mover ${a.articulo}`}
+                />
+              )}
+              {/* F2 -- paso 1 (vaciar): solo visible mientras este slot está "vaciando". Distinto del botón "Mover" de arriba (destino elegido a mano) -- este va directo al buffer. */}
+              {onDepositarBuffer && (
+                <BotonMoverArticulo
+                  icono="ti-corner-down-right"
+                  onClick={() => onDepositarBuffer(a.articulo, nivel, a.clase, a.tipo)}
+                  deshabilitado={moviendoAlgo}
+                  etiqueta={`Mover ${a.articulo} al buffer`}
                 />
               )}
             </div>
@@ -203,8 +239,8 @@ function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupaci
   );
 }
 
-/** Botón "Mover" por artículo -- componente propio (no inline dentro del .map()) porque useReducedMotion() es un hook: llamarlo directo dentro del callback de un array.map() rompe las reglas de hooks si la cantidad de artículos cambia entre renders. */
-function BotonMoverArticulo({ onClick, deshabilitado, etiqueta }) {
+/** Botón "Mover" por artículo -- componente propio (no inline dentro del .map()) porque useReducedMotion() es un hook: llamarlo directo dentro del callback de un array.map() rompe las reglas de hooks si la cantidad de artículos cambia entre renders. `icono` es configurable (F2 lo reusa con otro ícono para "mover al buffer", mismo componente, ninguna duplicación). */
+function BotonMoverArticulo({ onClick, deshabilitado, etiqueta, icono = 'ti-arrows-move' }) {
   const reducido = useReducedMotion();
   return (
     <motion.button
@@ -219,7 +255,7 @@ function BotonMoverArticulo({ onClick, deshabilitado, etiqueta }) {
       }}
       {...(deshabilitado ? {} : interaccionBoton(reducido))}
     >
-      <i className="ti ti-arrows-move" />
+      <i className={`ti ${icono}`} />
     </motion.button>
   );
 }

@@ -79,6 +79,26 @@ describe('resolverPosicionesActuales', () => {
     expect(r.posicionBase).toEqual(base[0]);
   });
 
+  it('artículo en el buffer (F2) -> posicionActual null, enBuffer=true, distinto de "eliminado"', () => {
+    const base = [{ articulo: 'SKU005', pasillo: 'MZ01', columna: 1, nivel: 'N01', clase: 'A', tipo: 'NORMAL' }];
+    const [r] = resolverPosicionesActuales(base, [], [], ['SKU005']);
+    expect(r.posicionActual).toBeNull();
+    expect(r.enBuffer).toBe(true);
+    expect(r.posicionBase).toEqual(base[0]);
+  });
+
+  it('artículo NI eliminado NI en buffer -> enBuffer=false explícito', () => {
+    const base = [{ articulo: 'SKU006', pasillo: 'MZ01', columna: 1, nivel: 'N01', clase: 'A', tipo: 'NORMAL' }];
+    const [r] = resolverPosicionesActuales(base, []);
+    expect(r.enBuffer).toBe(false);
+  });
+
+  it('eliminados y enBuffer aceptan objetos {articulo} además de strings, igual que ya hace eliminados', () => {
+    const base = [{ articulo: 'SKU007', pasillo: 'MZ01', columna: 1, nivel: 'N01', clase: 'A', tipo: 'NORMAL' }];
+    const [r] = resolverPosicionesActuales(base, [], [], [{ articulo: 'SKU007' }]);
+    expect(r.enBuffer).toBe(true);
+  });
+
   // --- Dato REAL extraído del diagnóstico de ADR-003 ---
   // No hubo un artículo "divergente" real para usar acá: la comparación
   // CUERPOS vs inventario_slotting quedó bloqueada por RLS (ver ADR-003), así

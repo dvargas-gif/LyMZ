@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aplicarMovimientosLocales, invertirLote } from './movimientosLocales.js';
+import { aplicarMovimientosLocales, invertirLote, quitarArticuloLocal } from './movimientosLocales.js';
 
 function racksDe(obj) {
   return new Map(Object.entries(obj));
@@ -55,6 +55,42 @@ describe('aplicarMovimientosLocales', () => {
       { articulo: 'A1', origen: { pasillo: 'MZ01', columna: 1, nivel: 'N02' }, destino: { pasillo: 'MZ02', columna: 1, nivel: 'N02' } },
     ]);
     expect(resultado.get('MZ02|1').niveles.N02).toEqual([{ articulo: 'B1' }, { articulo: 'A1' }]);
+  });
+});
+
+describe('quitarArticuloLocal (F2 -- vaciar al buffer, sin destino en el mapa)', () => {
+  it('saca un artículo del nivel, sin tocar el resto', () => {
+    const base = racksDe({
+      'MZ01|1': { pasillo: 'MZ01', columna: 1, niveles: { N02: [{ articulo: 'A1' }, { articulo: 'A2' }] } },
+    });
+    const resultado = quitarArticuloLocal(base, 'MZ01', 1, 'N02', 'A1');
+    expect(resultado.get('MZ01|1').niveles.N02).toEqual([{ articulo: 'A2' }]);
+  });
+
+  it('si era el último artículo del nivel, el nivel desaparece', () => {
+    const base = racksDe({
+      'MZ01|1': { pasillo: 'MZ01', columna: 1, niveles: { N01: [{ articulo: 'A1' }], N02: [{ articulo: 'A2' }] } },
+    });
+    const resultado = quitarArticuloLocal(base, 'MZ01', 1, 'N01', 'A1');
+    expect(resultado.get('MZ01|1').niveles).toEqual({ N02: [{ articulo: 'A2' }] });
+  });
+
+  it('si era el último artículo del rack entero, el rack desaparece del Map', () => {
+    const base = racksDe({ 'MZ01|1': { pasillo: 'MZ01', columna: 1, niveles: { N01: [{ articulo: 'A1' }] } } });
+    const resultado = quitarArticuloLocal(base, 'MZ01', 1, 'N01', 'A1');
+    expect(resultado.has('MZ01|1')).toBe(false);
+  });
+
+  it('no muta el Map original (inmutable)', () => {
+    const base = racksDe({ 'MZ01|1': { pasillo: 'MZ01', columna: 1, niveles: { N01: [{ articulo: 'A1' }] } } });
+    quitarArticuloLocal(base, 'MZ01', 1, 'N01', 'A1');
+    expect(base.get('MZ01|1').niveles.N01).toEqual([{ articulo: 'A1' }]);
+  });
+
+  it('artículo/rack inexistente -- no rompe, devuelve el Map sin cambios', () => {
+    const base = racksDe({ 'MZ01|1': { pasillo: 'MZ01', columna: 1, niveles: { N01: [{ articulo: 'A1' }] } } });
+    expect(quitarArticuloLocal(base, 'MZ01', 1, 'N01', 'FANTASMA').get('MZ01|1').niveles.N01).toEqual([{ articulo: 'A1' }]);
+    expect(quitarArticuloLocal(base, 'MZ09', 9, 'N01', 'A1').has('MZ09|9')).toBe(false);
   });
 });
 

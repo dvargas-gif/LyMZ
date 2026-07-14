@@ -10,6 +10,7 @@ const ReportePanel = lazy(() => import('../../features/reportes/ReportePanel.jsx
 const PanelCargaMasiva = lazy(() => import('../../features/cargaMasiva/PanelCargaMasiva.jsx'));
 const PanelEliminarArticulosReales = lazy(() => import('../../features/eliminarArticulos/PanelEliminarArticulosReales.jsx'));
 const PanelImportIdentidadLegacy = lazy(() => import('../../features/migracion/PanelImportIdentidadLegacy.jsx'));
+const PanelImportInventarioRcl = lazy(() => import('../../features/migracion/PanelImportInventarioRcl.jsx'));
 // Aparte (no junto a los de arriba): trae Framer Motion, que hoy solo carga
 // el Dashboard bajo demanda. El sidebar es parte del shell (siempre
 // montado), así que si se importara Framer Motion acá arriba, se coalescería
@@ -31,6 +32,7 @@ const ACCIONES = [
   { id: 'carga-masiva', icon: 'ti-upload', label: 'Carga masiva de posiciones' },
   { id: 'croquis', icon: 'ti-palette', label: 'Editar croquis' },
   { id: 'import-identidad-legacy', icon: 'ti-replace', label: 'Importar identidad RCL↔MZ' },
+  { id: 'import-inventario-rcl', icon: 'ti-package', label: 'Importar inventario actual (RCL)' },
   // Único item con `permiso` -- a diferencia del resto (visible para
   // Admin+Supervisor por `mostrarAcciones`), esto queda solo para
   // Administrador (ver roles.js: 'eliminar_articulos').
@@ -52,7 +54,7 @@ const ACCIONES = [
  */
 export default function Sidebar({ sesion, activa, onCambiar }) {
   const [expandido, setExpandido] = useState(false);
-  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte' | 'carga-masiva' | 'eliminar-articulos' | 'import-identidad-legacy'
+  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte' | 'carga-masiva' | 'eliminar-articulos' | 'import-identidad-legacy' | 'import-inventario-rcl'
 
   const navVisible = NAVEGACION.filter(n => puede(sesion.rol, n.permiso));
   const mostrarAcciones = sesion.rol === ROLES.ADMIN || sesion.rol === ROLES.SUPERVISOR;
@@ -139,6 +141,7 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
             {panel === 'carga-masiva' && <PanelCargaMasiva sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'eliminar-articulos' && <PanelEliminarArticulosReales sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'import-identidad-legacy' && <PanelImportIdentidadLegacy sesion={sesion} onCerrar={() => setPanel(null)} />}
+            {panel === 'import-inventario-rcl' && <PanelImportInventarioRcl sesion={sesion} onCerrar={() => setPanel(null)} />}
           </Suspense>
         </ErrorBoundary>
       )}

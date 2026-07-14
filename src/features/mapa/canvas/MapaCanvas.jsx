@@ -6,7 +6,7 @@ import { nArts, consumoTotal, llenura, colorLlenura } from '../../../domain/form
 import { colorDeClase } from '../../../shared/constants/coloresArticulo.js';
 import { calcularLayoutEsquematico, calcularEtiquetas, calcularDivisoresGrupo, calcularCortesPasillo } from './posicionesEsquematicas.js';
 import { calcularVistaAjustada, calcularVistaCentradaEnCelda, interpolarVista, DURACION_ANIMACION_MS, DURACION_ZOOM_BOTON_MS } from './vistaMapa.js';
-import { aplicarMovimientosLocales, invertirLote } from './movimientosLocales.js';
+import { aplicarMovimientosLocales, invertirLote, quitarArticuloLocal } from './movimientosLocales.js';
 import { NEGRO_GRAFITO, NEGRO_GRAFITO_CLARO, GRIS_MAPA, GRIS_MAPA_CLARO, VERDE_ESTRUCTURA_CLARO, CAFE_CENIZA, CAFE_CENIZA_CLARO, BLANCO_CALIDO, BLANCO_CALIDO_TENUE, ESTADOS } from './paleta.js';
 import BarraPestanas from './BarraPestanas.jsx';
 import PanelDetalle from './PanelDetalle.jsx';
@@ -18,6 +18,13 @@ import { bloqueosService } from '../../../shared/services/bloqueos.service.js';
 import { escenarioBloqueosService } from '../../salas/escenarioBloqueos.service.js';
 import { escenarioEliminadosService } from '../../salas/escenarioEliminados.service.js';
 import { auditService } from '../../auditoria/audit.service.js';
+import { migracionSlotsService } from '../../../shared/services/migracionSlots.service.js';
+import { migracionBufferService } from '../../../shared/services/migracionBuffer.service.js';
+import { migracionAuditoriaService } from '../../../shared/services/migracionAuditoria.service.js';
+import { identidadLegacyService } from '../../../shared/services/identidadLegacy.service.js';
+import { inventarioRclService } from '../../../shared/services/inventarioRcl.service.js';
+import { construirVistaRcl } from '../../migracion/vistaRcl.js';
+import { puede } from '../../auth/roles.js';
 import './canvas.css';
 
 const NIVELES_ESTANDAR = ['N01', 'N02', 'N03', 'N04', 'N05'];
@@ -70,6 +77,11 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [errorAccion, setErrorAccion] = useState(null); // mensaje transitorio (destino ocupado/bloqueado/mismo origen, error de guardado)
   const [modoSeleccionArea, setModoSeleccionArea] = useState(false); // SOLO sala -- activado externamente por la barra de acciones (ver useImperativeHandle)
   const [seleccionArea, setSeleccionArea] = useState(new Set());
+  const [migracionSlots, setMigracionSlots] = useState(new Map()); // "pasillo|columna" -> {id, estado, ...} -- F2, SOLO mapa real (nunca en sala)
+  const [bufferDelSlotActivo, setBufferDelSlotActivo] = useState([]); // contenido del buffer del slot de la pestaña abierta -- ver FlujoMigracionSlot.jsx
+  const [vistaContenido, setVistaContenido] = useState('mz'); // 'mz' | 'rcl' -- F4, toggle de CONTENIDO (no solo etiqueta, ver DECISIONES.md)
+  const [identidadLegacy, setIdentidadLegacy] = useState([]);
+  const [inventarioRcl, setInventarioRcl] = useState([]);
   const stageRef = useRef(null);
   const contenedorRef = useRef(null);
   const vistaActualRef = useRef({ x: 40, y: 40, escala: 1 }); // última cámara conocida, para animar SIN depender de closures viejas de pos/escala
@@ -153,9 +165,38 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       setConfiguracionOcupacion(modelo.configuracionOcupacion);
       setDescripcionDe(() => modelo.descripcion);
       setBloqueadas(new Set(modelo.bloqueos()));
+      // F2/F4 -- migración RCL->MZ: SOLO mapa real (ninguna de estas tablas tiene escenario_id).
+      if (!escenarioId) {
+        const [slots, identidad, inventario] = await Promise.all([
+          migracionSlotsService.listar(),
+          identidadLegacyService.listar(),
+          inventarioRclService.listar(),
+        ]);
+        if (activo) { setMigracionSlots(slots); setIdentidadLegacy(identidad); setInventarioRcl(inventario); }
+      }
     })();
     return () => { activo = false; };
   }, [escenarioId]);
+
+  /** Vista RCL (F4) -- misma forma que racks(), pero con el inventario actual por RCL en vez del acomodo MZ. Se recalcula solo si cambia la data cruda (identidad_legacy/inventario_rcl_actual), no en cada render. */
+  const vistaRclRacks = useMemo(() => construirVistaRcl(identidadLegacy, inventarioRcl), [identidadLegacy, inventarioRcl]);
+  /** Qué Map de racks se MUESTRA -- las mutaciones (mover/bloquear/buffer) siempre operan sobre `racks` (el real), nunca sobre esta vista derivada. */
+  const racksVisibles = (!escenarioId && vistaContenido === 'rcl') ? vistaRclRacks : racks;
+
+  const puedeMigrar = !escenarioId && puede(sesion?.rol, 'migrar_slot');
+  const puedeConfirmarMigracion = !escenarioId && puede(sesion?.rol, 'confirmar_migracion');
+
+  /** Contenido del buffer del slot de la pestaña abierta -- se recarga cada vez que cambia de pestaña o el estado del slot avanza (ver depositarEnBuffer/marcarVaciadoCompleto, que también lo refrescan directo tras cada acción). */
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      const slot = pestanaActiva ? migracionSlots.get(pestanaActiva) : null;
+      if (!slot || (slot.estado !== 'vaciando' && slot.estado !== 'recolectando')) { setBufferDelSlotActivo([]); return; }
+      const buffer = await migracionBufferService.listarPorSlot(slot.id);
+      if (activo) setBufferDelSlotActivo(buffer);
+    })();
+    return () => { activo = false; };
+  }, [pestanaActiva, migracionSlots]);
 
   function manejarRueda(e) {
     e.evt.preventDefault();
@@ -211,7 +252,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     const q = texto.trim().toLowerCase();
     if (!q) { setResultadoBusqueda(null); return; }
     for (const celda of celdas) {
-      const rack = racks.get(`${celda.pasillo}|${celda.columna}`);
+      const rack = racksVisibles.get(`${celda.pasillo}|${celda.columna}`);
       if (!rack) continue;
       for (const nivel in rack.niveles) {
         const encontrado = rack.niveles[nivel].find(a => a.articulo.toLowerCase().includes(q));
@@ -495,6 +536,129 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     }
   }
 
+  /** Paso 1 del flujo guiado (F2) -- "Iniciar traslado": crea el slot directo en 'vaciando' (no existe un estado 'pendiente' persistido). */
+  async function iniciarTraslado(pasillo, columna) {
+    try {
+      const slotId = await migracionSlotsService.iniciar({ mzPasillo: pasillo, mzColumna: columna, usuarioId: sesion?.usuarioId });
+      setMigracionSlots(actuales => new Map(actuales).set(`${pasillo}|${columna}`, { id: slotId, estado: 'vaciando' }));
+    } catch {
+      mostrarError('No se pudo iniciar el traslado. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  /**
+   * Paso 1 (vaciar): mueve UN artículo al buffer -- persiste en
+   * migracion_buffer (con auto-resolución de destino/snapshot de RCL, ver
+   * migracionBuffer.service.js) y lo saca del rack EN MEMORIA (optimista,
+   * mismo criterio que aplicarLote()). Si el rack queda en 0 artículos,
+   * dispara automáticamente la confirmación en lote (ver
+   * marcarVaciadoCompleto abajo) -- no es un botón aparte.
+   */
+  async function depositarEnBuffer(pasillo, columna, articulo, nivel, clase, tipo) {
+    const clave = `${pasillo}|${columna}`;
+    const slot = migracionSlots.get(clave);
+    if (!slot) return;
+    try {
+      await migracionBufferService.depositar({
+        mzPasillo: pasillo, mzColumna: columna, slotId: slot.id,
+        articulo, cantidad: 1, origenNivel: nivel, operadorId: sesion?.usuarioId,
+      });
+      const racksActualizados = quitarArticuloLocal(racks, pasillo, columna, nivel, articulo);
+      setRacks(racksActualizados);
+      setBufferDelSlotActivo(await migracionBufferService.listarPorSlot(slot.id));
+      const rackAhora = racksActualizados.get(clave);
+      if (!rackAhora || nArts(rackAhora) === 0) {
+        await marcarVaciadoCompleto(pasillo, columna, slot.id);
+      }
+    } catch {
+      mostrarError('No se pudo mover el artículo al buffer. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  /**
+   * "Cancelar traslado" -- deshace un "Iniciar traslado" hecho por error.
+   * Si ya hay artículos en el buffer de este slot, avisa cuántos se van a
+   * liberar antes de confirmar (ningún artículo tiene su posición REAL
+   * tocada -- solo estaban ocultos mientras "en tránsito", ver
+   * resolverPosicionesActuales/enBuffer -- liberarlos del buffer alcanza
+   * para que vuelvan a verse en todos lados).
+   */
+  async function cancelarTraslado(pasillo, columna) {
+    const clave = `${pasillo}|${columna}`;
+    const slot = migracionSlots.get(clave);
+    if (!slot) return;
+    try {
+      const bufferDelSlot = await migracionBufferService.listarPorSlot(slot.id);
+      const mensaje = bufferDelSlot.length > 0
+        ? `Vas a sacar ${bufferDelSlot.length} artículo(s) que ya moviste al buffer para este slot. ¿Confirmás cancelar el traslado?`
+        : '¿Cancelar este traslado?';
+      if (!confirm(mensaje)) return;
+      await migracionBufferService.eliminarPorSlot(slot.id);
+      await migracionSlotsService.cancelar(slot.id);
+      await migracionAuditoriaService.registrar({
+        mzPasillo: pasillo, mzColumna: columna, evento: 'traslado_cancelado',
+        detalle: `Cancelado -- ${bufferDelSlot.length} artículo(s) liberados del buffer.`,
+        usuarioId: sesion?.usuarioId,
+      });
+      setMigracionSlots(actuales => { const copia = new Map(actuales); copia.delete(clave); return copia; });
+      setBufferDelSlotActivo([]);
+      // Recarga completa (no optimista): los artículos liberados del buffer
+      // vuelven a resolverse en su rack real -- más simple y más seguro que
+      // reconstruir a mano el estado local que quitarArticuloLocal() fue sacando.
+      const modelo = await obtenerWarehouseModel(escenarioId).recargarTodo();
+      setRacks(modelo.racks());
+    } catch {
+      mostrarError('No se pudo cancelar el traslado. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  /**
+   * vaciando -> recolectando: el rack de origen llegó a 0 artículos. Dispara,
+   * en una sola operación, la pieza de orquestación que ADR-015 dejó
+   * explícitamente para F2: 1 evento de auditoría + el estado del slot +
+   * la confirmación EN LOTE de todo lo que ese vaciado dejó en el buffer.
+   */
+  async function marcarVaciadoCompleto(pasillo, columna, slotId) {
+    try {
+      const auditoriaId = await migracionAuditoriaService.registrar({
+        mzPasillo: pasillo, mzColumna: columna, evento: 'vaciado_completo',
+        detalle: `Rack vaciado por completo -- listo para recolección.`,
+        usuarioId: sesion?.usuarioId,
+      });
+      await migracionSlotsService.marcarVaciadoCompleto(slotId);
+      await migracionBufferService.confirmarLotePorSlot(slotId, auditoriaId);
+      setMigracionSlots(actuales => new Map(actuales).set(`${pasillo}|${columna}`, { id: slotId, estado: 'recolectando' }));
+    } catch {
+      mostrarError('El rack quedó vacío pero no se pudo confirmar el paso -- volvé a intentarlo desde la ficha.');
+    }
+  }
+
+  /** Paso 3 (operador): recolectando -> bloqueado, habilita "Confirmar finalizado" (paso 4, otro rol). */
+  async function marcarListoMigracion(pasillo, columna) {
+    const clave = `${pasillo}|${columna}`;
+    const slot = migracionSlots.get(clave);
+    if (!slot) return;
+    try {
+      await migracionSlotsService.marcarBloqueado(slot.id, sesion?.usuarioId);
+      setMigracionSlots(actuales => new Map(actuales).set(clave, { ...slot, estado: 'bloqueado' }));
+    } catch {
+      mostrarError('No se pudo marcar como listo. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  /** Paso 4 (supervisor/administrador): bloqueado -> confirmado. El trigger de rol en la base ya lo protege también -- esto solo refleja el resultado. */
+  async function confirmarFinalizadoMigracion(pasillo, columna) {
+    const clave = `${pasillo}|${columna}`;
+    const slot = migracionSlots.get(clave);
+    if (!slot) return;
+    try {
+      await migracionSlotsService.confirmar(slot.id, sesion?.usuarioId);
+      setMigracionSlots(actuales => new Map(actuales).set(clave, { ...slot, estado: 'confirmado' }));
+    } catch {
+      mostrarError('No se pudo confirmar -- revisá tu rol o tu conexión.');
+    }
+  }
+
   /** Único punto de entrada para el click en una celda -- decide qué significa según el modo activo (bloqueo, selección de área, mover cuerpo, mover individual eligiendo destino, o abrir el panel normal). Mismo orden de prioridad que 07-render.js legacy. */
   function manejarClickCelda(celda, rack) {
     const clave = `${celda.pasillo}|${celda.columna}`;
@@ -572,7 +736,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const celdaEnPantallaRef = useRef(null);
   celdaEnPantallaRef.current = celdaEnPantalla;
   const racksRef = useRef(racks);
-  racksRef.current = racks;
+  racksRef.current = racksVisibles; // decide si hay algo para abrir con lo que se VE (F4: puede ser la vista RCL), no siempre el acomodo MZ real
 
   const manejadoresPorCelda = useMemo(() => {
     const mapa = new Map();
@@ -645,7 +809,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           <Layer>
             {celdas.map(c => {
               const clave = `${c.pasillo}|${c.columna}`;
-              const rack = racks.get(clave);
+              const rack = racksVisibles.get(clave);
               const manejadores = manejadoresPorCelda.get(clave);
               return (
                 <CeldaRack
@@ -656,7 +820,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
                   resaltada={celdaResaltada === clave}
                   bloqueada={bloqueadas.has(clave)}
                   seleccionada={seleccionArea.has(clave)}
-                  arrastrable={modoEdicion && !moviendo && !soloLectura}
+                  arrastrable={modoEdicion && !moviendo && !soloLectura && vistaContenido === 'mz'}
                   onHover={manejadores.onHover}
                   onClick={manejadores.onClick}
                   onDragStart={manejarInicioDrag}
@@ -705,6 +869,9 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           soloLectura={soloLectura}
           mostrarAnadirRack={mostrarAnadirRack}
           onAnadirRack={() => onSolicitarAddRack?.()}
+          vistaContenido={vistaContenido}
+          onCambiarVista={setVistaContenido}
+          mostrarToggleVista={!escenarioId}
         />
       )}
 
@@ -741,7 +908,10 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           {pestanaActiva && (
             <PanelDetalle
               clave={pestanaActiva}
-              rack={racks.get(pestanaActiva)}
+              // Fallback a un rack vacío: la ficha puede quedar abierta al cambiar
+              // de vista MZ<->RCL (F4), y esa posición puede no tener contenido en
+              // la vista nueva -- nunca undefined, PanelDetalle asume rack.niveles.
+              rack={racksVisibles.get(pestanaActiva) ?? { niveles: {} }}
               configuracionOcupacion={configuracionOcupacion}
               descripcionDe={descripcionDe}
               oculto={panelMinimizado}
@@ -753,6 +923,15 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
               soloLectura={soloLectura}
               enSala={!!escenarioId}
               onLimpiarSlot={() => { const [p, c] = pestanaActiva.split('|'); limpiarSlotIndividual(p, Number(c)); }}
+              migracionEstado={migracionSlots.get(pestanaActiva)?.estado}
+              puedeMigrar={puedeMigrar}
+              puedeConfirmarMigracion={puedeConfirmarMigracion}
+              onIniciarTraslado={() => { const [p, c] = pestanaActiva.split('|'); iniciarTraslado(p, Number(c)); }}
+              onConfirmarFinalizado={() => { const [p, c] = pestanaActiva.split('|'); confirmarFinalizadoMigracion(p, Number(c)); }}
+              onDepositarBuffer={(articulo, nivel) => { const [p, c] = pestanaActiva.split('|'); depositarEnBuffer(p, Number(c), articulo, nivel); }}
+              onMarcarListoMigracion={() => { const [p, c] = pestanaActiva.split('|'); marcarListoMigracion(p, Number(c)); }}
+              onCancelarTraslado={() => { const [p, c] = pestanaActiva.split('|'); cancelarTraslado(p, Number(c)); }}
+              bufferDelSlot={bufferDelSlotActivo}
             />
           )}
         </div>

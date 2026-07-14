@@ -51,3 +51,24 @@ export function aplicarMovimientosLocales(racksBase, movimientos) {
 export function invertirLote(lote) {
   return lote.map(c => ({ articulo: c.articulo, origen: c.destino, destino: c.origen, clase: c.clase, tipo: c.tipo }));
 }
+
+/** Saca UN artículo de un rack en memoria SIN destino en el mapa (F2: se va al buffer de migración, no a otra celda) -- mitad "origen" de aplicarMovimientosLocales(), mismo criterio inmutable. */
+export function quitarArticuloLocal(racksBase, pasillo, columna, nivel, articulo) {
+  const copia = new Map(racksBase);
+  const clave = `${pasillo}|${columna}`;
+  const original = copia.get(clave);
+  if (!original) return copia;
+
+  const nivelOrigen = original.niveles[nivel] || [];
+  const idx = nivelOrigen.findIndex(a => a.articulo === articulo);
+  if (idx === -1) return copia; // ya no está ahí (desincronizado) -- no hay nada que sacar
+
+  const restante = nivelOrigen.slice(0, idx).concat(nivelOrigen.slice(idx + 1));
+  const nuevoRack = { ...original, niveles: { ...original.niveles } };
+  if (restante.length) nuevoRack.niveles[nivel] = restante;
+  else delete nuevoRack.niveles[nivel];
+
+  if (Object.keys(nuevoRack.niveles).length === 0) copia.delete(clave);
+  else copia.set(clave, nuevoRack);
+  return copia;
+}

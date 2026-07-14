@@ -25,6 +25,7 @@ export default function MapaToolbar({
   cambios,
   mostrarAnadirRack, onAnadirRack,
   soloLectura,
+  vistaContenido, onCambiarVista, mostrarToggleVista = false,
 }) {
   const [buscarEnfocado, setBuscarEnfocado] = useState(false);
   const [terminalAbierta, setTerminalAbierta] = useState(false);
@@ -36,6 +37,15 @@ export default function MapaToolbar({
         <BotonToolbar icono="ti-frame" titulo="Restablecer vista" onClick={onRestablecerVista} />
         <BotonToolbar icono="ti-zoom-out" titulo="Alejar" onClick={onZoomOut} />
         <BotonToolbar icono="ti-zoom-in" titulo="Acercar" onClick={onZoomIn} />
+
+        {/* Toggle de CONTENIDO (F4, migración RCL->MZ) -- MZ es el acomodo actual/planificado (de siempre), RCL es lo que hoy tiene cada posición según el sistema viejo (identidad_legacy + inventario_rcl_actual). Nunca los dos a la vez -- ver DECISIONES.md. */}
+        {mostrarToggleVista && (
+          <>
+            <div className="mapa-toolbar__separador" />
+            <BotonTexto etiqueta="MZ" titulo="Ver acomodo MZ (actual/planificado)" activo={vistaContenido === 'mz'} onClick={() => onCambiarVista('mz')} />
+            <BotonTexto etiqueta="RCL" titulo="Ver inventario actual por RCL (sistema viejo)" activo={vistaContenido === 'rcl'} onClick={() => onCambiarVista('rcl')} />
+          </>
+        )}
 
         <div className="mapa-toolbar__separador" />
 
@@ -109,6 +119,23 @@ function BotonToolbar({ icono, titulo, onClick, activo, deshabilitado, badge }) 
     >
       <i className={`ti ${icono}`} />
       {badge != null && <span className="mapa-toolbar__badge">{badge}</span>}
+    </motion.button>
+  );
+}
+
+/** Botón de texto corto (MZ/RCL) -- mismo look que BotonToolbar pero con etiqueta en vez de ícono, para el toggle de contenido de F4. */
+function BotonTexto({ etiqueta, titulo, onClick, activo }) {
+  const reducido = useReducedMotion();
+  return (
+    <motion.button
+      className={`mapa-toolbar__boton ${activo ? 'mapa-toolbar__boton--activo' : ''}`}
+      title={titulo}
+      aria-label={titulo}
+      onClick={onClick}
+      style={{ fontSize: 11, fontWeight: 700 }}
+      {...interaccionBoton(reducido)}
+    >
+      {etiqueta}
     </motion.button>
   );
 }

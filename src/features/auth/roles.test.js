@@ -22,4 +22,17 @@ describe('puede', () => {
   it('un rol desconocido no puede nada (sin romper)', () => {
     expect(puede('Rol inventado', 'ver_mapa')).toBe(false);
   });
+
+  it('migrar_slot (F2): Operador SÍ puede, a diferencia de "mover" -- es explícitamente su trabajo', () => {
+    expect(puede(ROLES.OPERADOR, 'migrar_slot')).toBe(true);
+    expect(puede(ROLES.SUPERVISOR, 'migrar_slot')).toBe(true);
+    expect(puede(ROLES.ADMIN, 'migrar_slot')).toBe(true);
+    expect(puede(ROLES.LECTURA, 'migrar_slot')).toBe(false);
+  });
+
+  it('confirmar_migracion (paso 4): SOLO Supervisor/Administrador, Operador no', () => {
+    expect(puede(ROLES.OPERADOR, 'confirmar_migracion')).toBe(false);
+    expect(puede(ROLES.SUPERVISOR, 'confirmar_migracion')).toBe(true);
+    expect(puede(ROLES.ADMIN, 'confirmar_migracion')).toBe(true);
+  });
 });

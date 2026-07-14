@@ -10,6 +10,7 @@ import { escenarioPosicionesService } from '../features/salas/escenarioPosicione
 import { escenarioEliminadosService } from '../features/salas/escenarioEliminados.service.js';
 import { escenarioBloqueosService } from '../features/salas/escenarioBloqueos.service.js';
 import { auditService } from '../features/auditoria/audit.service.js';
+import { migracionBufferService } from '../shared/services/migracionBuffer.service.js';
 import { resolverPosicionesActuales } from './resolverPosicionesActuales.js';
 import { agruparPorRack } from './agruparPorRack.js';
 import { nArts, nivelesOcupados, consumoTotal, llenura, colorLlenura } from './formulasOcupacion.js';
@@ -43,6 +44,11 @@ function crearServiciosReales(escenarioId) {
     async listarBloqueos() { return escenarioId ? escenarioBloqueosService.listar(escenarioId) : bloqueosService.listar(); },
     // Una sala de simulación nunca genera auditoría real (ver PROTOCOLO-MAPA.md).
     async listarMovimientosHistoricos() { return escenarioId ? [] : auditService.listar({}); },
+    // El buffer de migración (F2) SOLO existe para el mapa real -- migracion_buffer
+    // no tiene escenario_id (decisión explícita, ver DECISIONES.md ADR-015 y
+    // la sesión de F2: no tiene sentido simular una migración física única).
+    // Una sala simplemente no tiene artículos en tránsito, nunca [].
+    async listarEnBuffer() { return escenarioId ? [] : migracionBufferService.listarArticulosSinResolver(); },
     // Tema/orientación y el límite de columnas por pasillo son globales -- NO
     // dependen de escenarioId (una sala usa el mismo croquis "de fábrica" que
     // el mapa real, ver mensajesMapa.js). Mismo fallback que ya tenía
@@ -101,7 +107,7 @@ export function crearWarehouseModel({ escenarioId = null, servicios, configuraci
   }
 
   async function cargarTodo() {
-    const [base, movidas, eliminados, descripciones, bloqueosRaw, movimientos, configuracionMapa, pasillosConfig] = await Promise.all([
+    const [base, movidas, eliminados, descripciones, bloqueosRaw, movimientos, configuracionMapa, pasillosConfig, enBuffer] = await Promise.all([
       fuente.listarBase(),
       fuente.listarMovimientos(),
       fuente.listarEliminados(),
@@ -110,8 +116,9 @@ export function crearWarehouseModel({ escenarioId = null, servicios, configuraci
       fuente.listarMovimientosHistoricos(),
       fuente.listarConfiguracionMapa(),
       fuente.listarPasillosConfig(),
+      fuente.listarEnBuffer(),
     ]);
-    estado.posiciones = resolverPosicionesActuales(base, movidas, eliminados);
+    estado.posiciones = resolverPosicionesActuales(base, movidas, eliminados, enBuffer);
     estado.bloqueos = bloqueosRaw.map(b => b.rack_key);
     estado.descripciones = new Map(descripciones.map(d => [d.articulo, d.descripcion]));
     estado.movimientos = movimientos;
