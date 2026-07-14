@@ -14,12 +14,20 @@ import ModalBase from '../../shared/components/ModalBase.jsx';
  * identidadLegacy.service.js.
  */
 const UNIVERSO_ESPERADO = 1550; // universo total de sub-posiciones del archivo real del cliente -- solo informativo, no bloquea nada
+
+// El archivo real del cliente trae 3 hojas ("Migracion RCL - MZ", "Inventario",
+// "Art x RCL" -- las últimas 2 son F1.5-B/C, no se cargan todavía). Se busca
+// esta hoja por NOMBRE EXACTO -- nunca "la primera hoja del libro", porque no
+// hay garantía de que el cliente la deje primera en su Excel.
+const NOMBRE_HOJA_IDENTIDAD = 'Migracion RCL - MZ';
+
 export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
   const [previa, setPrevia] = useState(null); // { filas, validas, rechazadas }
   const [cargando, setCargando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [error, setError] = useState('');
   const [resultado, setResultado] = useState(null); // { aplicados, rechazados }
+  const [hojaLeida, setHojaLeida] = useState(null); // nombre real de la hoja que se terminó leyendo -- transparencia, no un dato funcional
 
   async function procesarFilas(filasCrudas) {
     setError('');
@@ -47,7 +55,12 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
     lector.onload = ev => {
       try {
         const wb = XLSX.read(ev.target.result, { type: 'binary' });
-        const hoja = wb.Sheets[wb.SheetNames[0]];
+        // Preferí la hoja "Migracion RCL - MZ" si existe (caso real, libro con
+        // varias hojas) -- si no (ej. un CSV de una sola hoja, o el nombre no
+        // calzó), caé a la primera hoja del libro como antes.
+        const nombreHoja = wb.SheetNames.includes(NOMBRE_HOJA_IDENTIDAD) ? NOMBRE_HOJA_IDENTIDAD : wb.SheetNames[0];
+        setHojaLeida(nombreHoja);
+        const hoja = wb.Sheets[nombreHoja];
         procesarFilas(XLSX.utils.sheet_to_json(hoja, { defval: '' }));
       } catch {
         setError('No se pudo leer el archivo. Probá exportarlo de nuevo como .xlsx o .csv.');
@@ -88,6 +101,12 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
         </label>
       )}
 
+      {hojaLeida && (previa || cargando) && (
+        <p style={{ fontSize: 11.5, color: 'var(--texto-placeholder)', marginTop: 8 }}>
+          Hoja leída del archivo: <b>{hojaLeida}</b>
+        </p>
+      )}
+
       {error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 12 }}>{error}</p>}
       {cargando && <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 20 }}>Comparando contra la base…</p>}
 
@@ -100,7 +119,7 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
             </span>
           )}
           <div style={{ marginTop: 10 }}>
-            <button className="btn-secondary" onClick={() => setResultado(null)}>Importar otro archivo</button>
+            <button className="btn-secondary" onClick={() => { setResultado(null); setHojaLeida(null); }}>Importar otro archivo</button>
           </div>
         </div>
       )}
@@ -121,7 +140,7 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
             <button className="btn-primary" disabled={aplicando || previa.validas.length === 0} onClick={aplicar}>
               {aplicando ? 'Importando…' : `Importar ${previa.validas.length} fila(s) válida(s)`}
             </button>
-            <button className="btn-secondary" disabled={aplicando} onClick={() => setPrevia(null)}>Cancelar</button>
+            <button className="btn-secondary" disabled={aplicando} onClick={() => { setPrevia(null); setHojaLeida(null); }}>Cancelar</button>
           </div>
 
           {previa.rechazadas.length > 0 && (
