@@ -106,8 +106,10 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
 
       {previa && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5 }}>
-            <span>✅ Válidas: <b>{previa.validas.length}</b></span>
+          <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5, flexWrap: 'wrap' }}>
+            <span>✅ Asignadas con RCL: <b>{previa.validas.filter(f => f.estadoRcl === 'asignado').length}</b></span>
+            <span>⏳ Pendiente de asignar (*): <b>{previa.validas.filter(f => f.estadoRcl === 'pendiente_asignar').length}</b></span>
+            <span>— Sin RCL (N/A o vacío): <b>{previa.validas.filter(f => f.estadoRcl === 'sin_rcl').length}</b></span>
             <span>⚠ Rechazadas: <b style={{ color: previa.rechazadas.length ? 'var(--red)' : 'inherit' }}>{previa.rechazadas.length}</b></span>
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -160,19 +162,26 @@ function TablaRechazadas({ filas }) {
   );
 }
 
+const ETIQUETA_ESTADO = {
+  asignado: 'Asignado',
+  pendiente_asignar: 'Pendiente de asignar (*)',
+  sin_rcl: 'Sin RCL',
+};
+
 function TablaValidas({ filas }) {
   return (
     <div style={{ overflowX: 'auto', marginTop: 8 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead><tr style={theadRow}>
-          <th style={thStyle}>Fila</th><th style={thStyle}>MZ</th><th style={thStyle}>RCL</th>
+          <th style={thStyle}>Fila</th><th style={thStyle}>MZ</th><th style={thStyle}>RCL</th><th style={thStyle}>Estado</th>
         </tr></thead>
         <tbody>
           {filas.map(f => (
             <tr key={f.fila} style={{ borderTop: '1px solid var(--borde-sutil)' }}>
               <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.fila}</td>
               <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.mzPasillo}-C{String(f.mzColumna).padStart(3, '0')}</td>
-              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.rclCodigo}</td>
+              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.rclCodigo ?? '—'}</td>
+              <td style={tdStyle}>{ETIQUETA_ESTADO[f.estadoRcl]}</td>
             </tr>
           ))}
         </tbody>

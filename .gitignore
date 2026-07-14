@@ -11,3 +11,7 @@ blob-report
 *.dwl
 *.dwl2
 *.bak
+
+# Archivos operativos del usuario (ej. la tabla RCL<->MZ armada a mano para
+# el import de identidad_legacy) -- no son parte del código, no van al repo.
+Docs/Documentos de base de datos/*.xlsx

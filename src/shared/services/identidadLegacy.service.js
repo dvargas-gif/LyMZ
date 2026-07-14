@@ -16,21 +16,21 @@ export const identidadLegacyService = {
     while (true) {
       const { data, error } = await supabase
         .from('identidad_legacy')
-        .select('mz_pasillo, mz_columna, rcl_codigo')
+        .select('mz_pasillo, mz_columna, rcl_codigo, estado_rcl')
         .range(desde, desde + TAMANO_PAGINA - 1);
       if (error) throw error;
-      todas.push(...data.map(d => ({ mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna, rclCodigo: d.rcl_codigo })));
+      todas.push(...data.map(d => ({ mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna, rclCodigo: d.rcl_codigo, estadoRcl: d.estado_rcl })));
       if (data.length < TAMANO_PAGINA) break;
       desde += TAMANO_PAGINA;
     }
     return todas;
   },
 
-  /** Upsert por (mz_pasillo, mz_columna) -- idempotente por MZ, confirmado con el usuario: re-importar el mismo MZ actualiza su rcl_codigo en vez de fallar. */
+  /** Upsert por (mz_pasillo, mz_columna) -- idempotente por MZ, confirmado con el usuario: re-importar el mismo MZ actualiza su rcl_codigo/estado_rcl en vez de fallar. */
   async guardarLote(filas, usuarioId) {
     const ahora = new Date().toISOString();
     const filasDb = filas.map(f => ({
-      mz_pasillo: f.mzPasillo, mz_columna: f.mzColumna, rcl_codigo: f.rclCodigo,
+      mz_pasillo: f.mzPasillo, mz_columna: f.mzColumna, rcl_codigo: f.rclCodigo, estado_rcl: f.estadoRcl,
       importado_por: usuarioId, importado_en: ahora,
     }));
     for (let i = 0; i < filasDb.length; i += TAMANO_PAGINA) {
