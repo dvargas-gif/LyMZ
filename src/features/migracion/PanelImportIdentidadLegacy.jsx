@@ -5,14 +5,15 @@ import { identidadLegacyService } from '../../shared/services/identidadLegacy.se
 import ModalBase from '../../shared/components/ModalBase.jsx';
 
 /**
- * Import de la tabla maestra RCL<->MZ por posición (F1 de la migración de
- * nomenclatura) -- mismo patrón que PanelCargaMasiva.jsx: subir archivo,
+ * Import de la tabla maestra RCL<->MZ por SUB-POSICIÓN (F1 de la migración
+ * de nomenclatura) -- mismo patrón que PanelCargaMasiva.jsx: subir archivo,
  * previsualizar con reporte de rechazadas ANTES de aplicar, aplicar en
  * lote. A diferencia de carga masiva, acá el formato de columnas es fijo
  * (headers "MZ"/"RCL" exactos, sin sinónimos) porque es un archivo que arma
  * una sola persona a mano, no un Excel externo variable -- ver
  * identidadLegacy.service.js.
  */
+const UNIVERSO_ESPERADO = 1550; // universo total de sub-posiciones del archivo real del cliente -- solo informativo, no bloquea nada
 export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
   const [previa, setPrevia] = useState(null); // { filas, validas, rechazadas }
   const [cargando, setCargando] = useState(false);
@@ -73,10 +74,10 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
   return (
     <ModalBase titulo="🔗 Importar identidad RCL↔MZ" onCerrar={onCerrar} maxWidth={880} maxHeight="88vh" scrollContenido>
       <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
-        Subí el archivo con dos columnas — headers exactos <b>MZ</b> y <b>RCL</b> — con el formato
-        <code style={{ margin: '0 4px' }}>MZ01-C001</code> / <code>RCL121-C001</code>. Podés volver a subir el
-        mismo archivo corregido las veces que haga falta: re-importar un MZ ya cargado actualiza su RCL en vez
-        de rechazarlo.
+        Subí el archivo con dos columnas — headers exactos <b>MZ</b> y <b>RCL</b> — con el formato de sub-posición
+        <code style={{ margin: '0 4px' }}>MZ01-C001-N01-1</code> / <code>RCL112-C001-N01-1</code>. Podés volver a
+        subir el mismo archivo corregido las veces que haga falta: re-importar la misma sub-posición actualiza su
+        RCL en vez de rechazarla.
       </p>
 
       {!previa && !resultado && (
@@ -106,6 +107,10 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
 
       {previa && (
         <div style={{ marginTop: 16 }}>
+          <p style={{ fontSize: 11.5, color: 'var(--texto-placeholder)', marginBottom: 8 }}>
+            Total en el archivo: {previa.filas.length} / esperadas: {UNIVERSO_ESPERADO}
+            {previa.filas.length !== UNIVERSO_ESPERADO && ' (no bloquea el import, solo es informativo)'}
+          </p>
           <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5, flexWrap: 'wrap' }}>
             <span>✅ Asignadas con RCL: <b>{previa.validas.filter(f => f.estadoRcl === 'asignado').length}</b></span>
             <span>⏳ Pendiente de asignar (*): <b>{previa.validas.filter(f => f.estadoRcl === 'pendiente_asignar').length}</b></span>
@@ -179,8 +184,8 @@ function TablaValidas({ filas }) {
           {filas.map(f => (
             <tr key={f.fila} style={{ borderTop: '1px solid var(--borde-sutil)' }}>
               <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.fila}</td>
-              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.mzPasillo}-C{String(f.mzColumna).padStart(3, '0')}</td>
-              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.rclCodigo ?? '—'}</td>
+              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.mzPasillo}-C{String(f.mzColumna).padStart(3, '0')}-N{String(f.mzNivel).padStart(2, '0')}-{f.mzSubnivel}</td>
+              <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.rclCodigo ? `${f.rclCodigo}-N${String(f.rclNivel).padStart(2, '0')}-${f.rclSubnivel}` : '—'}</td>
               <td style={tdStyle}>{ETIQUETA_ESTADO[f.estadoRcl]}</td>
             </tr>
           ))}

@@ -11,25 +11,24 @@ import { parsearFilasIdentidad, validarIdentidadLegacy } from './identidadLegacy
  * validarIdentidadLegacy(). No monta el componente React ni pasa por
  * Supabase real: este proyecto no fabrica credenciales de prueba (ver
  * playwright.config.js) y no hay infraestructura de tests de componente
- * (Testing Library) todavía -- agregarla para un solo test sería una
- * dependencia nueva sin más uso. Esto cubre la misma lógica que la UI
- * ejecuta, con el mismo archivo de bytes real, que es lo que puede fallar
- * de verdad (encoding, headers con espacios, CSV vs XLSX).
+ * (Testing Library) todavía.
  *
- * Fixture: tests/fixtures/identidad_legacy_test.(xlsx|csv) -- 31 filas de
- * datos, mismo contenido en los dos formatos (generados desde el mismo
- * array). 23 válidas (19 "asignado" limpias + 1 "asignado" con espacios de
- * sobra a propósito, confirma que el trim funciona + 1 "sin_rcl" vacío + 1
- * "pendiente_asignar" + 1 "sin_rcl" vía "N/A") + 8 rechazadas, una por cada
- * categoría de error real -- MZ duplicado y RCL duplicado ocupan 2 filas
- * cada uno porque una duplicación no existe en una sola fila.
+ * Fixture: tests/fixtures/identidad_legacy_test.(xlsx|csv) -- 16 filas de
+ * datos, formato SUB-POSICIÓN (MZ01-C001-N01-1 <-> RCL112-C001-N01-1, ver
+ * archivo real del cliente). 8 válidas (asignado x4, incluyendo el mismo
+ * pasillo+columna en dos niveles distintos -- NO es duplicado; sin_rcl x3
+ * -- vacío, "N/A" bare, "N/A-n01-1" con sufijo en minúsculas; pendiente_asignar
+ * x1) + 8 rechazadas, una por cada categoría de error real -- MZ duplicado y
+ * RCL duplicado ocupan 2 filas cada uno porque una duplicación no existe en
+ * una sola fila.
  */
 const RUTA_XLSX = resolve(import.meta.dirname, '../../../tests/fixtures/identidad_legacy_test.xlsx');
 const RUTA_CSV = resolve(import.meta.dirname, '../../../tests/fixtures/identidad_legacy_test.csv');
 
 // Simula lo que ya existiría en la base antes de este import -- MZ09-C002
-// tiene asignado RCL999-C999, y el fixture intenta reasignarlo a MZ12-C005.
-const EXISTENTES = [{ mzPasillo: 'MZ09', mzColumna: 2, rclCodigo: 'RCL999-C999', estadoRcl: 'asignado' }];
+// (nivel 1, subnivel 1) tiene asignado RCL999-C999 (nivel 1, subnivel 1), y
+// el fixture intenta reasignar esa misma sub-posición RCL a MZ12-C005.
+const EXISTENTES = [{ mzPasillo: 'MZ09', mzColumna: 2, mzNivel: 1, mzSubnivel: 1, rclCodigo: 'RCL999-C999', rclNivel: 1, rclSubnivel: 1, estadoRcl: 'asignado' }];
 
 function parsearArchivo(ruta, tipo) {
   const datos = tipo === 'buffer' ? readFileSync(ruta) : readFileSync(ruta, 'utf-8');
@@ -41,39 +40,38 @@ function parsearArchivo(ruta, tipo) {
 describe('import de identidad_legacy contra el fixture real (.xlsx)', () => {
   const { validas, rechazadas } = validarIdentidadLegacy(parsearArchivo(RUTA_XLSX, 'buffer'), EXISTENTES);
 
-  it('carga exactamente 23 filas válidas y rechaza 8', () => {
-    expect(validas).toHaveLength(23);
+  it('carga exactamente 8 filas válidas y rechaza 8', () => {
+    expect(validas).toHaveLength(8);
     expect(rechazadas).toHaveLength(8);
   });
 
-  it('acepta la fila con espacios al inicio/final tras el trim (fila 21), estado "asignado"', () => {
-    const fila = validas.find(f => f.fila === 21);
-    expect(fila).toBeDefined();
-    expect(fila.mzPasillo).toBe('MZ10');
-    expect(fila.mzColumna).toBe(1);
-    expect(fila.estadoRcl).toBe('asignado');
-    expect(fila.rclCodigo).toBe('RCL220-C001'); // el propio código también viene con espacios en el archivo -- se recorta igual
+  it('el mismo pasillo+columna en dos niveles distintos (filas 2 y 3) son AMBAS válidas, no duplicado', () => {
+    const f2 = validas.find(f => f.fila === 2);
+    const f3 = validas.find(f => f.fila === 3);
+    expect(f2).toMatchObject({ mzPasillo: 'MZ01', mzColumna: 1, mzNivel: 1, estadoRcl: 'asignado', rclCodigo: 'RCL112-C001' });
+    expect(f3).toMatchObject({ mzPasillo: 'MZ01', mzColumna: 1, mzNivel: 2, estadoRcl: 'asignado', rclCodigo: 'RCL112-C001' });
   });
 
-  it('las 3 filas de estados especiales (fila 22-24) son VÁLIDAS con el estado_rcl correcto', () => {
+  it('las filas de estados especiales (6-9) son VÁLIDAS con el estado_rcl correcto', () => {
     const porFila = fila => validas.find(f => f.fila === fila);
 
-    expect(porFila(22)).toMatchObject({ mzPasillo: 'MZ11', mzColumna: 1, estadoRcl: 'sin_rcl', rclCodigo: null });
-    expect(porFila(23)).toMatchObject({ mzPasillo: 'MZ11', mzColumna: 3, estadoRcl: 'pendiente_asignar', rclCodigo: null });
-    expect(porFila(24)).toMatchObject({ mzPasillo: 'MZ11', mzColumna: 4, estadoRcl: 'sin_rcl', rclCodigo: null });
+    expect(porFila(6)).toMatchObject({ mzPasillo: 'MZ09', mzColumna: 1, mzNivel: 1, estadoRcl: 'sin_rcl', rclCodigo: null }); // N/A con sufijo, minúsculas
+    expect(porFila(7)).toMatchObject({ mzPasillo: 'MZ09', mzColumna: 2, mzNivel: 1, estadoRcl: 'sin_rcl', rclCodigo: null }); // N/A bare
+    expect(porFila(8)).toMatchObject({ mzPasillo: 'MZ10', mzColumna: 1, mzNivel: 1, estadoRcl: 'pendiente_asignar', rclCodigo: null }); // "*"
+    expect(porFila(9)).toMatchObject({ mzPasillo: 'MZ10', mzColumna: 2, mzNivel: 1, estadoRcl: 'sin_rcl', rclCodigo: null }); // vacío
   });
 
   it('rechaza cada categoría de error con el motivo EXACTO prometido', () => {
     const motivoDe = fila => rechazadas.find(f => f.fila === fila)?.motivo;
 
-    expect(motivoDe(25)).toBe('Celda vacía (falta MZ)');
-    expect(motivoDe(26)).toBe('Formato de MZ inválido ("MZ1-C1") -- esperado MZ0X-C0YY');
-    expect(motivoDe(27)).toBe('Formato de RCL inválido ("XYZ301-C001") -- esperado RCL+números, "*", "N/A", o vacío');
-    expect(motivoDe(28)).toBe('MZ duplicado dentro del archivo (MZ12-C001 aparece 2 veces)');
-    expect(motivoDe(29)).toBe('MZ duplicado dentro del archivo (MZ12-C001 aparece 2 veces)');
-    expect(motivoDe(30)).toBe('RCL duplicado dentro del archivo ("RCL304-C001" aparece 2 veces)');
-    expect(motivoDe(31)).toBe('RCL duplicado dentro del archivo ("RCL304-C001" aparece 2 veces)');
-    expect(motivoDe(32)).toBe('"RCL999-C999" ya está asignado a MZ09-C002 en la base -- no puede repetirse en MZ12-C005');
+    expect(motivoDe(10)).toBe('Formato de MZ inválido ("MZ1-C001-N01-1") -- esperado MZ0X-C0YY-N0Z-1');
+    expect(motivoDe(11)).toBe('Formato de RCL inválido ("RCLABC-C001-N01-1") -- esperado RCLxxx-Cxxx-N0Z-1, "*", "N/A", o vacío');
+    expect(motivoDe(12)).toBe('Celda vacía (falta MZ)');
+    expect(motivoDe(13)).toBe('MZ duplicado dentro del archivo (MZ12-C001-N01-1 aparece 2 veces)');
+    expect(motivoDe(14)).toBe('MZ duplicado dentro del archivo (MZ12-C001-N01-1 aparece 2 veces)');
+    expect(motivoDe(15)).toBe('RCL duplicado dentro del archivo ("RCL160-C001-N01-1" aparece 2 veces)');
+    expect(motivoDe(16)).toBe('RCL duplicado dentro del archivo ("RCL160-C001-N01-1" aparece 2 veces)');
+    expect(motivoDe(17)).toBe('"RCL999-C999-N01-1" ya está asignado a MZ09-C002-N01-1 en la base -- no puede repetirse en MZ12-C005-N01-1');
   });
 
   it('ninguna fila válida se cuela entre las rechazadas ni viceversa', () => {
@@ -86,7 +84,7 @@ describe('import de identidad_legacy contra el fixture real (.csv) -- mismo resu
   const { validas, rechazadas } = validarIdentidadLegacy(parsearArchivo(RUTA_CSV, 'string'), EXISTENTES);
 
   it('produce EXACTAMENTE el mismo conteo que la versión .xlsx', () => {
-    expect(validas).toHaveLength(23);
+    expect(validas).toHaveLength(8);
     expect(rechazadas).toHaveLength(8);
   });
 });
@@ -95,22 +93,20 @@ describe('idempotencia -- importar el mismo fixture dos veces seguidas', () => {
   it('la segunda vuelta actualiza en vez de fallar, y el conteo final es igual al de la primera', () => {
     const parsed = parsearArchivo(RUTA_XLSX, 'buffer');
 
-    // Primera vuelta: la base todavía no tiene nada del fixture (solo el
-    // registro externo que ya usan los demás tests, MZ09-C002).
     const primera = validarIdentidadLegacy(parsed, EXISTENTES);
-    expect(primera.validas).toHaveLength(23);
+    expect(primera.validas).toHaveLength(8);
 
     // Simula lo que guardarLote() habría dejado en la base tras la primera
-    // vuelta (upsert real) -- las 23 filas válidas ya están, más lo que ya
+    // vuelta (upsert real) -- las 8 filas válidas ya están, más lo que ya
     // había antes. Nunca se llama a Supabase acá (ver nota de la cabecera).
     const existentesTrasPrimeraVuelta = [
       ...EXISTENTES,
-      ...primera.validas.map(f => ({ mzPasillo: f.mzPasillo, mzColumna: f.mzColumna, rclCodigo: f.rclCodigo, estadoRcl: f.estadoRcl })),
+      ...primera.validas.map(f => ({
+        mzPasillo: f.mzPasillo, mzColumna: f.mzColumna, mzNivel: f.mzNivel, mzSubnivel: f.mzSubnivel,
+        rclCodigo: f.rclCodigo, rclNivel: f.rclNivel, rclSubnivel: f.rclSubnivel, estadoRcl: f.estadoRcl,
+      })),
     ];
 
-    // Segunda vuelta: mismo archivo, sin tocarlo -- ningún MZ debería
-    // rechazarse por "ya existe" (upsert, no insert) y el resultado tiene
-    // que ser IDÉNTICO al de la primera vuelta.
     const segunda = validarIdentidadLegacy(parsed, existentesTrasPrimeraVuelta);
     expect(segunda.validas).toHaveLength(primera.validas.length);
     expect(segunda.rechazadas).toHaveLength(primera.rechazadas.length);
