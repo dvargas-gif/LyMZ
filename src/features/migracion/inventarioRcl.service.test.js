@@ -58,13 +58,45 @@ describe('validarInventarioRcl', () => {
     expect(rechazadas).toHaveLength(0);
   });
 
-  it('rechaza la MISMA sub-posición repetida dentro del archivo', () => {
+  it('acepta la MISMA sub-posición con artículos DISTINTOS -- un nivel compartido entre varios SKU es normal, no un duplicado', () => {
     const filas = parsearFilasInventario([
       { RCL: 'RCL112-C001-N01-1', Articulo: 'A1', Cantidad: '5' },
       { RCL: 'RCL112-C001-N01-1', Articulo: 'A2', Cantidad: '3' },
     ]);
     const { validas, rechazadas } = validarInventarioRcl(filas);
-    expect(validas).toHaveLength(0);
-    expect(rechazadas).toHaveLength(2);
+    expect(validas).toHaveLength(2);
+    expect(rechazadas).toHaveLength(0);
+  });
+
+  it('SUMA cantidades cuando el MISMO artículo se repite en la MISMA sub-posición -- varios pallets del mismo SKU en un lugar es normal, no un error', () => {
+    const filas = parsearFilasInventario([
+      { RCL: 'RCL112-C001-N01-1', Articulo: 'A1', Cantidad: '5' },
+      { RCL: 'RCL112-C001-N01-1', Articulo: 'A1', Cantidad: '8' },
+    ]);
+    const { validas, rechazadas } = validarInventarioRcl(filas);
+    expect(validas).toHaveLength(1);
+    expect(validas[0]).toMatchObject({ articulo: 'A1', cantidad: 13, pallets: 2 });
+    expect(rechazadas).toHaveLength(0);
+  });
+
+  it('suma 3+ pallets del mismo artículo/sub-posición en una sola fila', () => {
+    const filas = parsearFilasInventario([
+      { RCL: 'RCL112-C001-N01-1', Articulo: 'A1', Cantidad: '5' },
+      { RCL: 'RCL112-C001-N01-1', Articulo: 'A1', Cantidad: '8' },
+      { RCL: 'RCL112-C001-N01-1', Articulo: 'A1', Cantidad: '2' },
+    ]);
+    const { validas } = validarInventarioRcl(filas);
+    expect(validas).toHaveLength(1);
+    expect(validas[0]).toMatchObject({ cantidad: 15, pallets: 3 });
+  });
+
+  it('sigue rechazando filas con formato/celda inválidos, sin mezclarlas con la suma', () => {
+    const filas = parsearFilasInventario([
+      { RCL: 'RCL112-C001-N01-1', Articulo: 'A1', Cantidad: '5' },
+      { RCL: 'RCL-MAL', Articulo: 'A2', Cantidad: '3' },
+    ]);
+    const { validas, rechazadas } = validarInventarioRcl(filas);
+    expect(validas).toHaveLength(1);
+    expect(rechazadas).toHaveLength(1);
   });
 });

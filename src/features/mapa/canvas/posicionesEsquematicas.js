@@ -194,6 +194,18 @@ export function calcularCortesPasillo() {
   return cortes;
 }
 
+/**
+ * X del borde izquierdo de las filas horizontales -- el mismo valor que ya
+ * usa calcularLayoutEsquematico() como `xInicioHorizontal`, expuesto para
+ * quien necesite trazar algo POR ese corredor (ej. RutaMigracion en
+ * MapaCanvas.jsx, que traza el traslado activo pegado a este borde en vez
+ * de una diagonal que corte sobre racks de otros pasillos -- pedido
+ * explícito del usuario, "no quiero que se brinque layouts").
+ */
+export function xInicioFilas() {
+  return limitesBloqueVertical() + ETIQUETA_ANCHO;
+}
+
 /** Y del punto medio de cada separación entre grupos de pasillos -- para dibujar una línea divisoria sutil ahí (refuerzo visual de "estos son grupos distintos"). */
 export function calcularDivisoresGrupo() {
   const FILA_ALTO = CELDA_ALTO + GAP;

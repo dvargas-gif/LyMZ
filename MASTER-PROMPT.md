@@ -29,7 +29,7 @@ Rechazar cualquier atajo que las viole, incluso si el usuario lo pide en un mome
 7. **Motores puros.** Simulación y optimización son funciones puras: sin React, sin DOM, sin Three.js. Entra snapshot + parámetros, sale objeto de datos plano serializable. Movibles a Web Worker/Edge Function sin reescritura.
 8. **Restricciones como datos, no como código.** El motor de optimización nunca tiene `if (articulo.fragil)` hardcodeado; recibe reglas evaluables configurables.
 9. **La IA nunca decide ni escribe.** Solo lee snapshots/resultados y explica, resume o alerta. Toda propuesta de cambio al almacén pasa por algoritmo determinístico + aprobación humana. Regla de code review, no solo de diseño.
-10. **Las animaciones son consecuencia del modelo.** Nunca fuente de estado, nunca disparan lógica de negocio, nunca en loop permanente fuera de la vista 3D activa.
+10. **Las animaciones son consecuencia del modelo.** Nunca fuente de estado, nunca disparan lógica de negocio, nunca en loop permanente fuera de la vista 3D activa -- excepto la pantalla de Login/marca (ver sección 7), que es vidriera, no app operativa.
 
 ## 4. Protocolo de trabajo
 
@@ -186,5 +186,5 @@ Criterios de aceptación de la Fase 1 completa: sección 6.1 (se verifican al ci
 - Solo propiedades de compositor (`transform`, `opacity`); jamás animar layout (`width`/`height`/`top`/`left`).
 - Toda animación se dispara por cambio del modelo; ninguna genera estado.
 - `prefers-reduced-motion`: fades instantáneos o desactivación, global.
-- Cero loops permanentes fuera de la vista 3D activa (uso normal = 0 costo de animación).
-- Propósito antes que espectáculo: cada animación dirige la atención (qué cambió), comunica causalidad (intención → confirmación) o da continuidad espacial (2D↔3D). Si no hace ninguna de las tres, no va.
+- Cero loops permanentes fuera de la vista 3D activa (uso normal = 0 costo de animación), **con una excepción documentada**: la pantalla de Login/marca (antes de autenticar) es la vidriera de la app, no la app operativa -- ahí sí se permiten loops permanentes (mosaico, íconos, parallax, líneas/badges decorativos), pedido y confirmado explícitamente por el usuario. La app operativa (todo lo que hay detrás del login) sigue la regla al pie de la letra.
+- Propósito antes que espectáculo: cada animación dirige la atención (qué cambió), comunica causalidad (intención → confirmación) o da continuidad espacial (2D↔3D). Si no hace ninguna de las tres, no va -- salvo en el Login, ver excepción de arriba.

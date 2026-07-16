@@ -8,6 +8,13 @@
  * Colores desde/hacia (#B47A6A / #9FBF9F) son los mismos que ya usaba
  * logMov() en el mapa legacy -- se reusan a propósito, no son un tema
  * nuevo inventado para esta pieza puntual.
+ *
+ * `cambios` acá puede traer TAMBIÉN eventos de migración (F2, ver
+ * MapaToolbar.jsx -- `cambiosParaTerminal`, una lista aparte que NUNCA se
+ * mezcla con la que alimenta Deshacer/Excel). El badge se generaliza a
+ * cualquier tipoMovimiento distinto de "individual" -- así "cuerpo" (ya
+ * existía) y los nuevos ("buffer", "iniciado", "cancelado", etc.) se
+ * distinguen sin un caso especial por cada uno.
  */
 export default function TerminalCambios({ cambios, onCerrar }) {
   return (
@@ -24,7 +31,9 @@ export default function TerminalCambios({ cambios, onCerrar }) {
             <div key={cambios.length - i} className="mapa-terminal__linea">
               <div className="mapa-terminal__articulo">
                 <span>{lote.articuloEtiqueta}</span>
-                {lote.tipoMovimiento === 'cuerpo' && <span className="mapa-terminal__badge">cuerpo</span>}
+                {lote.tipoMovimiento && lote.tipoMovimiento !== 'individual' && (
+                  <span className="mapa-terminal__badge">{lote.tipoMovimiento.replace('_', ' ')}</span>
+                )}
               </div>
               <div>
                 <span className="mapa-terminal__desde">{lote.desde}</span>

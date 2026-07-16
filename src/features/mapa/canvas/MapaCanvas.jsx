@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { obtenerWarehouseModel } from '../../../domain/crearWarehouseModel.js';
 import { nArts, consumoTotal, llenura, colorLlenura } from '../../../domain/formulasOcupacion.js';
 import { colorDeClase } from '../../../shared/constants/coloresArticulo.js';
-import { calcularLayoutEsquematico, calcularEtiquetas, calcularDivisoresGrupo, calcularCortesPasillo } from './posicionesEsquematicas.js';
+import { calcularLayoutEsquematico, calcularEtiquetas, calcularDivisoresGrupo, calcularCortesPasillo, PASILLOS_VERTICALES, xInicioFilas } from './posicionesEsquematicas.js';
 import { calcularVistaAjustada, calcularVistaCentradaEnCelda, interpolarVista, DURACION_ANIMACION_MS, DURACION_ZOOM_BOTON_MS } from './vistaMapa.js';
 import { aplicarMovimientosLocales, invertirLote, quitarArticuloLocal } from './movimientosLocales.js';
 import { NEGRO_GRAFITO, NEGRO_GRAFITO_CLARO, GRIS_MAPA, GRIS_MAPA_CLARO, VERDE_ESTRUCTURA_CLARO, CAFE_CENIZA, CAFE_CENIZA_CLARO, BLANCO_CALIDO, BLANCO_CALIDO_TENUE, ESTADOS } from './paleta.js';
@@ -20,10 +20,13 @@ import { escenarioEliminadosService } from '../../salas/escenarioEliminados.serv
 import { auditService } from '../../auditoria/audit.service.js';
 import { migracionSlotsService } from '../../../shared/services/migracionSlots.service.js';
 import { migracionBufferService } from '../../../shared/services/migracionBuffer.service.js';
+import { migracionMovimientosService } from '../../../shared/services/migracionMovimientos.service.js';
 import { migracionAuditoriaService } from '../../../shared/services/migracionAuditoria.service.js';
 import { identidadLegacyService } from '../../../shared/services/identidadLegacy.service.js';
 import { inventarioRclService } from '../../../shared/services/inventarioRcl.service.js';
 import { construirVistaRcl } from '../../migracion/vistaRcl.js';
+import { puedeDevolverDelBuffer } from '../../migracion/flujoMigracionSlot.js';
+import { detectarDestinosListos, ESTADOS_LISTO_PARA_RECIBIR } from '../../migracion/alertasBuffer.js';
 import { puede } from '../../auth/roles.js';
 import './canvas.css';
 
@@ -79,6 +82,10 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [seleccionArea, setSeleccionArea] = useState(new Set());
   const [migracionSlots, setMigracionSlots] = useState(new Map()); // "pasillo|columna" -> {id, estado, ...} -- F2, SOLO mapa real (nunca en sala)
   const [bufferDelSlotActivo, setBufferDelSlotActivo] = useState([]); // contenido del buffer del slot de la pestaña abierta -- ver FlujoMigracionSlot.jsx
+  const [movimientosPendientesSlot, setMovimientosPendientesSlot] = useState([]); // lista de pick (F1.5-C) de la pestaña abierta -- ver FlujoMigracionSlot.jsx
+  const [movimientosDestinoPorId, setMovimientosDestinoPorId] = useState([]); // TODOS los movimientos pendientes, livianos (id+destino) -- para resolver el destino real de cada artículo del buffer, ver bufferGlobalConEtiquetas
+  const [bufferGlobal, setBufferGlobal] = useState([]); // TODO el buffer, sin filtrar por slot -- ver PanelBufferGlobal.jsx
+  const [cambiosMigracion, setCambiosMigracion] = useState([]); // eventos de migración para la Terminal -- separado de `cambios` a propósito (ver MapaToolbar.jsx), nunca alimenta Deshacer/Excel
   const [vistaContenido, setVistaContenido] = useState('mz'); // 'mz' | 'rcl' -- F4, toggle de CONTENIDO (no solo etiqueta, ver DECISIONES.md)
   const [identidadLegacy, setIdentidadLegacy] = useState([]);
   const [inventarioRcl, setInventarioRcl] = useState([]);
@@ -167,12 +174,14 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       setBloqueadas(new Set(modelo.bloqueos()));
       // F2/F4 -- migración RCL->MZ: SOLO mapa real (ninguna de estas tablas tiene escenario_id).
       if (!escenarioId) {
-        const [slots, identidad, inventario] = await Promise.all([
+        const [slots, identidad, inventario, buffer, movimientosDestinos] = await Promise.all([
           migracionSlotsService.listar(),
           identidadLegacyService.listar(),
           inventarioRclService.listar(),
+          migracionBufferService.listarTodo(),
+          migracionMovimientosService.listarTodos(),
         ]);
-        if (activo) { setMigracionSlots(slots); setIdentidadLegacy(identidad); setInventarioRcl(inventario); }
+        if (activo) { setMigracionSlots(slots); setIdentidadLegacy(identidad); setInventarioRcl(inventario); setBufferGlobal(buffer); setMovimientosDestinoPorId(movimientosDestinos); }
       }
     })();
     return () => { activo = false; };
@@ -183,8 +192,79 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   /** Qué Map de racks se MUESTRA -- las mutaciones (mover/bloquear/buffer) siempre operan sobre `racks` (el real), nunca sobre esta vista derivada. */
   const racksVisibles = (!escenarioId && vistaContenido === 'rcl') ? vistaRclRacks : racks;
 
+  /** Código(s) RCL únicos asignados a una posición MZ (una fila por nivel en identidad_legacy, normalmente todas del mismo rack RCL) -- pedido explícito del usuario: mientras dure la migración quiere leer la ficha/pestaña en nomenclatura RCL, no MZ, en la vista RCL. Nunca inventa un código si la posición no tiene ninguno asignado todavía (pendiente_asignar/sin_rcl). */
+  const rclPorPosicion = useMemo(() => {
+    const mapa = new Map();
+    for (const id of identidadLegacy) {
+      if (id.estadoRcl !== 'asignado') continue;
+      const clave = `${id.mzPasillo}|${id.mzColumna}`;
+      const lista = mapa.get(clave) ?? [];
+      if (!lista.includes(id.rclCodigo)) lista.push(id.rclCodigo);
+      mapa.set(clave, lista);
+    }
+    return mapa;
+  }, [identidadLegacy]);
+
+  /** Etiqueta RCL de una posición para pestañas/ficha -- null si no aplica (vista MZ, o esta posición sigue sin RCL real asignado), para que cada llamador use su propio formato de fallback MZ. */
+  function etiquetaRclDe(clave) {
+    if (vistaContenido !== 'rcl') return null;
+    const codigos = rclPorPosicion.get(clave);
+    return codigos && codigos.length > 0 ? codigos.join(' / ') : null;
+  }
+
   const puedeMigrar = !escenarioId && puede(sesion?.rol, 'migrar_slot');
   const puedeConfirmarMigracion = !escenarioId && puede(sesion?.rol, 'confirmar_migracion');
+
+  /** slot.id -> {clave, pasillo, columna, estado} -- resuelve tanto la etiqueta legible ("MZ03-C005") como el estado actual del slot, para el panel de buffer global (que no conoce pasillo/columna, solo slot_origen_id) sin otro round-trip a Supabase. */
+  const slotPorId = useMemo(() => {
+    const mapa = new Map();
+    for (const [clave, slot] of migracionSlots) {
+      const [p, c] = clave.split('|');
+      mapa.set(slot.id, { clave, pasillo: p, columna: Number(c), estado: slot.estado });
+    }
+    return mapa;
+  }, [migracionSlots]);
+
+  /** movimiento_id -> {mzPasillo, mzColumna} -- resuelve el destino REAL de un artículo del buffer sin otro round-trip por artículo. */
+  const destinoPorMovimientoId = useMemo(() => new Map(movimientosDestinoPorId.map(m => [m.id, { mzPasillo: m.mzPasillo, mzColumna: m.mzColumna }])), [movimientosDestinoPorId]);
+
+  /**
+   * Buffer global + etiquetas legibles de origen/destino -- honesto sobre lo
+   * que no sabe todavía (ver el reclamo del usuario: "no me dice dónde
+   * poner lo que dejé"). Ahora que migracion_movimientos tiene datos reales
+   * (F1.5-C), `destinoMzPasillo/destinoMzColumna` resuelven el destino real,
+   * y `listoParaColocar` dice si ESE destino ya terminó su propio vaciado
+   * (ver alertasBuffer.js) -- la cadena de "lo que sale de un RCL, otro
+   * destino lo necesita" se vuelve visible acá, artículo por artículo.
+   * `puedeDevolver` habilita "devolver" SOLO mientras el slot de origen
+   * sigue en vaciando/recolectando -- una vez bloqueado ya está esperando
+   * al supervisor, no se vuelve atrás.
+   */
+  const bufferGlobalConEtiquetas = useMemo(() => bufferGlobal.map(b => {
+    const slot = slotPorId.get(b.slotOrigenId);
+    const etiqueta = slot ? `${slot.pasillo}-C${String(slot.columna).padStart(3, '0')}` : '?';
+    const destino = b.movimientoId ? destinoPorMovimientoId.get(b.movimientoId) : null;
+    const slotDestino = destino ? migracionSlots.get(`${destino.mzPasillo}|${destino.mzColumna}`) : null;
+    const listoParaColocar = destino && ESTADOS_LISTO_PARA_RECIBIR.includes(slotDestino?.estado);
+    return {
+      ...b,
+      origen: `${etiqueta}-${b.origenNivel}`,
+      destinoMzPasillo: destino?.mzPasillo ?? null,
+      destinoMzColumna: destino?.mzColumna ?? null,
+      listoParaColocar,
+      destino: destino
+        ? `${destino.mzPasillo}-C${String(destino.mzColumna).padStart(3, '0')}${listoParaColocar ? ' -- listo, ya podés colocarlo' : ' -- todavía vaciando ese destino'}`
+        : 'Sin destino resuelto -- puede ser que el plan de recolección no cubra este artículo (sin stock real en su origen, o falta generarlo/actualizarlo)',
+      puedeDevolver: puedeMigrar && puedeDevolverDelBuffer(slot?.estado),
+    };
+  }), [bufferGlobal, slotPorId, puedeMigrar, destinoPorMovimientoId, migracionSlots]);
+
+  /** Destinos que ya juntaron suficiente en el buffer y están listos para recibir -- ver alertasBuffer.js. Se recalcula solo (derivado, nunca persistido), sigue la cadena real sin importar en qué orden trabajen los operadores. */
+  const alertasDestinoListo = useMemo(() => detectarDestinosListos(bufferGlobalConEtiquetas, migracionSlots), [bufferGlobalConEtiquetas, migracionSlots]);
+
+  async function refrescarBufferGlobal() {
+    setBufferGlobal(await migracionBufferService.listarTodo());
+  }
 
   /** Contenido del buffer del slot de la pestaña abierta -- se recarga cada vez que cambia de pestaña o el estado del slot avanza (ver depositarEnBuffer/marcarVaciadoCompleto, que también lo refrescan directo tras cada acción). */
   useEffect(() => {
@@ -197,6 +277,53 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     })();
     return () => { activo = false; };
   }, [pestanaActiva, migracionSlots]);
+
+  /**
+   * Ruta activa de migración (pedido explícito del usuario: "alumbrar" el
+   * origen que se está vaciando y hacia dónde van esos artículos) -- SOLO
+   * mientras la pestaña abierta está vaciando/recolectando, nunca en reposo
+   * (mismo criterio del spec original: nada dibujado si no hay un traslado
+   * activo). Resuelve el destino real de cada artículo del buffer de ESTE
+   * slot con el mismo mapa que ya arma bufferGlobalConEtiquetas.
+   */
+  const rutaMigracionActiva = useMemo(() => {
+    if (!pestanaActiva) return null;
+    const slot = migracionSlots.get(pestanaActiva);
+    if (!slot || (slot.estado !== 'vaciando' && slot.estado !== 'recolectando')) return null;
+    const [pasillo, columna] = pestanaActiva.split('|');
+    const destinos = new Map();
+    for (const b of bufferDelSlotActivo) {
+      const destino = b.movimientoId ? destinoPorMovimientoId.get(b.movimientoId) : null;
+      if (!destino) continue;
+      const claveDestino = `${destino.mzPasillo}|${destino.mzColumna}`;
+      if (claveDestino === pestanaActiva) continue; // el propio origen no se resalta dos veces como destino
+      destinos.set(claveDestino, { pasillo: destino.mzPasillo, columna: destino.mzColumna });
+    }
+    if (destinos.size === 0) return null;
+    return { origen: { pasillo, columna: Number(columna) }, destinos: [...destinos.values()] };
+  }, [pestanaActiva, migracionSlots, bufferDelSlotActivo, destinoPorMovimientoId]);
+
+  /** Lista de pick (F1.5-C) del destino MZ de la pestaña abierta -- independiente del estado del slot (la ficha decide cuándo mostrarla, ver FlujoMigracionSlot.jsx). Vacía si escenarioId (sala) o si no hay pestaña abierta. */
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      if (escenarioId || !pestanaActiva) { setMovimientosPendientesSlot([]); return; }
+      const [p, c] = pestanaActiva.split('|');
+      const movimientos = await migracionMovimientosService.listarPorDestino(p, Number(c));
+      if (activo) setMovimientosPendientesSlot(movimientos);
+    })();
+    return () => { activo = false; };
+  }, [pestanaActiva, escenarioId]);
+
+  /** Marca UN artículo de la lista de pick como ya recolectado -- refresca la lista de esta pestaña para reflejarlo al toque. */
+  async function marcarRecolectadoMovimiento(id) {
+    try {
+      await migracionMovimientosService.marcarRecolectado(id, sesion?.usuarioId);
+      setMovimientosPendientesSlot(actuales => actuales.map(m => (m.id === id ? { ...m, estado: 'recolectado' } : m)));
+    } catch {
+      mostrarError('No se pudo marcar como recolectado. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
 
   function manejarRueda(e) {
     e.evt.preventDefault();
@@ -536,11 +663,18 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     }
   }
 
+  /** Entradas de migración para la Terminal (F2) -- lista APARTE de `cambios` (ver MapaToolbar.jsx), nunca alimenta Deshacer ni el Excel. */
+  function registrarCambioMigracion(articuloEtiqueta, desde, hacia, tipoMovimiento) {
+    setCambiosMigracion(actuales => [...actuales, { articuloEtiqueta, desde, hacia, tipoMovimiento, timestamp: Date.now() }]);
+  }
+
   /** Paso 1 del flujo guiado (F2) -- "Iniciar traslado": crea el slot directo en 'vaciando' (no existe un estado 'pendiente' persistido). */
   async function iniciarTraslado(pasillo, columna) {
+    const etiqueta = `${pasillo}-C${String(columna).padStart(3, '0')}`;
     try {
       const slotId = await migracionSlotsService.iniciar({ mzPasillo: pasillo, mzColumna: columna, usuarioId: sesion?.usuarioId });
       setMigracionSlots(actuales => new Map(actuales).set(`${pasillo}|${columna}`, { id: slotId, estado: 'vaciando' }));
+      registrarCambioMigracion(`Traslado ${etiqueta}`, 'Pendiente', 'Vaciando', 'iniciado');
     } catch {
       mostrarError('No se pudo iniciar el traslado. Revisá tu conexión e intentá de nuevo.');
     }
@@ -566,6 +700,8 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       const racksActualizados = quitarArticuloLocal(racks, pasillo, columna, nivel, articulo);
       setRacks(racksActualizados);
       setBufferDelSlotActivo(await migracionBufferService.listarPorSlot(slot.id));
+      refrescarBufferGlobal();
+      registrarCambioMigracion(articulo, formatoUbicacion(pasillo, columna, nivel), 'Buffer', 'buffer');
       const rackAhora = racksActualizados.get(clave);
       if (!rackAhora || nArts(rackAhora) === 0) {
         await marcarVaciadoCompleto(pasillo, columna, slot.id);
@@ -602,6 +738,11 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       });
       setMigracionSlots(actuales => { const copia = new Map(actuales); copia.delete(clave); return copia; });
       setBufferDelSlotActivo([]);
+      refrescarBufferGlobal();
+      registrarCambioMigracion(
+        `Traslado ${pasillo}-C${String(columna).padStart(3, '0')}`,
+        'Buffer', `Cancelado (${bufferDelSlot.length} liberado(s))`, 'cancelado'
+      );
       // Recarga completa (no optimista): los artículos liberados del buffer
       // vuelven a resolverse en su rack real -- más simple y más seguro que
       // reconstruir a mano el estado local que quitarArticuloLocal() fue sacando.
@@ -609,6 +750,44 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       setRacks(modelo.racks());
     } catch {
       mostrarError('No se pudo cancelar el traslado. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  /**
+   * "Devolver" un artículo puntual del buffer -- deshace UN depósito hecho
+   * por error, sin cancelar todo el traslado (ver cancelarTraslado, que
+   * libera TODO el buffer del slot). El artículo nunca tuvo su posición
+   * real tocada al depositarlo (ver migracionBuffer.service.js), así que
+   * borrar esta fila alcanza para que reaparezca donde estaba -- misma
+   * recarga completa que cancelarTraslado, más simple y más segura que
+   * reconstruir a mano el estado local.
+   *
+   * Si el slot ya había pasado a "recolectando" (el rack llegó a 0 y
+   * disparó el auto-avance), devolver un artículo lo vuelve a "vaciando" --
+   * el rack ya no está realmente vacío, mismo invariante que dispara el
+   * avance automático, acá en reversa.
+   */
+  async function devolverDelBuffer(slotId, itemId, articulo, origenNivel) {
+    const slot = slotPorId.get(slotId);
+    if (!slot || !puedeDevolverDelBuffer(slot.estado)) return;
+    try {
+      await migracionBufferService.eliminarUno(itemId);
+      if (slot.estado === 'recolectando') {
+        await migracionSlotsService.revertirAVaciando(slotId);
+        setMigracionSlots(actuales => new Map(actuales).set(slot.clave, { ...actuales.get(slot.clave), estado: 'vaciando', vaciadoEn: null }));
+      }
+      await migracionAuditoriaService.registrar({
+        mzPasillo: slot.pasillo, mzColumna: slot.columna, evento: 'articulo_devuelto',
+        detalle: `Se devolvió ${articulo} del buffer -- depósito deshecho por error.`,
+        usuarioId: sesion?.usuarioId,
+      });
+      refrescarBufferGlobal();
+      if (pestanaActiva === slot.clave) setBufferDelSlotActivo(await migracionBufferService.listarPorSlot(slotId));
+      registrarCambioMigracion(articulo, 'Buffer', formatoUbicacion(slot.pasillo, slot.columna, origenNivel), 'devuelto');
+      const modelo = await obtenerWarehouseModel(escenarioId).recargarTodo();
+      setRacks(modelo.racks());
+    } catch {
+      mostrarError('No se pudo devolver el artículo. Revisá tu conexión e intentá de nuevo.');
     }
   }
 
@@ -628,6 +807,8 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       await migracionSlotsService.marcarVaciadoCompleto(slotId);
       await migracionBufferService.confirmarLotePorSlot(slotId, auditoriaId);
       setMigracionSlots(actuales => new Map(actuales).set(`${pasillo}|${columna}`, { id: slotId, estado: 'recolectando' }));
+      refrescarBufferGlobal();
+      registrarCambioMigracion(`Traslado ${pasillo}-C${String(columna).padStart(3, '0')}`, 'Vaciando', 'Recolectando', 'vaciado_completo');
     } catch {
       mostrarError('El rack quedó vacío pero no se pudo confirmar el paso -- volvé a intentarlo desde la ficha.');
     }
@@ -641,6 +822,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     try {
       await migracionSlotsService.marcarBloqueado(slot.id, sesion?.usuarioId);
       setMigracionSlots(actuales => new Map(actuales).set(clave, { ...slot, estado: 'bloqueado' }));
+      registrarCambioMigracion(`Traslado ${pasillo}-C${String(columna).padStart(3, '0')}`, 'Recolectando', 'Bloqueado', 'bloqueado');
     } catch {
       mostrarError('No se pudo marcar como listo. Revisá tu conexión e intentá de nuevo.');
     }
@@ -654,6 +836,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     try {
       await migracionSlotsService.confirmar(slot.id, sesion?.usuarioId);
       setMigracionSlots(actuales => new Map(actuales).set(clave, { ...slot, estado: 'confirmado' }));
+      registrarCambioMigracion(`Traslado ${pasillo}-C${String(columna).padStart(3, '0')}`, 'Bloqueado', 'Confirmado', 'confirmado');
     } catch {
       mostrarError('No se pudo confirmar -- revisá tu rol o tu conexión.');
     }
@@ -830,6 +1013,9 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
               );
             })}
           </Layer>
+          <Layer listening={false}>
+            <RutaMigracion celdas={celdas} ruta={rutaMigracionActiva} />
+          </Layer>
         </Stage>
       )}
 
@@ -872,6 +1058,11 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           vistaContenido={vistaContenido}
           onCambiarVista={setVistaContenido}
           mostrarToggleVista={!escenarioId}
+          cambiosMigracion={cambiosMigracion}
+          bufferGlobal={bufferGlobalConEtiquetas}
+          mostrarBuffer={!escenarioId}
+          onDevolverBuffer={item => devolverDelBuffer(item.slotOrigenId, item.id, item.articulo, item.origenNivel)}
+          alertasDestinoListo={alertasDestinoListo}
         />
       )}
 
@@ -904,10 +1095,12 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
             cerrando={cerrando}
             minimizado={panelMinimizado}
             onToggleMinimizado={() => setPanelMinimizado(v => !v)}
+            etiquetaDe={etiquetaRclDe}
           />
           {pestanaActiva && (
             <PanelDetalle
               clave={pestanaActiva}
+              etiquetaRcl={etiquetaRclDe(pestanaActiva)}
               // Fallback a un rack vacío: la ficha puede quedar abierta al cambiar
               // de vista MZ<->RCL (F4), y esa posición puede no tener contenido en
               // la vista nueva -- nunca undefined, PanelDetalle asume rack.niveles.
@@ -931,7 +1124,10 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
               onDepositarBuffer={(articulo, nivel) => { const [p, c] = pestanaActiva.split('|'); depositarEnBuffer(p, Number(c), articulo, nivel); }}
               onMarcarListoMigracion={() => { const [p, c] = pestanaActiva.split('|'); marcarListoMigracion(p, Number(c)); }}
               onCancelarTraslado={() => { const [p, c] = pestanaActiva.split('|'); cancelarTraslado(p, Number(c)); }}
+              onDevolverBuffer={(itemId, articulo, origenNivel) => devolverDelBuffer(migracionSlots.get(pestanaActiva)?.id, itemId, articulo, origenNivel)}
               bufferDelSlot={bufferDelSlotActivo}
+              movimientosPendientesSlot={movimientosPendientesSlot}
+              onMarcarRecolectado={marcarRecolectadoMovimiento}
             />
           )}
         </div>
@@ -965,6 +1161,75 @@ function CorteVisual({ corte }) {
         align="center" verticalAlign="middle" rotation={-90}
         text="PASILLO" fontSize={7} fontStyle="700" fill={BLANCO_CALIDO_TENUE} letterSpacing={0.5}
       />
+    </>
+  );
+}
+
+/**
+ * "Alumbra" los dos slots de un traslado activo -- el que se está vaciando
+ * (origen, resaltado en azul) y hacia dónde van sus artículos según el plan
+ * de recolección (destino, resaltado en ámbar, con una línea punteada
+ * conectándolos). Pedido explícito del usuario. SOLO se dibuja mientras hay
+ * una ruta activa (`ruta` viene de rutaMigracionActiva en MapaCanvas.jsx,
+ * que ya filtra "sin traslado en curso" -- acá no se decide nada, solo se
+ * pinta lo que llega). En reposo no dibuja nada (mismo criterio del spec
+ * original de migración: nada en pantalla si no hay un traslado en curso).
+ */
+// X del corredor compartido que corre por delante de TODAS las filas
+// horizontales (la franja de las etiquetas de pasillo, ver
+// posicionesEsquematicas.js) -- un par de px adentro del borde para no
+// pisar la etiqueta ni la primera columna. Rutas entre pasillos distintos
+// se trazan POR ACÁ (bajar/subir por el corredor y recién ahí entrar a la
+// fila), nunca en diagonal sobre racks de pasillos que no son parte del
+// traslado -- pedido explícito del usuario ("no quiero que se brinque
+// layouts").
+const CORREDOR_X = xInicioFilas() - 6;
+
+/** Puntos [x1,y1,x2,y2,...] de la ruta entre dos celdas, siguiendo el corredor cuando cruza de un pasillo horizontal a otro. Mismo pasillo, o cualquiera de los dos en un pasillo vertical (MZ11/MZ12, que no tocan este corredor) -- línea directa, caso no cubierto por esta simplificación. */
+function puntosRuta(centroOrigen, centroDestino, pasilloOrigen, pasilloDestino) {
+  const mismosPasillo = pasilloOrigen === pasilloDestino;
+  const algunoVertical = PASILLOS_VERTICALES.includes(pasilloOrigen) || PASILLOS_VERTICALES.includes(pasilloDestino);
+  if (mismosPasillo || algunoVertical) {
+    return [centroOrigen.x, centroOrigen.y, centroDestino.x, centroDestino.y];
+  }
+  return [
+    centroOrigen.x, centroOrigen.y,
+    CORREDOR_X, centroOrigen.y,
+    CORREDOR_X, centroDestino.y,
+    centroDestino.x, centroDestino.y,
+  ];
+}
+
+function RutaMigracion({ celdas, ruta }) {
+  if (!ruta) return null;
+  const celdaOrigen = celdas.find(c => c.pasillo === ruta.origen.pasillo && c.columna === ruta.origen.columna);
+  if (!celdaOrigen) return null;
+  const centroOrigen = { x: celdaOrigen.x + celdaOrigen.ancho / 2, y: celdaOrigen.y + celdaOrigen.alto / 2 };
+
+  return (
+    <>
+      <Rect
+        x={celdaOrigen.x - 3} y={celdaOrigen.y - 3} width={celdaOrigen.ancho + 6} height={celdaOrigen.alto + 6}
+        stroke={ESTADOS.medio} strokeWidth={2.5} cornerRadius={8} dash={[6, 4]}
+      />
+      {ruta.destinos.map(d => {
+        const celdaDestino = celdas.find(c => c.pasillo === d.pasillo && c.columna === d.columna);
+        if (!celdaDestino) return null;
+        const centroDestino = { x: celdaDestino.x + celdaDestino.ancho / 2, y: celdaDestino.y + celdaDestino.alto / 2 };
+        return (
+          <Fragment key={`${d.pasillo}-${d.columna}`}>
+            <Line
+              points={puntosRuta(centroOrigen, centroDestino, ruta.origen.pasillo, d.pasillo)}
+              stroke={ESTADOS.alerta} strokeWidth={2} dash={[8, 6]} opacity={0.85}
+              lineJoin="round" lineCap="round"
+            />
+            <Rect
+              x={celdaDestino.x - 3} y={celdaDestino.y - 3} width={celdaDestino.ancho + 6} height={celdaDestino.alto + 6}
+              stroke={ESTADOS.alerta} strokeWidth={2.5} cornerRadius={8}
+            />
+          </Fragment>
+        );
+      })}
     </>
   );
 }

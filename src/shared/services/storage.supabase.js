@@ -29,6 +29,19 @@ class SupabaseAdapter {
     return todas;
   }
 
+  /**
+   * Página de filas, más recientes primero por `id` -- a diferencia de
+   * getAll(), nunca descarga más que la página pedida. Hoy solo la usa
+   * `intentos_login` desde AuditoriaView.jsx (no necesita filtros, solo
+   * orden+recorte); `auditoria` tiene su propio paginado con filtros en
+   * audit.service.js.listarPaginado() porque necesita más que un simple range.
+   */
+  async getPagina(coleccion, { desde = 0, hasta = 49 } = {}) {
+    const { data, error, count } = await supabase.from(coleccion).select('*', { count: 'exact' }).order('id', { ascending: false }).range(desde, hasta);
+    if (error) throw error;
+    return { filas: data, total: count ?? 0 };
+  }
+
   async insert(coleccion, registro) {
     const { data, error } = await supabase.from(coleccion).insert(registro).select().single();
     if (error) throw error;
@@ -45,6 +58,13 @@ class SupabaseAdapter {
   async find(coleccion, predicado) {
     const todos = await this.getAll(coleccion);
     return todos.filter(predicado);
+  }
+
+  /** Cuenta filas que matchean una igualdad simple, SIN descargar sus datos (head:true) -- para KPIs tipo "cuántos" sin traer todo a memoria (ej. intentos de login fallidos en AuditoriaView.jsx). */
+  async contarPorIgualdad(coleccion, columna, valor) {
+    const { count, error } = await supabase.from(coleccion).select('*', { count: 'exact', head: true }).eq(columna, valor);
+    if (error) throw error;
+    return count ?? 0;
   }
 }
 

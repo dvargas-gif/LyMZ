@@ -14,17 +14,24 @@ import { numeroANivelWms } from './nivelWms.js';
  * cruzar el inventario.
  */
 export function construirVistaRcl(identidadLegacy, inventarioRcl) {
-  const inventarioPorSubPosicion = new Map(
-    inventarioRcl.map(i => [`${i.rclCodigo}|${i.rclNivel}|${i.rclSubnivel}`, i])
-  );
+  // Una sub-posición puede tener VARIOS artículos a la vez (un nivel
+  // compartido entre SKU es normal, ver inventarioRcl.service.js) -- por
+  // eso agrupa en un array, nunca pisa una fila con otra de la misma clave.
+  const inventarioPorSubPosicion = new Map();
+  for (const i of inventarioRcl) {
+    const clave = `${i.rclCodigo}|${i.rclNivel}|${i.rclSubnivel}`;
+    if (!inventarioPorSubPosicion.has(clave)) inventarioPorSubPosicion.set(clave, []);
+    inventarioPorSubPosicion.get(clave).push(i);
+  }
 
   const racks = new Map();
 
   for (const id of identidadLegacy) {
     if (id.estadoRcl !== 'asignado') continue;
 
-    const inv = inventarioPorSubPosicion.get(`${id.rclCodigo}|${id.rclNivel}|${id.rclSubnivel}`);
-    if (!inv || inv.cantidad <= 0) continue; // sub-posición sin stock real -- no ocupa nada en esta vista
+    const filas = inventarioPorSubPosicion.get(`${id.rclCodigo}|${id.rclNivel}|${id.rclSubnivel}`) ?? [];
+    const conStock = filas.filter(inv => inv.cantidad > 0);
+    if (conStock.length === 0) continue; // sub-posición sin stock real -- no ocupa nada en esta vista
 
     const rackKey = `${id.mzPasillo}|${id.mzColumna}`;
     if (!racks.has(rackKey)) racks.set(rackKey, { pasillo: id.mzPasillo, columna: id.mzColumna, niveles: {} });
@@ -32,12 +39,14 @@ export function construirVistaRcl(identidadLegacy, inventarioRcl) {
 
     const nivelWms = numeroANivelWms(id.mzNivel) ?? `N0${id.mzNivel}`;
     if (!rack.niveles[nivelWms]) rack.niveles[nivelWms] = [];
-    rack.niveles[nivelWms].push({
-      articulo: inv.articulo,
-      consumo: 0, picks: null, nivelesAArmar: null, // sin equivalente real en esta vista -- 0/null explícitos, no inventados
-      rackActual: id.rclCodigo,
-      clase: '-', tipo: 'NORMAL',
-    });
+    for (const inv of conStock) {
+      rack.niveles[nivelWms].push({
+        articulo: inv.articulo,
+        consumo: 0, picks: null, nivelesAArmar: null, // sin equivalente real en esta vista -- 0/null explícitos, no inventados
+        rackActual: id.rclCodigo,
+        clase: '-', tipo: 'NORMAL',
+      });
+    }
   }
 
   return racks;

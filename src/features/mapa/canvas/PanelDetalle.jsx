@@ -33,8 +33,8 @@ export default function PanelDetalle({
   // F2 -- migración RCL->MZ, ver DECISIONES.md ADR-015. Todo esto es
   // undefined/no-op fuera del mapa real (enSala=true nunca lo usa).
   migracionEstado, puedeMigrar = false, puedeConfirmarMigracion = false,
-  onIniciarTraslado, onConfirmarFinalizado, onDepositarBuffer, onMarcarListoMigracion, onCancelarTraslado,
-  movimientosPendientesSlot = [], bufferDelSlot = [],
+  onIniciarTraslado, onConfirmarFinalizado, onDepositarBuffer, onMarcarListoMigracion, onCancelarTraslado, onDevolverBuffer,
+  movimientosPendientesSlot = [], bufferDelSlot = [], etiquetaRcl = null, onMarcarRecolectado,
 }) {
   const [pasillo, columna] = clave.split('|');
   const niveles = ORDEN_NIVELES.filter(n => rack.niveles[n]?.length);
@@ -54,9 +54,17 @@ export default function PanelDetalle({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
             <i className="ti ti-box" style={{ fontSize: 18, color: VERDE_ESTRUCTURA }} />
-            <div style={{ fontSize: 17, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{pasillo} · C{String(columna).padStart(3, '0')}</div>
+            <div style={{ fontSize: 17, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+              {etiquetaRcl ?? `${pasillo} · C${String(columna).padStart(3, '0')}`}
+            </div>
             {bloqueada && <i className="ti ti-lock" title="Posición bloqueada" style={{ fontSize: 14, color: '#C99A4A' }} />}
           </div>
+          {/* Mientras se lee en nomenclatura RCL, la posición MZ real (para ubicarla en el mapa) queda como referencia chica -- nunca se pierde del todo. */}
+          {etiquetaRcl && (
+            <div style={{ fontSize: 10.5, color: GRIS_TEXTO_TENUE, marginLeft: 26, marginTop: -2 }}>
+              {pasillo} · C{String(columna).padStart(3, '0')}
+            </div>
+          )}
           <div style={{ fontSize: 11.5, color: GRIS_TEXTO_TENUE, marginLeft: 26, fontVariantNumeric: 'tabular-nums' }}>{nArts(rack)} artículo(s) en {nivelesOcupados} nivel(es)</div>
         </div>
         {!soloLectura && (
@@ -91,7 +99,9 @@ export default function PanelDetalle({
           puedeMigrar={puedeMigrar}
           onMarcarListo={onMarcarListoMigracion}
           onCancelarTraslado={onCancelarTraslado}
+          onDevolver={onDevolverBuffer}
           movimientosPendientes={movimientosPendientesSlot}
+          onMarcarRecolectado={onMarcarRecolectado}
           bufferDelSlot={bufferDelSlot}
           ocupado={moviendoAlgo}
         />

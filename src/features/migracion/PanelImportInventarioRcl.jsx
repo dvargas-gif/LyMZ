@@ -66,7 +66,9 @@ export default function PanelImportInventarioRcl({ sesion, onCerrar }) {
       <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
         Subí el archivo de inventario actual por posición RCL — columnas de RCL/posición, artículo y cantidad
         (los nombres de columna son flexibles, no hace falta que coincidan exacto). Podés volver a subirlo cuando
-        se actualice: cada sub-posición se actualiza con la cantidad más reciente, nunca se acumula.
+        se actualice: cada sub-posición se actualiza con la cantidad más reciente, nunca se acumula. Si un mismo
+        artículo aparece varias veces en la misma sub-posición (varios pallets), se suman automáticamente en una
+        sola fila -- no se rechaza.
       </p>
 
       {!previa && !resultado && (
@@ -96,6 +98,11 @@ export default function PanelImportInventarioRcl({ sesion, onCerrar }) {
           <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5 }}>
             <span>✅ Válidas: <b>{previa.validas.length}</b></span>
             <span>⚠ Rechazadas: <b style={{ color: previa.rechazadas.length ? 'var(--red)' : 'inherit' }}>{previa.rechazadas.length}</b></span>
+            {previa.validas.some(f => f.pallets > 1) && (
+              <span style={{ color: 'var(--texto-tenue)' }}>
+                📦 {previa.validas.filter(f => f.pallets > 1).length} sub-posición(es) combinan varios pallets del mismo artículo (cantidad sumada)
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <button className="btn-primary" disabled={aplicando || previa.validas.length === 0} onClick={aplicar}>

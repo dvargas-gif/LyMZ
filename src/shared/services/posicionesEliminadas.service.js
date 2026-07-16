@@ -41,4 +41,11 @@ export const posicionesEliminadasService = {
       if (errorUpsert) throw errorUpsert;
     }
   },
+
+  /** Cuenta cuántos artículos eliminados tienen un motivo que empieza con `prefijo` (ej. "Exiliado") -- head:true, no descarga filas, solo el total. Para el KPI de "cuántos exiliados hasta ahora" del panel de limpieza. */
+  async contarPorMotivoPrefijo(prefijo) {
+    const { count, error } = await supabase.from('posiciones_eliminadas').select('*', { count: 'exact', head: true }).ilike('motivo', `${prefijo}%`);
+    if (error) throw error;
+    return count ?? 0;
+  },
 };

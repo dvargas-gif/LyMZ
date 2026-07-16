@@ -2,13 +2,22 @@ import { useEffect, useMemo, useState } from 'react';
 import { reporteService } from './reporte.service.js';
 import BadgeClase from '../../shared/components/BadgeClase.jsx';
 import ModalBase from '../../shared/components/ModalBase.jsx';
+import ControlesPaginacion from '../../shared/components/ControlesPaginacion.jsx';
 import { formatearPosicion } from '../../shared/utils/formatearPosicion.js';
+
+// Paginado en el CLIENTE (a diferencia de Historial/Auditoría) -- la fuente
+// acá es reporteService.obtener(), un merge de dominio (base + overrides +
+// descripciones vía resolverPosicionesActuales), no una query directa que
+// se pueda `.range()` en el servidor. Igual evita renderizar de una todas
+// las filas del catálogo (crece con la cantidad de artículos, no de eventos).
+const POR_PAGINA = 100;
 
 export default function ReportePanel({ onCerrar, escenario = null }) {
   const [filas, setFilas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [actualizadoEn, setActualizadoEn] = useState(null);
+  const [pagina, setPagina] = useState(1);
 
   async function cargar() {
     const datos = await reporteService.obtener(escenario?.id ?? null);
@@ -32,6 +41,23 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
       f.pasillo.toLowerCase().includes(q)
     );
   }, [filas, busqueda]);
+
+  // Una búsqueda nueva siempre vuelve a la página 1 -- si no, "página 3" de
+  // la lista completa podría quedar vacía con el resultado filtrado nuevo.
+  useEffect(() => { setPagina(1); }, [busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
+
+  // Si una actualización en tiempo real (o la búsqueda) achica el resultado
+  // mientras el usuario está en una página más alta que la nueva última,
+  // lo trae de vuelta -- si no, queda viendo una página vacía con el
+  // paginador mostrando "Página X de Y" con X > Y.
+  useEffect(() => { setPagina(p => Math.min(p, totalPaginas)); }, [totalPaginas]);
+
+  const paginaFilas = useMemo(
+    () => filtradas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA),
+    [filtradas, pagina]
+  );
 
   return (
     <ModalBase
@@ -77,7 +103,7 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
               {filtradas.length === 0 && (
                 <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 20 }}>Sin resultados.</td></tr>
               )}
-              {filtradas.map(f => (
+              {paginaFilas.map(f => (
                 <tr key={f.articulo} style={{ borderTop: '1px solid var(--borde-sutil)' }}>
                   <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.articulo}</td>
                   <td style={tdStyle}>{f.descripcion}</td>
@@ -94,6 +120,7 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
               ))}
             </tbody>
           </table>
+          <ControlesPaginacion pagina={pagina} totalPaginas={totalPaginas} total={filtradas.length} onCambiarPagina={setPagina} />
         </div>
       )}
     </ModalBase>

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { BLANCO_CALIDO_TENUE, ESTADOS } from './paleta.js';
 import { interaccionBoton } from '../../../ui/motion/variants.js';
 import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
 import TerminalCambios from './TerminalCambios.jsx';
+import PanelBufferGlobal from './PanelBufferGlobal.jsx';
 
 /**
  * Barra de herramientas del canvas -- reemplaza al toolbar HTML del mapa
@@ -26,10 +27,21 @@ export default function MapaToolbar({
   mostrarAnadirRack, onAnadirRack,
   soloLectura,
   vistaContenido, onCambiarVista, mostrarToggleVista = false,
+  cambiosMigracion = [], bufferGlobal = [], mostrarBuffer = false, onDevolverBuffer, alertasDestinoListo = [],
 }) {
   const [buscarEnfocado, setBuscarEnfocado] = useState(false);
   const [terminalAbierta, setTerminalAbierta] = useState(false);
-  const cantidadCambios = cambios.length;
+  const [bufferAbierto, setBufferAbierto] = useState(false);
+  const cantidadCambios = cambios.length; // SOLO lo deshacible -- el badge de Deshacer no debe contar eventos de migración
+
+  // La Terminal muestra movimientos normales Y de migración juntos, en orden
+  // cronológico -- pero `cambios` (lo que alimenta Deshacer/Excel) queda
+  // intacto, sin mezclarse, para no arriesgar deshacer algo que no es un
+  // movimiento de posición real.
+  const cambiosParaTerminal = useMemo(
+    () => [...cambios, ...cambiosMigracion].sort((a, b) => a.timestamp - b.timestamp),
+    [cambios, cambiosMigracion]
+  );
 
   return (
     <div style={contenedorStyle}>
@@ -76,6 +88,20 @@ export default function MapaToolbar({
           </>
         )}
 
+        {/* Buffer de migración (F2/F3) -- vista GLOBAL, independiente de qué ficha esté abierta (el usuario no encontraba lo que había dejado apenas cambiaba de rack). */}
+        {mostrarBuffer && (
+          <>
+            <div className="mapa-toolbar__separador" />
+            <BotonToolbar
+              icono="ti-package"
+              titulo={bufferAbierto ? 'Ocultar buffer de migración' : 'Ver buffer de migración'}
+              onClick={() => setBufferAbierto(v => !v)}
+              activo={bufferAbierto}
+              badge={bufferGlobal.length > 0 ? bufferGlobal.length : null}
+            />
+          </>
+        )}
+
         <div className="mapa-toolbar__separador" />
         <BotonToolbar icono="ti-file-export" titulo="Exportar Excel con cambios" onClick={onExportar} />
 
@@ -100,7 +126,11 @@ export default function MapaToolbar({
       )}
 
       {terminalAbierta && !soloLectura && (
-        <TerminalCambios cambios={cambios} onCerrar={() => setTerminalAbierta(false)} />
+        <TerminalCambios cambios={cambiosParaTerminal} onCerrar={() => setTerminalAbierta(false)} />
+      )}
+
+      {bufferAbierto && mostrarBuffer && (
+        <PanelBufferGlobal items={bufferGlobal} onCerrar={() => setBufferAbierto(false)} onDevolver={onDevolverBuffer} alertas={alertasDestinoListo} />
       )}
     </div>
   );

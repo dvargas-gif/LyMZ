@@ -41,6 +41,16 @@ describe('construirVistaRcl', () => {
     expect(rack.niveles.N02[0].articulo).toBe('SKU002');
   });
 
+  it('una sub-posición con VARIOS artículos -- todos aparecen, ninguno se pisa (un nivel compartido entre SKU es normal)', () => {
+    const racks = construirVistaRcl([IDENTIDAD_BASE], [
+      { rclCodigo: 'RCL112-C001', rclNivel: 1, rclSubnivel: 1, articulo: 'SKU001', cantidad: 5 },
+      { rclCodigo: 'RCL112-C001', rclNivel: 1, rclSubnivel: 1, articulo: 'SKU002', cantidad: 8 },
+    ]);
+    const rack = racks.get('MZ01|1');
+    expect(rack.niveles.N01).toHaveLength(2);
+    expect(rack.niveles.N01.map(a => a.articulo)).toEqual(['SKU001', 'SKU002']);
+  });
+
   it('agrupa varias identidades en el mismo rack MZ (varios niveles ocupados)', () => {
     const racks = construirVistaRcl(
       [IDENTIDAD_BASE, { ...IDENTIDAD_BASE, mzColumna: 2, rclCodigo: 'RCL200-C002' }],

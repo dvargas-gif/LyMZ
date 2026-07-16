@@ -1,4 +1,5 @@
-import { pasoDelFlujo, puedeMarcarListo, puedeCancelar } from '../../migracion/flujoMigracionSlot.js';
+import { pasoDelFlujo, puedeMarcarListo, puedeCancelar, puedeDevolverDelBuffer, todoRecolectado } from '../../migracion/flujoMigracionSlot.js';
+import { useIdsEnCurso } from '../../../shared/hooks/useIdsEnCurso.js';
 import { GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO, BLANCO_HUESO_TARJETA, ESTADOS } from './paleta.js';
 
 const ETIQUETA_PASO = {
@@ -19,9 +20,19 @@ const ETIQUETA_PASO = {
  * El paso 1->2 (vaciando->recolectando) es AUTOMÁTICO -- lo dispara
  * MapaCanvas.jsx en cuanto el rack llega a 0 artículos, no un botón acá.
  */
-export default function FlujoMigracionSlot({ estado, movimientosPendientes = [], bufferDelSlot = [], puedeMigrar, onMarcarListo, onCancelarTraslado, ocupado }) {
+export default function FlujoMigracionSlot({ estado, movimientosPendientes = [], bufferDelSlot = [], puedeMigrar, onMarcarListo, onCancelarTraslado, onDevolver, onMarcarRecolectado, ocupado }) {
+  // IDs de buffer con un "Devolver" en curso -- ver useIdsEnCurso.js.
+  // Declarado ANTES del return temprano de abajo -- los hooks de React no
+  // pueden ser condicionales.
+  const { idsEnCurso: devolviendo, ejecutar } = useIdsEnCurso();
+
   const paso = pasoDelFlujo(estado);
   if (!paso) return null;
+  const puedeDevolver = puedeMigrar && puedeDevolverDelBuffer(estado);
+
+  function manejarDevolver(id, articulo, origenNivel) {
+    return ejecutar(id, () => onDevolver(id, articulo, origenNivel));
+  }
 
   return (
     <div style={{ margin: '0 16px 16px', padding: '12px 14px', borderRadius: 10, border: `1px solid ${BORDE_CLARO}`, background: BLANCO_HUESO_TARJETA }}>
@@ -41,9 +52,21 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
           </p>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
             {bufferDelSlot.map(b => (
-              <li key={b.id} style={{ fontSize: 11.5, fontFamily: 'monospace', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <li key={b.id} style={{ fontSize: 11.5, fontFamily: 'monospace', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <span>{b.articulo}</span>
-                <span style={{ color: GRIS_TEXTO_TENUE }}>{b.origenNivel}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: GRIS_TEXTO_TENUE }}>{b.origenNivel}</span>
+                  {puedeDevolver && (
+                    <button
+                      onClick={() => manejarDevolver(b.id, b.articulo, b.origenNivel)}
+                      disabled={devolviendo.has(b.id)}
+                      title={`Devolver ${b.articulo} a ${b.origenNivel} -- deshace este depósito`}
+                      style={{ border: 'none', background: 'transparent', color: ESTADOS.sobrecargado, cursor: devolviendo.has(b.id) ? 'default' : 'pointer', opacity: devolviendo.has(b.id) ? 0.5 : 1, fontSize: 11, padding: 0, display: 'flex', alignItems: 'center' }}
+                    >
+                      <i className="ti ti-arrow-back-up" />
+                    </button>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
@@ -52,21 +75,55 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
 
       {paso === 2 && (
         <div style={{ marginTop: 10 }}>
-          <p style={{ fontSize: 11, color: GRIS_TEXTO_TENUE, margin: '0 0 8px' }}>
-            {movimientosPendientes.length === 0
-              ? 'Sin movimientos definidos todavía para este destino (el cruce manual aún no se importó).'
-              : `${movimientosPendientes.length} artículo(s) por recolectar.`}
-          </p>
-          {puedeMigrar && puedeMarcarListo(estado) && (
-            <button
-              className="btn-primary"
-              disabled={ocupado}
-              onClick={onMarcarListo}
-              style={{ fontSize: 12 }}
-            >
-              Marcar listo -- bloquea el slot para el supervisor
-            </button>
+          {movimientosPendientes.length === 0 ? (
+            <p style={{ fontSize: 11, color: GRIS_TEXTO_TENUE, margin: '0 0 8px' }}>
+              Sin plan de recolección todavía para este destino (falta generarlo -- ver "Generar plan de recolección" en el menú).
+            </p>
+          ) : (
+            <>
+              <p style={{ fontSize: 11, color: GRIS_TEXTO_TENUE, margin: '0 0 8px' }}>
+                {movimientosPendientes.filter(m => m.estado === 'recolectado').length} de {movimientosPendientes.length} recolectado(s) -- traé cada artículo desde su origen RCL y marcalo acá.
+              </p>
+              <ul style={{ margin: '0 0 10px', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {movimientosPendientes.map(m => {
+                  const listo = m.estado === 'recolectado';
+                  return (
+                    <li key={m.id} style={{ fontSize: 11.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, opacity: listo ? 0.5 : 1 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        {puedeMigrar && (
+                          <input
+                            type="checkbox"
+                            checked={listo}
+                            disabled={listo || ocupado}
+                            onChange={() => onMarcarRecolectado(m.id)}
+                            style={{ cursor: listo ? 'default' : 'pointer' }}
+                          />
+                        )}
+                        <span style={{ fontFamily: 'monospace', textDecoration: listo ? 'line-through' : 'none' }}>{m.articulo}</span>
+                      </span>
+                      <span style={{ fontFamily: 'monospace', color: GRIS_TEXTO_TENUE, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {m.rclCodigo}-N{String(m.rclNivel).padStart(2, '0')} · x{m.cantidad}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
+          {puedeMigrar && puedeMarcarListo(estado) && (() => {
+            const falta = !todoRecolectado(movimientosPendientes);
+            return (
+              <button
+                className="btn-primary"
+                disabled={ocupado || falta}
+                onClick={onMarcarListo}
+                title={falta ? 'Todavía faltan artículos por recolectar de esta lista' : undefined}
+                style={{ fontSize: 12 }}
+              >
+                {falta ? 'Faltan artículos por recolectar' : 'Marcar listo -- bloquea el slot para el supervisor'}
+              </button>
+            );
+          })()}
         </div>
       )}
 

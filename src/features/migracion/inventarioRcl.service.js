@@ -58,21 +58,37 @@ function claveRcl(rclCodigo, rclNivel, rclSubnivel) {
   return `${rclCodigo}-N${String(rclNivel).padStart(2, '0')}-${rclSubnivel}`;
 }
 
-/** Solo detecta duplicados DENTRO del archivo -- a diferencia de identidad_legacy, acá SÍ se espera re-importar la misma sub-posición entre archivos distintos (es un snapshot que se actualiza), así que no hay chequeo contra "existentes". */
+/** Identidad real de una fila = sub-posición + artículo -- UNA sub-posición puede tener VARIOS artículos distintos a la vez (un nivel compartido entre SKUs es normal). */
+function claveFila(f) {
+  return `${claveRcl(f.rclCodigo, f.rclNivel, f.rclSubnivel)}|${f.articulo}`;
+}
+
+/**
+ * Agrupa por sub-posición + artículo y SUMA las cantidades -- confirmado
+ * con el usuario: trabajan con pallets, así que el MISMO artículo puede
+ * aparecer varias veces en la misma sub-posición (uno por pallet físico).
+ * Nunca es un error de captura, es la operación real -- se pliega en una
+ * sola fila con la cantidad total (`pallets` cuenta cuántas filas crudas
+ * se combinaron, para que el resumen del import pueda mostrarlo).
+ *
+ * Solo se descartan las filas que ya venían inválidas de
+ * parsearFilaInventario (formato/celda vacía) -- ya no existe la noción de
+ * "duplicado" para este archivo.
+ */
 export function validarInventarioRcl(filasParsed) {
-  const conteo = new Map();
+  const rechazadas = filasParsed.filter(f => !f.valido);
+  const porClave = new Map();
   for (const f of filasParsed) {
     if (!f.valido) continue;
-    const clave = claveRcl(f.rclCodigo, f.rclNivel, f.rclSubnivel);
-    conteo.set(clave, (conteo.get(clave) || 0) + 1);
-  }
-  const filas = filasParsed.map(f => {
-    if (!f.valido) return f;
-    const clave = claveRcl(f.rclCodigo, f.rclNivel, f.rclSubnivel);
-    if (conteo.get(clave) > 1) {
-      return { ...f, valido: false, motivo: `Sub-posición duplicada dentro del archivo (${clave} aparece ${conteo.get(clave)} veces)` };
+    const clave = claveFila(f);
+    const existente = porClave.get(clave);
+    if (existente) {
+      existente.cantidad += f.cantidad;
+      existente.pallets += 1;
+    } else {
+      porClave.set(clave, { ...f, pallets: 1 });
     }
-    return f;
-  });
-  return { filas, validas: filas.filter(f => f.valido), rechazadas: filas.filter(f => !f.valido) };
+  }
+  const validas = [...porClave.values()];
+  return { filas: [...validas, ...rechazadas], validas, rechazadas };
 }

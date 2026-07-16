@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { puedeIniciarTraslado, puedeDepositarEnBuffer, puedeMarcarListo, puedeConfirmar, puedeCancelar, pasoDelFlujo } from './flujoMigracionSlot.js';
+import { puedeIniciarTraslado, puedeDepositarEnBuffer, puedeMarcarListo, todoRecolectado, puedeConfirmar, puedeCancelar, puedeDevolverDelBuffer, pasoDelFlujo } from './flujoMigracionSlot.js';
 
 describe('puedeIniciarTraslado', () => {
   it('sin fila (undefined/null) o "pendiente" -> true', () => {
@@ -26,6 +26,19 @@ describe('puedeMarcarListo', () => {
   });
 });
 
+describe('todoRecolectado', () => {
+  it('sin movimientos (sin plan generado todavía) -> true, no bloquea', () => {
+    expect(todoRecolectado([])).toBe(true);
+    expect(todoRecolectado(undefined)).toBe(true);
+  });
+  it('todos en estado "recolectado" -> true', () => {
+    expect(todoRecolectado([{ estado: 'recolectado' }, { estado: 'recolectado' }])).toBe(true);
+  });
+  it('al menos uno todavía "pendiente" -> false', () => {
+    expect(todoRecolectado([{ estado: 'recolectado' }, { estado: 'pendiente' }])).toBe(false);
+  });
+});
+
 describe('puedeConfirmar', () => {
   it('solo en "bloqueado"', () => {
     expect(puedeConfirmar('bloqueado')).toBe(true);
@@ -38,6 +51,14 @@ describe('puedeCancelar', () => {
     expect(puedeCancelar('vaciando')).toBe(true);
     expect(puedeCancelar('recolectando')).toBe(true);
     ['pendiente', undefined, 'bloqueado', 'confirmado'].forEach(e => expect(puedeCancelar(e)).toBe(false));
+  });
+});
+
+describe('puedeDevolverDelBuffer', () => {
+  it('mismo margen que puedeCancelar -- solo mientras dura vaciando/recolectando', () => {
+    expect(puedeDevolverDelBuffer('vaciando')).toBe(true);
+    expect(puedeDevolverDelBuffer('recolectando')).toBe(true);
+    ['pendiente', undefined, 'bloqueado', 'confirmado'].forEach(e => expect(puedeDevolverDelBuffer(e)).toBe(false));
   });
 });
 

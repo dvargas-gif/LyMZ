@@ -2,35 +2,66 @@ import { useEffect, useState } from 'react';
 import { auditService } from '../auditoria/audit.service.js';
 import { exportarExcel } from '../../shared/utils/exportExcel.js';
 import { puede } from '../auth/roles.js';
+import ControlesPaginacion from '../../shared/components/ControlesPaginacion.jsx';
 
 const ESTADOS_OPC = ['', 'Correcto', 'Cancelado', 'Deshecho'];
 const TIPOS_OPC = ['', 'individual', 'cuerpo_completo'];
+const POR_PAGINA = 50;
 
 export default function Historial({ sesion }) {
   const [registros, setRegistros] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
   const [filtros, setFiltros] = useState({ usuarioNombre: '', fecha: '', rack: '', articulo: '', tipoMovimiento: '', estado: '' });
+  const [exportando, setExportando] = useState(false);
+  const [disparador, setDisparador] = useState(0); // ver aplicarFiltros -- fuerza una recarga aunque `pagina` no cambie
 
+  // Paginado en el SERVIDOR (ver audit.service.js.listarPaginado) -- nunca
+  // descarga más que la página actual, a diferencia de antes que traía
+  // TODA la auditoría (una tabla que solo crece, sin techo natural).
   async function cargar() {
-    const data = await auditService.listar(filtros);
-    setRegistros(data);
+    const { filas, total: totalFilas } = await auditService.listarPaginado(filtros, { pagina, porPagina: POR_PAGINA });
+    setRegistros(filas);
+    setTotal(totalFilas);
   }
 
-  useEffect(() => { cargar(); }, []); // eslint-disable-line
+  // Un solo lugar dispara cargar() -- nunca se llama directo desde
+  // aplicarFiltros(). Antes, aplicarFiltros() llamaba a cargar() de una Y
+  // además cambiaba `pagina` (que dispara este mismo efecto): dos fetch en
+  // carrera, uno con la página vieja contra el filtro nuevo y otro con la
+  // página 1 -- si el primero resolvía después, la tabla quedaba mostrando
+  // datos de la página vieja mientras el paginador ya decía "Página 1".
+  useEffect(() => { cargar(); }, [pagina, disparador]); // eslint-disable-line
+
+  function aplicarFiltros() {
+    setPagina(1); // un filtro nuevo siempre vuelve a la página 1 -- si no, "página 3" podría quedar vacía con el filtro nuevo
+    setDisparador(d => d + 1); // garantiza una recarga real aunque `pagina` ya fuera 1 (setPagina(1) no dispararía el efecto por sí solo en ese caso)
+  }
 
   function onFiltroChange(campo, valor) {
     setFiltros(f => ({ ...f, [campo]: valor }));
   }
 
   const puedeExportar = puede(sesion.rol, 'exportar');
+  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
 
-  function handleExportar() {
-    exportarExcel(registros.map(r => ({
-      Fecha: r.fecha, Hora: r.hora, Usuario: r.usuarioNombre, Accion: r.accion,
-      RackOrigen: r.rackOrigen, NivelOrigen: r.nivelOrigen,
-      RackDestino: r.rackDestino, NivelDestino: r.nivelDestino,
-      Articulo: r.articulo, Cantidad: r.cantidad, TipoMovimiento: r.tipoMovimiento,
-      Estado: r.estado, Observaciones: r.observaciones,
-    })), `Historial_Movimientos_${new Date().toISOString().slice(0,10)}.xlsx`, 'Historial');
+  // El export sigue exportando TODO lo que matchea el filtro (no solo la
+  // página en pantalla) -- usa listar() (trae todo, sin paginar), la misma
+  // fuente completa de siempre, independiente de qué página esté mirando el usuario.
+  async function handleExportar() {
+    setExportando(true);
+    try {
+      const todos = await auditService.listar(filtros);
+      exportarExcel(todos.map(r => ({
+        Fecha: r.fecha, Hora: r.hora, Usuario: r.usuarioNombre, Accion: r.accion,
+        RackOrigen: r.rackOrigen, NivelOrigen: r.nivelOrigen,
+        RackDestino: r.rackDestino, NivelDestino: r.nivelDestino,
+        Articulo: r.articulo, Cantidad: r.cantidad, TipoMovimiento: r.tipoMovimiento,
+        Estado: r.estado, Observaciones: r.observaciones,
+      })), `Historial_Movimientos_${new Date().toISOString().slice(0,10)}.xlsx`, 'Historial');
+    } finally {
+      setExportando(false);
+    }
   }
 
   return (
@@ -38,8 +69,8 @@ export default function Historial({ sesion }) {
       <div className="panel__header">
         <h2>Historial de movimientos</h2>
         {puedeExportar && (
-          <button className="btn-primary" onClick={handleExportar}>
-            <i className="ti ti-file-export" /> Exportar a Excel
+          <button className="btn-primary" onClick={handleExportar} disabled={exportando}>
+            <i className="ti ti-file-export" /> {exportando ? 'Exportando…' : 'Exportar a Excel'}
           </button>
         )}
       </div>
@@ -55,7 +86,7 @@ export default function Historial({ sesion }) {
         <select value={filtros.estado} onChange={e => onFiltroChange('estado', e.target.value)}>
           {ESTADOS_OPC.map(o => <option key={o} value={o}>{o || 'Todos los estados'}</option>)}
         </select>
-        <button className="btn-secondary" onClick={cargar}><i className="ti ti-filter" /> Filtrar</button>
+        <button className="btn-secondary" onClick={aplicarFiltros}><i className="ti ti-filter" /> Filtrar</button>
       </div>
 
       <table className="tabla">
@@ -81,6 +112,8 @@ export default function Historial({ sesion }) {
           ))}
         </tbody>
       </table>
+
+      <ControlesPaginacion pagina={pagina} totalPaginas={totalPaginas} total={total} onCambiarPagina={setPagina} />
     </div>
   );
 }

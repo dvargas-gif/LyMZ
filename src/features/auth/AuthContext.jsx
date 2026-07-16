@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { authService } from './auth.service.js';
+import { useCierreSesionPorInactividad } from './useCierreSesionPorInactividad.js';
 
 const AuthContext = createContext(null);
 
@@ -14,7 +15,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   function login(nuevaSesion) { setSesion(nuevaSesion); }
-  function logout() { setSesion(null); }
+  const logout = useCallback(() => setSesion(null), []);
+
+  // Seguridad extra pedida por el usuario: un token de Supabase todavía
+  // válido no alcanza si nadie tocó nada en un rato -- cierra sola tras
+  // 15 min de inactividad (ver useCierreSesionPorInactividad.js).
+  useCierreSesionPorInactividad(!!sesion, logout);
 
   if (!listo) return null; // evita parpadeo mientras se resuelve la sesión de Supabase
 

@@ -61,4 +61,10 @@ export const migracionSlotsService = {
     const { error } = await supabase.from('migracion_slots').delete().eq('id', slotId);
     if (error) throw error;
   },
+
+  /** recolectando -> vaciando: se "devolvió" un artículo del buffer (deshecho por error) y el rack ya no está realmente vacío -- mismo invariante que dispara marcarVaciadoCompleto, pero en reversa. */
+  async revertirAVaciando(slotId) {
+    const { error } = await supabase.from('migracion_slots').update({ estado: 'vaciando', vaciado_en: null }).eq('id', slotId);
+    if (error) throw error;
+  },
 };

@@ -7,7 +7,7 @@ import { VERDE_ESTRUCTURA, BLANCO_CALIDO, BLANCO_HUESO_TARJETA, GRIS_TEXTO_TENUE
  * presentación -- todo el estado (cuáles están abiertas, cuál es la activa)
  * vive en MapaCanvas.jsx.
  */
-export default function BarraPestanas({ pestanas, activa, onSeleccionar, onCerrar, cerrando, minimizado, onToggleMinimizado }) {
+export default function BarraPestanas({ pestanas, activa, onSeleccionar, onCerrar, cerrando, minimizado, onToggleMinimizado, etiquetaDe }) {
   return (
     <div
       style={{
@@ -19,6 +19,11 @@ export default function BarraPestanas({ pestanas, activa, onSeleccionar, onCerra
     >
       {pestanas.map(clave => {
         const [pasillo, columna] = clave.split('|');
+        const etiquetaMz = `${pasillo}-C${String(columna).padStart(3, '0')}`;
+        // Vista RCL (F4): mientras dure la migración, la pestaña se lee en
+        // nomenclatura RCL en vez de MZ (pedido explícito del usuario) --
+        // solo si esta posición ya tiene un código real asignado.
+        const etiqueta = etiquetaDe?.(clave) ?? etiquetaMz;
         const esActiva = clave === activa;
         const seEstaCerrando = cerrando?.has(clave);
         return (
@@ -35,7 +40,7 @@ export default function BarraPestanas({ pestanas, activa, onSeleccionar, onCerra
               transition: 'background .15s ease, color .15s ease',
             }}
           >
-            {pasillo}-C{String(columna).padStart(3, '0')}
+            {etiqueta}
             <span
               role="button"
               tabIndex={-1}
@@ -46,7 +51,7 @@ export default function BarraPestanas({ pestanas, activa, onSeleccionar, onCerra
                 color: 'inherit', opacity: 0.7,
               }}
               className="mapa-pestana__cerrar"
-              aria-label={`Cerrar ${pasillo}-C${String(columna).padStart(3, '0')}`}
+              aria-label={`Cerrar ${etiqueta}`}
             >
               ×
             </span>
