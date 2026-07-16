@@ -5,99 +5,74 @@ import { authService } from './auth.service.js';
 import { useAuth } from './AuthContext.jsx';
 import Logo from '../../shared/components/Logo.jsx';
 import { useReducedMotion } from '../../ui/motion/prefersReducedMotion.js';
-import { entradaConStagger, entradaEscala, entradaProtagonista, entradaImpacto, brilloPulsante, barridoColor, ondaContinua } from '../../ui/motion/variants.js';
-import { useTiltParallax } from '../../ui/motion/useTiltParallax.js';
-import { STAGGER_MS, DURACION, EASING } from '../../ui/motion/tokens.js';
+import { entradaConStagger, entradaProtagonista, apareceFlotante } from '../../ui/motion/variants.js';
+import EscenaAlmacen, { ANCLAS_HUD, ESCENA_ANCHO, ESCENA_ALTO } from './loginEscenaAlmacen.jsx';
+import { DURACION } from '../../ui/motion/tokens.js';
 
-// Mosaico decorativo del panel de marca: evoca la grilla de racks del
-// mezanine (el producto en sí) en vez de una foto de stock genérica.
-// Patrón fijo (no aleatorio) para que el layout no "salte" entre renders.
-const MOSAICO = [
-  0, 1, 0, 0, 2, 0, 1, 0,
-  1, 1, 0, 1, 0, 0, 0, 1,
-  0, 0, 2, 0, 1, 0, 1, 0,
-  1, 0, 0, 1, 0, 1, 0, 0,
-  0, 1, 1, 0, 0, 0, 2, 1,
-];
-const COLUMNAS_MOSAICO = 8;
-const CLASE_CELDA = ['', 'login-visual__celda--ocupada', 'login-visual__celda--activa'];
-// Color de reposo de cada celda NO activa -- punto de partida/llegada del
-// barrido ámbar (ver barridoColor en variants.js). Sin entrada para estado 2
-// porque esas ya son ámbar permanente (glow propio, ver brilloPulsante).
-const COLOR_BASE_CELDA = ['rgba(255,255,255,.08)', 'rgba(255,255,255,.22)'];
-
-// Índices de la cascada de entrada del panel de marca -- cada bloque de
-// texto entra en su turno (0, 1, 2...), la grilla cascadea en diagonal
-// arrancando en el turno 3, y las features retoman la cuenta justo
-// después de la celda más lejana. Todo en base a STAGGER_MS (ver
-// tokens.js) -- ningún valor de delay está escrito a mano acá.
-const INDICE_GRILLA_INICIO = 3;
-const DIAGONAL_MAXIMA = Math.floor((MOSAICO.length - 1) / COLUMNAS_MOSAICO) + (COLUMNAS_MOSAICO - 1);
-const INDICE_FEATURES_INICIO = INDICE_GRILLA_INICIO + DIAGONAL_MAXIMA + 1;
-// La frase de marca es el cierre de la cascada -- aparece "de la nada"
-// recién cuando ya entró todo lo demás, más una pausa extra para que se
-// sienta como una revelación aparte, no un ítem más de la lista.
-const INDICE_FRASE = INDICE_FEATURES_INICIO + 3;
-const DEMORA_FRASE = INDICE_FRASE * (STAGGER_MS / 1000) + 0.3;
-
-// Cinta inferior: cada ícono con su propia personalidad de movimiento en
-// vez de un mismo float sincronizado -- pedido explícito del usuario
-// ("que la caja se abra, el cubo dé vueltas y brinque, el camión se
-// mueva"). Caja/cubo hacen su ráfaga y descansan (repeatDelay); el camión
-// "maneja" de forma continua, sin pausa.
-const ANIM_CAJA_ABRIR = {
-  animate: { rotate: [0, -12, 9, 0], scale: [1, 1.15, 1] },
-  transition: { duration: DURACION.rafaga, repeat: Infinity, repeatDelay: DURACION.pausaRafaga, ease: EASING.rebote },
-};
-const ANIM_CUBO_VUELTA = {
-  animate: { rotate: [0, 360], y: [0, -16, 0, -7, 0] },
-  transition: { duration: DURACION.rafaga, repeat: Infinity, repeatDelay: DURACION.pausaRafaga, ease: EASING.rebote },
-};
-const ANIM_CAMION_MANEJAR = {
-  animate: { x: [0, 7, 0], y: [0, -2, 0, -1, 0] },
-  transition: { duration: DURACION.conduccion, repeat: Infinity, ease: EASING.cambio },
-};
-const ANIM_ESTATICO = { animate: {}, transition: { duration: 0 } };
-
-/**
- * Celda del mosaico -- entra en cascada, queda flotando en loop (todas las
- * celdas, no solo las activas) y además hace un barrido de color hacia
- * ámbar y de vuelta, en ola continua (pedido explícito del usuario en dos
- * pasadas: primero "que se muevan", después "que cambien de color ámbar
- * también"). Las celdas "activas" (estado 2) ya son ámbar permanente y en
- * cambio suman el brillo pulsante -- no compiten por el mismo color.
- * Flotación/barrido/brillo arrancan recién cuando termina la entrada de
- * ESA celda puntual, cada una a destiempo de la siguiente.
- */
-function CeldaMosaico({ estado, indice, reducido }) {
-  const entrada = entradaEscala(indice, reducido);
-  const demora = reducido ? 0 : entrada.transition.delay + entrada.transition.duration;
-  const onda = ondaContinua(reducido, demora);
-  if (estado !== 2) {
-    const barrido = barridoColor(COLOR_BASE_CELDA[estado], reducido, demora);
-    return (
-      <motion.div
-        className={`login-visual__celda ${CLASE_CELDA[estado]}`}
-        initial={entrada.initial}
-        animate={{ ...entrada.animate, ...onda.animate, ...barrido.animate }}
-        transition={{ opacity: entrada.transition, scale: entrada.transition, y: onda.transition, backgroundColor: barrido.transition }}
-      />
-    );
-  }
-  const glow = brilloPulsante(reducido, demora);
-  return (
-    <motion.div
-      className={`login-visual__celda ${CLASE_CELDA[estado]}`}
-      initial={entrada.initial}
-      animate={{ ...entrada.animate, ...onda.animate, ...glow.animate }}
-      transition={{ opacity: entrada.transition, scale: entrada.transition, y: onda.transition, boxShadow: glow.transition }}
-    />
-  );
+// % dentro de .login-escena -- misma matemática para los paneles HUD (acá)
+// y las líneas conectoras (dibujadas DENTRO de EscenaAlmacen, mismo
+// viewBox) -- un punto en (x,y) siempre cae en el mismo lugar visual en
+// cualquier tamaño de pantalla porque .login-escena tiene un
+// aspect-ratio fijo igual al viewBox (ver index.css), nunca hay letterbox.
+function pct({ x, y }) {
+  return { left: `${(x / ESCENA_ANCHO) * 100}%`, top: `${(y / ESCENA_ALTO) * 100}%` };
 }
+
+// Los 3 paneles HUD -- reemplazan a las tarjetas de hoy (pedido explícito
+// del usuario, su propia sugerencia: "sin tarjetas, paneles chicos
+// flotantes"). Ícono + una sola línea de etiqueta; el `id` calza con
+// ANCLAS_HUD (mismo id) y con el `resaltado` que dispara el zoom+glow en
+// EscenaAlmacen. `lado`/`alinear` orientan la leyenda que se abre al
+// click (ver login-hud__leyenda en index.css) para que nunca se salga
+// del panel -- los 3 paneles viven pegados a una esquina de la escena.
+const PUNTOS_HUD = [
+  { id: 'slotting', icono: 'ti-layout-grid', etiqueta: 'Slotting inteligente', lado: 'abajo', alinear: 'izquierda' },
+  { id: 'trazabilidad', icono: 'ti-route', etiqueta: 'Trazabilidad en tiempo real', lado: 'abajo', alinear: 'derecha' },
+  { id: 'inventario', icono: 'ti-chart-bar', etiqueta: 'Gestión de inventario', lado: 'arriba', alinear: 'derecha' },
+];
+
+// Leyenda que se despliega al hacer click en un panel HUD (pedido
+// explícito: "que me despliegue una leyenda de en qué ayuda la
+// aplicación") -- mismo texto descriptivo que tenían las tarjetas de la
+// iteración anterior, ahora bajo demanda en vez de siempre visible.
+const DESCRIPCIONES_HUD = {
+  slotting: 'Optimiza la ubicación de tus productos según demanda, rotación y restricciones -- cada posición se aprovecha al máximo.',
+  trazabilidad: 'Monitorea cada movimiento y evento de tu inventario con total visibilidad, en tiempo real.',
+  inventario: 'Controla tu inventario con precisión y tomá decisiones basadas en datos, no en suposiciones.',
+};
+
+// 5 eventos flotantes tipo "toast" repartidos sobre la escena (coordenadas
+// del mismo viewBox 400x260) -- posiciones fijas, lejos de los 3 anclajes
+// HUD para no superponerse. apareceFlotante() ya escalona la fase por
+// índice (ver más abajo) para que nunca se vean los 5 a la vez.
+const BADGES_EVENTO = [
+  { titulo: 'Producto recibido', detalle: '32 unidades', x: 58, y: 232 },
+  { titulo: 'Ubicación óptima', detalle: 'A-12-04', x: 140, y: 58 },
+  { titulo: 'Picking completado', detalle: 'Orden #8452', x: 210, y: 178 },
+  { titulo: 'Movimiento registrado', detalle: 'Hace 2 min', x: 108, y: 40 },
+  { titulo: 'Inventario sincronizado', detalle: 'Hace 1 min', x: 300, y: 158 },
+];
+
+const FRANJA_CONFIANZA = [
+  { icono: 'ti-shield-check', titulo: 'Seguro', desc: 'Tus datos protegidos con los más altos estándares.' },
+  { icono: 'ti-clock', titulo: 'En tiempo real', desc: 'Información actualizada al instante.' },
+  { icono: 'ti-circle-check', titulo: 'Confiable', desc: 'Operación continua y sin interrupciones.' },
+];
+
+// Índices de la cascada de entrada -- marca, título, subtítulo, la escena
+// completa, y la franja de confianza al final. STAGGER_MS (ver tokens.js)
+// hace el resto -- ningún delay escrito a mano acá.
+const INDICE_ESCENA = 3;
+const INDICE_CONFIANZA = INDICE_ESCENA + 1;
+// Los 5 badges de evento se reparten en fase a lo largo de un ciclo
+// completo (duración + pausa de apareceFlotante) -- así nunca coinciden
+// más de uno o dos a la vez sobre la escena.
+const CICLO_BADGE = DURACION.trazadoRuta + DURACION.pausaOnda;
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const [cargandoGoogle, setCargandoGoogle] = useState(false);
@@ -107,11 +82,31 @@ export default function Login() {
   // revela -- de ahí en más se comporta exactamente como antes (retracción
   // al enfocar un campo, etc.).
   const [revelado, setRevelado] = useState(false);
+  // Qué zona de la escena está "activa" (mouse/foco sobre su panel HUD) --
+  // cruza de un elemento HTML (el panel) a uno SVG distinto (el rack/ruta/
+  // dashboard correspondiente dentro de EscenaAlmacen), por eso necesita
+  // estado de React y no alcanza con :hover puro en CSS.
+  const [hoverActivo, setHoverActivo] = useState(null);
+  // Qué leyenda quedó abierta por click -- independiente del hover: una
+  // vez clickeada, el resaltado de la escena queda "trabado" en esa zona
+  // aunque el mouse se mueva a otro lado, hasta que se cierre.
+  const [legendaAbierta, setLegendaAbierta] = useState(null);
+  const resaltado = legendaAbierta ?? hoverActivo;
+
+  function manejarClickHud(id, e) {
+    // Antes de revelar, un click en CUALQUIER parte del panel (incluido un
+    // ícono HUD) tiene que revelar el formulario con un solo toque -- si
+    // acá abajo hiciéramos stopPropagation, ese primer click se lo "tragaba"
+    // la leyenda y nunca llegaba a disparar el revelado (bug real: "debo
+    // tocar dos veces"). Sin `return` temprano, se deja burbujear normal
+    // hacia el onClick de .login-visual.
+    if (!revelado) return;
+    e.stopPropagation();
+    setLegendaAbierta(actual => (actual === id ? null : id));
+  }
   const { login } = useAuth();
   const navigate = useNavigate();
   const reducido = useReducedMotion();
-  const tiltVisual = useTiltParallax();
-  const tiltCard = useTiltParallax();
 
   function revelar() { setRevelado(true); }
   function revelarConTeclado(e) {
@@ -154,57 +149,138 @@ export default function Login() {
         aria-label={revelado ? undefined : 'Continuar a iniciar sesión'}
         onClick={revelado ? undefined : revelar}
         onKeyDown={revelado ? undefined : revelarConTeclado}
-        style={tiltVisual.style}
-        onMouseMove={tiltVisual.onMouseMove}
-        onMouseLeave={tiltVisual.onMouseLeave}
       >
+        {/* Fondo decorativo: foco esmeralda + franjas de luz + partículas --
+            nunca fotografía, todo CSS/SVG. Los relieves de hexágonos/líneas
+            diagonales se sacaron (no le gustaron al usuario) -- fondo
+            esmeralda más limpio. pointer-events:none para que nunca compita
+            con el click de revelar/hover de los paneles HUD. */}
+        <div className="login-fondo-foco" aria-hidden="true" />
+        <div className="login-fondo-linea login-fondo-linea--1" aria-hidden="true" />
+        <div className="login-fondo-linea login-fondo-linea--2" aria-hidden="true" />
+
         <div className="login-visual__contenido">
           <motion.div className="login-visual__marca" {...entradaConStagger(0, reducido)}>
             <Logo size={52} suave />
-            <span>OLO</span>
+            <span className="login-visual__marca-nombre">
+              <span className="login-visual__marca-inicial">O</span>verseas{' '}
+              <span className="login-visual__marca-inicial">L</span>ogistics{' '}
+              <span className="login-visual__marca-inicial">O</span>perations
+            </span>
           </motion.div>
 
           <motion.h2 className="login-visual__titulo" {...entradaConStagger(1, reducido)}>
-            Tu mezanine, ordenado y trazable en tiempo real.
+            Control total.<br />
+            <span className="login-visual__titulo-acento">Trazabilidad en cada movimiento.</span>
           </motion.h2>
           <motion.p className="login-visual__subtitulo" {...entradaConStagger(2, reducido)}>
-            Slotting, migración guiada y auditoría en un solo lugar.
+            Plataforma integral de slotting, trazabilidad y gestión de inventario en tiempo real.
           </motion.p>
 
-          <div className="login-visual__grid">
-            {MOSAICO.map((estado, i) => {
-              const fila = Math.floor(i / COLUMNAS_MOSAICO);
-              const columna = i % COLUMNAS_MOSAICO;
-              const indice = INDICE_GRILLA_INICIO + fila + columna;
-              return <CeldaMosaico key={i} estado={estado} indice={indice} reducido={reducido} />;
-            })}
+          <motion.div
+            className="login-escena"
+            onClick={() => setLegendaAbierta(null)}
+            {...entradaConStagger(INDICE_ESCENA, reducido)}
+          >
+          <div className="login-escena__caja">
+            <EscenaAlmacen reducido={reducido} resaltado={resaltado} pausar={!!legendaAbierta} />
+
+            {PUNTOS_HUD.map(p => (
+              <div key={p.id} className="login-hud-envoltorio" style={pct(ANCLAS_HUD[p.id].hud)}>
+                {p.id === 'inventario' ? (
+                  <button
+                    type="button"
+                    className={`login-dashboard ${resaltado === p.id ? 'login-dashboard--activo' : ''}`}
+                    onMouseEnter={() => setHoverActivo(p.id)}
+                    onMouseLeave={() => setHoverActivo(null)}
+                    onFocus={() => setHoverActivo(p.id)}
+                    onBlur={() => setHoverActivo(null)}
+                    onClick={e => manejarClickHud(p.id, e)}
+                    aria-expanded={legendaAbierta === p.id}
+                  >
+                    <span className="login-dashboard__titulo">Inventario en tiempo real</span>
+                    <div className="login-dashboard__cuerpo">
+                      <div className="login-dashboard__dona">
+                        <svg viewBox="0 0 36 36">
+                          <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="4" />
+                          <circle cx="18" cy="18" r="15" fill="none" stroke="#4FE0D1" strokeWidth="4" strokeLinecap="round" strokeDasharray="94.2" strokeDashoffset="1.3" transform="rotate(-90 18 18)" />
+                        </svg>
+                        <span>98.6%</span>
+                      </div>
+                      <ul className="login-dashboard__stats">
+                        <li><span>SKUs</span><strong>1.248</strong></li>
+                        <li><span>Unidades</span><strong>45.982</strong></li>
+                        <li><span>Órdenes activas</span><strong>26</strong></li>
+                      </ul>
+                    </div>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={`login-hud ${resaltado === p.id ? 'login-hud--activo' : ''}`}
+                    onMouseEnter={() => setHoverActivo(p.id)}
+                    onMouseLeave={() => setHoverActivo(null)}
+                    onFocus={() => setHoverActivo(p.id)}
+                    onBlur={() => setHoverActivo(null)}
+                    onClick={e => manejarClickHud(p.id, e)}
+                    aria-expanded={legendaAbierta === p.id}
+                  >
+                    <i className={`ti ${p.icono}`} />
+                    <span>{p.etiqueta}</span>
+                  </button>
+                )}
+
+                {legendaAbierta === p.id && (
+                  <motion.div
+                    className={`login-hud__leyenda login-hud__leyenda--${p.lado} login-hud__leyenda--${p.alinear}`}
+                    onClick={e => e.stopPropagation()}
+                    initial={{ opacity: 0, scale: .92 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: DURACION.micro }}
+                  >
+                    <button type="button" className="login-hud__leyenda-cerrar" onClick={() => setLegendaAbierta(null)} aria-label="Cerrar">
+                      <i className="ti ti-x" />
+                    </button>
+                    <strong>{p.etiqueta}</strong>
+                    <p>{DESCRIPCIONES_HUD[p.id]}</p>
+                  </motion.div>
+                )}
+              </div>
+            ))}
+
+            {!reducido && !legendaAbierta && BADGES_EVENTO.map((b, i) => (
+              <motion.div
+                key={b.titulo}
+                className="login-badge-evento"
+                style={pct(b)}
+                {...apareceFlotante(reducido, (i * CICLO_BADGE) / BADGES_EVENTO.length)}
+              >
+                <div className="login-badge-evento__icono"><i className="ti ti-box" /></div>
+                <div className="login-badge-evento__texto">
+                  <strong>{b.titulo} <i className="ti ti-circle-check" /></strong>
+                  <span>{b.detalle}</span>
+                </div>
+              </motion.div>
+            ))}
           </div>
+          </motion.div>
 
-          <ul className="login-visual__features">
-            <motion.li {...entradaConStagger(INDICE_FEATURES_INICIO, reducido)}><i className="ti ti-map-2" /> Mapa en vivo del mezanine</motion.li>
-            <motion.li {...entradaConStagger(INDICE_FEATURES_INICIO + 1, reducido)}><i className="ti ti-route" /> Migración guiada RCL → MZ</motion.li>
-            <motion.li {...entradaConStagger(INDICE_FEATURES_INICIO + 2, reducido)}><i className="ti ti-shield-check" /> Auditoría y trazabilidad completa</motion.li>
-          </ul>
+          <motion.ul className="login-confianza" {...entradaConStagger(INDICE_CONFIANZA, reducido)}>
+            {FRANJA_CONFIANZA.map(f => (
+              <li key={f.titulo}>
+                <i className={`ti ${f.icono}`} />
+                <div><strong>{f.titulo}</strong><span>{f.desc}</span></div>
+              </li>
+            ))}
+          </motion.ul>
 
-          <motion.p className="login-visual__frase" {...entradaImpacto(reducido, DEMORA_FRASE)}>
-            <span className="login-visual__frase-brillo" style={reducido ? undefined : { animationDelay: `${DEMORA_FRASE}s` }}>
-              Tu almacén, coreografiado al milímetro.
-            </span>
-          </motion.p>
+          {!revelado && (
+            <div className="login-visual__hint">
+              <i className="ti ti-hand-click" />
+              <span>Tocá para continuar</span>
+            </div>
+          )}
         </div>
-
-        <div className="login-visual__cinta">
-          <motion.i className="ti ti-package" {...(reducido ? ANIM_ESTATICO : ANIM_CAJA_ABRIR)} />
-          <motion.i className="ti ti-box" {...(reducido ? ANIM_ESTATICO : ANIM_CUBO_VUELTA)} />
-          <motion.i className="ti ti-truck-delivery" {...(reducido ? ANIM_ESTATICO : ANIM_CAMION_MANEJAR)} />
-        </div>
-
-        {!revelado && (
-          <div className="login-visual__hint">
-            <i className="ti ti-hand-click" />
-            <span>Tocá para continuar</span>
-          </div>
-        )}
       </motion.div>
 
       {revelado && (
@@ -213,14 +289,11 @@ export default function Login() {
           className="login-card"
           onSubmit={handleSubmit}
           {...entradaProtagonista(reducido)}
-          style={tiltCard.style}
-          onMouseMove={tiltCard.onMouseMove}
-          onMouseLeave={tiltCard.onMouseLeave}
         >
           <div className="login-card__brand">
             <Logo size={30} />
             <div>
-              <h1>WMS · Slotting Mezanine</h1>
+              <h1>WMS · Plataforma Logística</h1>
               <span className="login-card__eyebrow">Iniciá sesión para continuar</span>
             </div>
           </div>
@@ -232,13 +305,36 @@ export default function Login() {
             </div>
           </label>
           <label>Contraseña
-            <div className="login-card__campo">
+            <div className="login-card__campo login-card__campo--con-toggle">
               <i className="ti ti-lock" />
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+              <input type={mostrarPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required />
+              <button
+                type="button"
+                className="login-card__toggle-password"
+                onClick={() => setMostrarPassword(v => !v)}
+                aria-label={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                title={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                <i className={`ti ${mostrarPassword ? 'ti-eye-off' : 'ti-eye'}`} />
+              </button>
             </div>
           </label>
+
+          {/* "Recordarme" / "¿Olvidaste tu contraseña?" -- solo visuales por
+              ahora (decisión tomada con el usuario): sin lógica de sesión
+              persistente ni reset por email todavía. */}
+          <div className="login-card__fila-opciones">
+            <label className="login-card__recordarme">
+              <input type="checkbox" defaultChecked />
+              Recordarme
+            </label>
+            <a href="#" onClick={e => e.preventDefault()}>¿Olvidaste tu contraseña?</a>
+          </div>
+
           {error && <div className="login-card__error"><i className="ti ti-alert-circle" /> {error}</div>}
-          <button type="submit" className="btn-primary" disabled={cargando}>{cargando ? 'Ingresando…' : 'Ingresar'}</button>
+          <button type="submit" className="btn-primary" disabled={cargando}>
+            {cargando ? 'Ingresando…' : 'Ingresar'} {!cargando && <i className="ti ti-arrow-right" />}
+          </button>
 
           <div className="login-card__divisor">
             <div />
@@ -255,6 +351,8 @@ export default function Login() {
             </svg>
             {cargandoGoogle ? 'Redirigiendo…' : 'Continuar con Google'}
           </button>
+
+          <p className="login-card__seguridad"><i className="ti ti-lock" /> Conexión segura y encriptada</p>
         </motion.form>
       </div>
       )}

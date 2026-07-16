@@ -271,13 +271,28 @@ body {
    100% fluido (ver .login-card), nunca un ancho fijo que se corte en un
    celular. `min-width:0` para que, en el rango donde SÍ conviven ambos
    paneles, el navegador pueda encogerlo sin romper el layout. */
+/* Esmeralda-turquesa oscuro (antes iba a --accent, más azulado) -- el
+   usuario prefirió este tono explícitamente sobre los "relieves" del
+   fondo anterior. Radial en vez de lineal: concentra un brillo esmeralda
+   más rico hacia el centro-abajo, más cerca del look de referencia. */
 .login-visual {
-  position: relative; width: 64%; max-width: 1000px; min-width: 0; overflow-y: auto;
-  background: linear-gradient(160deg, #0C2C2F 0%, var(--accent) 55%, #2E8B8F 100%);
+  position: relative; width: 64%; max-width: 1000px; min-width: 0; overflow-y: auto; overflow-x: hidden;
+  background: radial-gradient(ellipse 90% 70% at 50% 75%, #0F3A32 0%, #082420 50%, #04120F 100%);
   color: #fff; display: flex; flex-direction: column; justify-content: space-between;
-  padding: clamp(20px, 5vh, 64px) clamp(28px, 6vw, 72px);
+  /* Padding vertical más chico (antes tope de 64px) -- le deja más alto
+     disponible a .login-escena (única que crece con flex:1), que por el
+     aspect-ratio fijo también se hace más ANCHA -- pedido explícito del
+     usuario ("usar más esta extensión a lo ancho") y de paso le da aire a
+     los elementos que quedaban pegados contra el título/la franja de
+     confianza (reportado como "se corta"). */
+  padding: clamp(14px, 3vh, 40px) clamp(28px, 6vw, 72px);
   transition: width .6s cubic-bezier(.16, 1, .3, 1), padding .6s cubic-bezier(.16, 1, .3, 1);
+  /* Barra de scroll invisible (no le gustó al usuario verla) -- sigue
+     scrolleando con rueda/touch si hiciera falta, mismo truco que ya usa
+     .sidebar__scroll. */
+  scrollbar-width: none; -ms-overflow-style: none;
 }
+.login-visual::-webkit-scrollbar { display: none; }
 @media (max-width: 1180px) { .login-visual { width: 50%; } }
 /* Antes de revelar el formulario: el panel ocupa TODA la pantalla (para
    que se vea la animación completa, pedido explícito) -- incluso en el
@@ -285,76 +300,242 @@ body {
    con :not() para no taparlo acá). */
 .login-visual--completo { width: 100%; max-width: none; cursor: pointer; }
 .login-visual--completo:focus-visible { outline: 2px solid #34C3B6; outline-offset: -3px; }
-/* Al enfocar cualquier campo del formulario (a la derecha), el panel
-   turquesa se retrae para darle el protagonismo a la tarea de ingresar --
-   pedido explícito del usuario. `:focus-within` en el ancestro común
-   (.login-page) + selector de descendiente: sin estado de React, y sin
-   parpadeo al tabular entre campos (el foco nunca sale del <form> mientras
-   se pasa de un input a otro, así que nunca "rebota"). */
-.login-page:focus-within .login-visual { width: 30%; padding: clamp(24px, 4vw, 48px) clamp(20px, 4vw, 36px); }
-@media (max-width: 1180px) { .login-page:focus-within .login-visual { width: 24%; } }
-.login-page:focus-within .login-visual__contenido { opacity: .5; transform: scale(.94); }
+/* Antes, al enfocar un campo del formulario, el panel turquesa se retraía
+   a 30%/24% -- esa era justo la ventana angosta donde los paneles
+   HUD/dashboard (tamaño fijo en px) se superponían y rompían la escena.
+   Pedido explícito del usuario: que se quede SIEMPRE como en el estado
+   grande, incluso escribiendo -- se saca la retracción por completo. */
 
-/* Sin max-width acá a propósito -- el texto lo limita cada elemento por su
-   cuenta (abajo) para no partirse en líneas larguísimas, pero la GRILLA
-   queda libre para estirarse con el panel. Así, cuando el bloque turquesa
-   se expande/retrae (ver la regla de :focus-within arriba), los cuadritos
-   del mosaico crecen y encogen junto con él en vez de quedar flotando del
-   mismo tamaño siempre -- pedido explícito del usuario ("que los cuadros
-   se expandan con el logo azul"). */
+/* Fondo decorativo -- grid técnico de puntos MUY sutil + franjas de luz
+   difusas + foco radial esmeralda + partículas, nunca fotografía (pedido
+   explícito). Los hexágonos/líneas diagonales de la iteración anterior se
+   sacaron -- "esos relieves de atrás no me fascinan" (feedback real del
+   usuario), fondo esmeralda más limpio. z-index:0 y pointer-events:none:
+   viven DETRÁS de .login-visual__contenido (z-index:1 más abajo) y nunca
+   interceptan el click de revelar ni el hover de los paneles HUD. */
+/* Foco radial detrás de la escena -- concentra un brillo esmeralda hacia
+   el centro en vez de dejar el panel parejo/plano de punta a punta. */
+.login-fondo-foco {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 65% 60% at 50% 60%, rgba(79, 224, 209, .14), transparent 72%);
+}
+.login-fondo-linea {
+  position: absolute; z-index: 0; pointer-events: none; height: 140px; width: 55%;
+  background: linear-gradient(90deg, transparent, rgba(79, 224, 209, .16), transparent);
+  filter: blur(18px); border-radius: 50%;
+}
+.login-fondo-linea--1 { top: 12%; left: -10%; animation: login-linea-derecha 16s ease-in-out infinite; }
+.login-fondo-linea--2 { bottom: 10%; right: -10%; animation: login-linea-izquierda 19s ease-in-out infinite; }
+@keyframes login-linea-derecha { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(18vw); } }
+@keyframes login-linea-izquierda { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-18vw); } }
+@media (prefers-reduced-motion: reduce) {
+  .login-fondo-linea--1, .login-fondo-linea--2 { animation: none; }
+}
+
+/* Sin max-width acá a propósito: antes título/subtítulo quedaban topeados
+   a ~460-480px mientras el panel llega a 1000px -- ESE era el hueco vacío
+   real que se veía a la derecha (diagnóstico del usuario, "contenido
+   pegado a la esquina"). Ahora usan el ancho completo disponible. */
 .login-visual__contenido {
-  display: flex; flex-direction: column; gap: clamp(10px, 2.6vh, 22px); width: 100%;
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; gap: clamp(10px, 2.2vh, 18px); width: 100%; height: 100%;
   transition: opacity .5s cubic-bezier(.16, 1, .3, 1), transform .5s cubic-bezier(.16, 1, .3, 1);
 }
-.login-visual__marca {
-  display: flex; align-items: center; gap: 14px; font-size: 16px; font-weight: 700;
-  letter-spacing: 1.2px; text-transform: uppercase; color: rgba(255, 255, 255, .85);
+.login-visual__marca { display: flex; align-items: center; gap: 14px; }
+/* Nombre completo ("Overseas Logistics Operations") en vez de repetir
+   "OLO" -- pedido explícito. Sin uppercase (a diferencia de antes) para
+   que la primera letra de cada palabra se note como distinta, no se
+   pierda en un bloque de mayúsculas parejo. Esas 3 letras (O-L-O, ver
+   .login-visual__marca-inicial) son el ÚNICO detalle en dorado de toda la
+   pantalla -- pedido explícito de "muy pocos, de forma sutil". */
+.login-visual__marca-nombre { font-size: 15px; font-weight: 600; letter-spacing: .2px; color: rgba(255, 255, 255, .8); }
+.login-visual__marca-inicial { color: #E8B04B; font-weight: 800; }
+.login-visual__titulo { font-size: clamp(24px, 4.4vh, 38px); line-height: 1.2; font-weight: 700; letter-spacing: -.4px; text-wrap: balance; margin: 0; }
+.login-visual__titulo-acento { color: #4FE0D1; }
+.login-visual__subtitulo { max-width: 640px; font-size: 14.5px; color: rgba(255, 255, 255, .72); margin: 0; }
+
+/* ---- Escena del almacén (digital twin) ----
+   `flex:1` -- ocupa TODO el espacio vertical que sobra entre el subtítulo
+   y la franja de confianza, en vez de un alto fijo adivinado (así el panel
+   deja de tener espacio muerto, sea cual sea el alto de pantalla).
+   `aspect-ratio` idéntico al viewBox de EscenaAlmacen.jsx (400x260) --
+   así un punto (x,y) del SVG cae SIEMPRE en el mismo % visual que su
+   panel HUD correspondiente (HTML), sin medir nada en runtime.
+   `width:100%` + `aspect-ratio` + `max-height:100%` a la vez (2 intentos
+   anteriores) forzaba al navegador a fijar un ancho o alto DEFINIDO
+   primero y derivar el otro después -- según cuál se fijara primero, o se
+   cortaba (si el alto ganaba en pantallas bajas) o se veía chico (si el
+   alto disponible era poco en una pantalla normal, no ultrawide). La
+   solución correcta: `.login-escena` es un contenedor flex que solo
+   CENTRA (sin tamaño propio fijo), y adentro `.login-escena__caja` deja
+   ancho Y alto en `auto` con `max-width`/`max-height:100%` como único
+   límite -- el navegador arma la caja más grande posible que mantenga el
+   viewBox 400:260 sin pasarse de NINGUNO de los dos ejes, sea cual sea la
+   pantalla. */
+/* SIN min-width acá a propósito -- se probó un piso de 560px para que la
+   escena no se achicara al retraerse, pero combinado con una ventana baja
+   (poca altura disponible) forzaba un tamaño que no entraba en NINGÚN
+   eje -- overflow:hidden terminaba recortando casi toda la escena
+   (reportado como "qué es esto" + animaciones cortadas). Prioridad real:
+   que nunca se rompa por sobre que nunca se achique un poco. */
+.login-escena { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+/* height:min(48vh,100%) -- en vez de depender de cuánto le "sobra" a los
+   hermanos (frágil: a veces le tocaba poco y se veía chica/rota), un
+   tamaño predecible atado al alto real de pantalla, con el 100% como
+   techo de seguridad para nunca desbordar el espacio que sí hay. El ancho
+   se deriva solo (aspect-ratio) -- en una pantalla grande esto la hace
+   ocupar mucho más a lo ancho (pedido explícito: "usa el espacio que
+   tenés"), sin arriesgarse a desbordar en una más chica. */
+.login-escena__caja {
+  position: relative; aspect-ratio: 400 / 260; width: auto; height: min(48vh, 100%);
+  max-width: 100%; max-height: 100%;
+  transition: width .3s cubic-bezier(.16, 1, .3, 1), height .3s cubic-bezier(.16, 1, .3, 1);
 }
-.login-visual__titulo { max-width: 460px; font-size: clamp(21px, 4.4vh, 33px); line-height: 1.26; font-weight: 700; letter-spacing: -.3px; text-wrap: balance; margin: 0; }
-.login-visual__subtitulo { max-width: 460px; font-size: 14.5px; color: rgba(255, 255, 255, .72); margin: 0; }
-
-/* max-width atado también a la altura (min() con vh) -- como el alto de
-   cada celda depende de su ancho (aspect-ratio:1), esto encoge la grilla
-   entera en pantallas bajas sin necesitar un breakpoint aparte. */
-.login-visual__grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin: 4px 0 8px; max-width: min(640px, 44vh); }
-.login-visual__celda { aspect-ratio: 1; border-radius: 4px; background: rgba(255, 255, 255, .08); box-shadow: 0 2px 4px rgba(0, 0, 0, .28); }
-.login-visual__celda--ocupada { background: rgba(255, 255, 255, .22); }
-.login-visual__celda--activa { background: #E8B04B; box-shadow: 0 0 0 1px rgba(232, 176, 74, .45); }
-
-.login-visual__features { list-style: none; margin: 0; padding: 0; max-width: 460px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: rgba(255, 255, 255, .88); }
-.login-visual__features li { display: flex; align-items: center; gap: 10px; }
-.login-visual__features i { font-size: 16px; }
-
-.login-visual__frase { max-width: 460px; margin: 6px 0 0; font-size: 16.5px; font-weight: 700; letter-spacing: -.1px; line-height: 1.4; color: #fff; }
-.login-visual__frase-brillo {
-  animation: login-frase-flash 1.4s cubic-bezier(.16, 1, .3, 1) 1 both;
+.login-escena__caja svg { display: block; width: 100%; height: 100%; }
+@media (prefers-reduced-motion: reduce) { .login-escena__caja { transition: none; } }
+/* Los paneles HUD/dashboard/badges son HTML con tamaño fijo en px -- NO
+   se achican junto con la escena (el SVG sí, vía aspect-ratio). En una
+   ventana angosta Y baja a la vez, la escena se achica mucho pero estos
+   paneles quedan igual de grandes y terminan superpuestos/rotos (bug real
+   reportado, urgente antes de una presentación). Se ocultan por completo
+   por debajo de este umbral -- el título/subtítulo/franja de confianza
+   (texto normal) siguen viéndose bien siempre, sea cual sea el tamaño. */
+@media (max-width: 900px), (max-height: 640px) {
+  .login-hud-envoltorio, .login-badge-evento { display: none; }
 }
-@keyframes login-frase-flash {
-  0% { text-shadow: 0 0 0 rgba(232, 176, 74, 0); }
-  35% { text-shadow: 0 0 22px rgba(232, 176, 74, .9), 0 0 46px rgba(232, 176, 74, .5); }
-  100% { text-shadow: 0 0 10px rgba(232, 176, 74, .35); }
-}
-@media (prefers-reduced-motion: reduce) { .login-visual__frase-brillo { animation: none; text-shadow: 0 0 10px rgba(232, 176, 74, .35); } }
 
-.login-visual__cinta { display: flex; align-items: center; gap: 22px; }
-.login-visual__cinta i { font-size: 19px; color: rgba(255, 255, 255, .5); filter: drop-shadow(0 5px 6px rgba(0, 0, 0, .4)); }
+/* Envoltorio del panel HUD -- centrado sobre su propio punto (x,y) con
+   translate(-50%,-50%) (el `style={pct(...)}` de Login.jsx ya pone ese
+   punto en `left/top`); `position:relative` para que la leyenda (abajo)
+   se posicione respecto a ESTE punto, no al borde de .login-escena. */
+.login-hud-envoltorio { position: absolute; transform: translate(-50%, -50%); z-index: 2; }
+
+/* Panel HUD -- reemplaza a las tarjetas de hoy (pedido explícito: "sin
+   tarjetas, paneles chicos flotantes"). Efecto glass (backdrop-filter) +
+   ícono + una sola línea de etiqueta. Click despliega una leyenda (pedido
+   explícito: "que me despliegue una leyenda de en qué ayuda"). */
+.login-hud {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px;
+  background: rgba(20, 36, 42, .55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, .14); color: rgba(255, 255, 255, .85);
+  font-size: 11.5px; font-weight: 600; white-space: nowrap; cursor: pointer; font-family: inherit;
+  transition: border-color .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s cubic-bezier(.16, 1, .3, 1), background .2s cubic-bezier(.16, 1, .3, 1);
+}
+.login-hud i { font-size: 15px; color: #4FE0D1; }
+.login-hud:hover, .login-hud--activo, .login-hud:focus-visible {
+  background: rgba(20, 36, 42, .8); border-color: rgba(79, 224, 209, .55);
+  box-shadow: 0 0 0 1px rgba(79, 224, 209, .2), 0 8px 20px -8px rgba(0, 0, 0, .6);
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) { .login-hud { transition: none; } }
+/* Angosto: los 3 paneles HUD pasan a solo ícono (sin etiqueta) para no
+   pisarse entre sí ni tapar la escena. */
+@media (max-width: 1180px) { .login-hud span { display: none; } .login-hud { padding: 8px; } }
+
+/* Panel "Inventario en tiempo real" -- reemplaza al pill genérico solo
+   para el HUD de inventario (ver imagen de referencia del usuario): dona
+   de disponibilidad + 3 stats. Mismo trigger de click/hover que .login-hud
+   (abre la misma leyenda descriptiva), pero con más presencia visual --
+   es el elemento "ancla" de datos de la escena. */
+.login-dashboard {
+  display: flex; flex-direction: column; gap: 8px; width: 190px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(20, 36, 42, .6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, .14); color: #fff; text-align: left; cursor: pointer; font-family: inherit;
+  transition: border-color .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s cubic-bezier(.16, 1, .3, 1), background .2s cubic-bezier(.16, 1, .3, 1);
+}
+.login-dashboard:hover, .login-dashboard--activo, .login-dashboard:focus-visible {
+  background: rgba(20, 36, 42, .85); border-color: rgba(79, 224, 209, .55);
+  box-shadow: 0 0 0 1px rgba(79, 224, 209, .2), 0 10px 26px -10px rgba(0, 0, 0, .6);
+  outline: none;
+}
+.login-dashboard__titulo { font-size: 11px; font-weight: 700; color: rgba(255, 255, 255, .8); }
+.login-dashboard__cuerpo { display: flex; align-items: center; gap: 12px; }
+.login-dashboard__dona { position: relative; flex-shrink: 0; width: 44px; height: 44px; }
+.login-dashboard__dona svg { width: 100%; height: 100%; }
+.login-dashboard__dona span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; }
+.login-dashboard__stats { list-style: none; margin: 0; padding: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.login-dashboard__stats li { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; color: rgba(255, 255, 255, .65); }
+.login-dashboard__stats strong { color: #fff; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .login-dashboard { transition: none; } }
+@media (max-width: 1180px) { .login-dashboard { width: 150px; } .login-dashboard__stats { display: none; } }
+
+/* Leyenda al click -- posicionada relativa al MISMO punto que el panel
+   HUD (envoltorio), desplazada según `lado`/`alinear` (ver PUNTOS_HUD en
+   Login.jsx) para que nunca se salga del panel (los 3 HUD viven pegados
+   a una esquina de la escena). */
+.login-hud__leyenda {
+  position: absolute; z-index: 3; width: 200px; max-width: 62vw;
+  background: rgba(18, 32, 38, .95); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(79, 224, 209, .4); border-radius: 12px; padding: 12px 30px 12px 14px;
+  box-shadow: 0 20px 45px -14px rgba(0, 0, 0, .65);
+}
+.login-hud__leyenda--abajo.login-hud__leyenda--izquierda { top: 100%; left: 0; margin-top: 12px; }
+.login-hud__leyenda--abajo.login-hud__leyenda--derecha { top: 100%; right: 0; margin-top: 12px; }
+.login-hud__leyenda--arriba.login-hud__leyenda--izquierda { bottom: 100%; left: 0; margin-bottom: 12px; }
+.login-hud__leyenda--arriba.login-hud__leyenda--derecha { bottom: 100%; right: 0; margin-bottom: 12px; }
+.login-hud__leyenda strong { display: block; font-size: 12.5px; color: #4FE0D1; margin-bottom: 5px; }
+.login-hud__leyenda p { margin: 0; font-size: 12px; line-height: 1.5; color: rgba(255, 255, 255, .85); white-space: normal; }
+.login-hud__leyenda-cerrar {
+  position: absolute; top: 8px; right: 8px; border: none; background: none; color: rgba(255, 255, 255, .5);
+  font-size: 13px; cursor: pointer; width: 20px; height: 20px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+}
+.login-hud__leyenda-cerrar:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+
+/* Badge de evento tipo "toast" (ícono + título + check + detalle) --
+   mismo formato que la imagen de referencia del usuario, en vez del pill
+   de una sola línea de la iteración anterior. */
+.login-badge-evento {
+  position: absolute; transform: translate(-50%, -50%); z-index: 2; pointer-events: none;
+  display: flex; align-items: center; gap: 8px; padding: 7px 11px 7px 7px; border-radius: 10px;
+  background: rgba(18, 32, 38, .92); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(79, 224, 209, .3); box-shadow: 0 8px 20px -8px rgba(0, 0, 0, .5); white-space: nowrap;
+}
+.login-badge-evento__icono {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px;
+  background: rgba(79, 224, 209, .16); color: #4FE0D1;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.login-badge-evento__texto { display: flex; flex-direction: column; gap: 1px; }
+.login-badge-evento__texto strong { display: flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; color: #fff; }
+.login-badge-evento__texto strong i { color: #3FBF7F; font-size: 11px; }
+.login-badge-evento__texto span { font-size: 9.5px; color: rgba(255, 255, 255, .55); }
+
+/* ---- Franja de confianza (Seguro / En tiempo real / Confiable) -- SIEMPRE
+   visible, no ligada al hover (a diferencia de las tarjetas de arriba). ---- */
+.login-confianza { list-style: none; margin: 4px 0 0; padding: 0; display: flex; gap: 20px; flex-wrap: wrap; }
+.login-confianza li { display: flex; align-items: flex-start; gap: 8px; font-size: 11px; max-width: 150px; }
+.login-confianza i { font-size: 15px; color: #4FE0D1; margin-top: 1px; flex-shrink: 0; }
+.login-confianza strong { display: block; color: #fff; font-weight: 700; }
+.login-confianza span { display: block; color: rgba(255, 255, 255, .6); line-height: 1.35; }
+
 /* :not(.login-visual--completo) -- antes de revelar, el panel es la ÚNICA
    pantalla (ver .login-visual--completo arriba), tiene que seguir visible
    también en celular; el ocultamiento de siempre solo aplica una vez que
    ya está en su modo dividido normal. */
 @media (max-width: 860px) { .login-visual:not(.login-visual--completo) { display: none; } }
 
+/* Dos animaciones a la vez: el pulso de opacidad de siempre (infinito,
+   "sigo esperando") + un brinco que solo corre 3 veces AL INICIO (pedido
+   explícito: "que brinque un poco, pero solo en el inicio, para que se
+   vea de forma intuitiva que debe pickearse") -- misma curva de rebote
+   que ya usa .bienvenida-card/@keyframes saludoIn, para no inventar una
+   nueva. Después de esas 3 vueltas queda solo el pulso suave. */
 .login-visual__hint {
-  /* +40px sobre el bottom normal -- si no, se pisa con .login-visual__cinta
-     (los íconos animados), que ya vive pegado abajo del todo por el
-     justify-content:space-between del panel. */
-  position: absolute; left: 50%; bottom: calc(clamp(20px, 5vh, 40px) + 40px); transform: translateX(-50%);
+  /* Antes vivía `position:absolute` con un `bottom` fijo, adivinando cuánto
+     lugar dejaba `.login-confianza` debajo -- cuando esa franja crecía (texto
+     envuelto en 2 líneas) o el panel se achicaba, el hint quedaba flotando
+     ENCIMA del texto de confianza ("Quiero que ese tocar se vea ahi, no se
+     interfiera", feedback real con captura). Ahora es el último hijo de
+     `.login-visual__contenido` (flex column) -- flujo normal, nunca puede
+     superponerse a nada, sin importar cuánto mida la franja de arriba. */
+  align-self: center; margin-top: clamp(4px, 1.2vh, 10px); z-index: 1;
   display: flex; align-items: center; gap: 8px;
   font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, .75);
-  animation: login-hint-pulso 2s ease-in-out infinite;
+  animation: login-hint-pulso 2s ease-in-out infinite, login-hint-brinco 1s cubic-bezier(.34, 1.56, .64, 1) 3;
 }
 .login-visual__hint i { font-size: 16px; }
 @keyframes login-hint-pulso { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes login-hint-brinco { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } 55% { transform: translateY(0); } 75% { transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .login-visual__hint { animation: none; opacity: .85; } }
 
 /* align-items:safe center -- si la card no entra igual (celular muy bajo,
@@ -384,10 +565,30 @@ body {
 .login-card__campo i { position: absolute; left: 12px; font-size: 15px; color: var(--muted); pointer-events: none; }
 .login-card input { width: 100%; padding: 10px 12px 10px 36px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; font-family: inherit; transition: border-color .15s ease, box-shadow .15s ease; }
 .login-card input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .12); }
+/* Ojo de mostrar/ocultar contraseña -- padding-right extra solo en ese
+   campo (clase propia en vez de :has(), por compatibilidad de navegador). */
+.login-card__campo--con-toggle input { padding-right: 36px; }
+.login-card__toggle-password {
+  position: absolute; right: 8px; border: none; background: none; color: var(--muted);
+  width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 15px;
+  display: flex; align-items: center; justify-content: center; transition: color .15s ease, background .15s ease;
+}
+.login-card__toggle-password:hover { color: var(--ink); background: var(--bg); }
 .login-card .btn-primary, .login-card .btn-secondary { width: 100%; height: 42px; font-size: 14px; margin-top: 2px; }
 .login-card__error { background: #FCEBEB; color: var(--red); font-size: 12px; padding: 8px 10px; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
 .login-card__divisor { display: flex; align-items: center; gap: 10px; margin: 2px 0; color: var(--divisor-login); font-size: 12px; }
 .login-card__divisor div { flex: 1; height: 1px; background: var(--line); }
+
+/* "Recordarme" / "¿Olvidaste tu contraseña?" -- solo visuales por ahora
+   (ver Login.jsx), pero con la misma pinta pulida que el resto de la card. */
+.login-card__fila-opciones { display: flex; align-items: center; justify-content: space-between; margin-top: -6px; font-size: 12.5px; }
+.login-card__recordarme { display: flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 500; cursor: pointer; }
+.login-card__recordarme input { width: auto; padding: 0; accent-color: var(--accent); cursor: pointer; }
+.login-card__fila-opciones a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.login-card__fila-opciones a:hover { text-decoration: underline; }
+
+.login-card__seguridad { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0 0; font-size: 11.5px; color: var(--muted); }
+.login-card__seguridad i { font-size: 13px; }
 
 /* ---- Slotting frame ----
    Se escapa del max-width:1500px de .app-main (que sigue aplicando a las
