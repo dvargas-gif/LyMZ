@@ -47,3 +47,13 @@ export const ESTADOS = {
   alerta: '#C99A4A',
   sobrecargado: '#B5533F',
 };
+
+/**
+ * Resaltado de la tarea asignada por "Generar movimiento" (F2) -- pedido
+ * explícito del usuario: ver en el mapa, sin tener que buscarlo, a cuál
+ * rack hay que LLEVAR mercadería (verde -- reusa ESTADOS.ok, mismo tono que
+ * ya significaba "resultado encontrado") y de cuáles hay que SACARLA
+ * durante "Recolectando" (morado, color nuevo -- no se pisa con ningún
+ * significado existente del mapa).
+ */
+export const MIGRACION_ORIGEN = '#8B6DBE';

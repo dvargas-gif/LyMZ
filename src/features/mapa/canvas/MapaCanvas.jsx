@@ -7,7 +7,7 @@ import { colorDeClase } from '../../../shared/constants/coloresArticulo.js';
 import { calcularLayoutEsquematico, calcularEtiquetas, calcularDivisoresGrupo, calcularCortesPasillo, PASILLOS_VERTICALES, xInicioFilas } from './posicionesEsquematicas.js';
 import { calcularVistaAjustada, calcularVistaCentradaEnCelda, interpolarVista, DURACION_ANIMACION_MS, DURACION_ZOOM_BOTON_MS } from './vistaMapa.js';
 import { aplicarMovimientosLocales, invertirLote, quitarArticuloLocal } from './movimientosLocales.js';
-import { NEGRO_GRAFITO, NEGRO_GRAFITO_CLARO, GRIS_MAPA, GRIS_MAPA_CLARO, VERDE_ESTRUCTURA_CLARO, CAFE_CENIZA, CAFE_CENIZA_CLARO, BLANCO_CALIDO, BLANCO_CALIDO_TENUE, ESTADOS } from './paleta.js';
+import { NEGRO_GRAFITO, NEGRO_GRAFITO_CLARO, GRIS_MAPA, GRIS_MAPA_CLARO, VERDE_ESTRUCTURA_CLARO, CAFE_CENIZA, CAFE_CENIZA_CLARO, BLANCO_CALIDO, BLANCO_CALIDO_TENUE, ESTADOS, MIGRACION_ORIGEN } from './paleta.js';
 import BarraPestanas from './BarraPestanas.jsx';
 import PanelDetalle from './PanelDetalle.jsx';
 import MapaToolbar from './MapaToolbar.jsx';
@@ -85,7 +85,6 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [bufferDelSlotActivo, setBufferDelSlotActivo] = useState([]); // contenido del buffer del slot de la pestaña abierta -- ver FlujoMigracionSlot.jsx
   const [movimientosPendientesSlot, setMovimientosPendientesSlot] = useState([]); // lista de pick (F1.5-C) de la pestaña abierta -- ver FlujoMigracionSlot.jsx
   const [movimientosDestinoPorId, setMovimientosDestinoPorId] = useState([]); // TODOS los movimientos pendientes, livianos (id+destino) -- para resolver el destino real de cada artículo del buffer, ver bufferGlobalConEtiquetas
-  const [movimientosParaSecuencia, setMovimientosParaSecuencia] = useState([]); // TODOS los movimientos pendientes CON origen RCL (id+destino+rcl) -- para evaluarListoParaIniciar, ver iniciarTraslado
   const [bufferGlobal, setBufferGlobal] = useState([]); // TODO el buffer, sin filtrar por slot -- ver PanelBufferGlobal.jsx
   const [cambiosMigracion, setCambiosMigracion] = useState([]); // eventos de migración para la Terminal -- separado de `cambios` a propósito (ver MapaToolbar.jsx), nunca alimenta Deshacer/Excel
   const [vistaContenido, setVistaContenido] = useState('mz'); // 'mz' | 'rcl' -- F4, toggle de CONTENIDO (no solo etiqueta, ver DECISIONES.md)
@@ -176,17 +175,16 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       setBloqueadas(new Set(modelo.bloqueos()));
       // F2/F4 -- migración RCL->MZ: SOLO mapa real (ninguna de estas tablas tiene escenario_id).
       if (!escenarioId) {
-        const [slots, identidad, inventario, buffer, movimientosDestinos, movimientosSecuencia] = await Promise.all([
+        const [slots, identidad, inventario, buffer, movimientosDestinos] = await Promise.all([
           migracionSlotsService.listar(),
           identidadLegacyService.listar(),
           inventarioRclService.listar(),
           migracionBufferService.listarTodo(),
           migracionMovimientosService.listarTodos(),
-          migracionMovimientosService.listarPendientesParaSecuencia(),
         ]);
         if (activo) {
           setMigracionSlots(slots); setIdentidadLegacy(identidad); setInventarioRcl(inventario); setBufferGlobal(buffer);
-          setMovimientosDestinoPorId(movimientosDestinos); setMovimientosParaSecuencia(movimientosSecuencia);
+          setMovimientosDestinoPorId(movimientosDestinos);
         }
       }
     })();
@@ -314,6 +312,47 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     if (destinos.size === 0) return null;
     return { origen: { pasillo, columna: Number(columna) }, destinos: [...destinos.values()] };
   }, [pestanaActiva, migracionSlots, bufferDelSlotActivo, destinoPorMovimientoId]);
+
+  /**
+   * Rack(s) que ESTE usuario tiene asignados y activos (F2) -- pedido
+   * explícito del usuario: verlos resaltados en el mapa (verde -- "a dónde
+   * hay que llevar mercadería") sin tener que buscarlos, independiente de
+   * qué pestaña tenga abierta en este momento (a diferencia de
+   * rutaMigracionActiva, que solo se prende con la pestaña activa).
+   */
+  const clavesTareaPropia = useMemo(() => {
+    const claves = new Set();
+    for (const [clave, s] of migracionSlots) {
+      if (s.iniciadoPor === sesion?.usuarioId && (s.estado === 'vaciando' || s.estado === 'recolectando')) claves.add(clave);
+    }
+    return claves;
+  }, [migracionSlots, sesion?.usuarioId]);
+
+  /**
+   * Orígenes de recolección (F2) -- de dónde hay que SACAR cada artículo
+   * pendiente durante "Recolectando" (morado). Solo se puede calcular para
+   * la pestaña ABIERTA (movimientosPendientesSlot es liviano, un solo
+   * destino a la vez) -- coincide en la práctica con el caso pedido, ya que
+   * "Generar movimiento" deja esa pestaña abierta apenas asigna la tarea.
+   */
+  const clavesOrigenRecoleccion = useMemo(() => {
+    if (!pestanaActiva) return new Set();
+    const slot = migracionSlots.get(pestanaActiva);
+    if (!slot || slot.estado !== 'recolectando') return new Set();
+    const mzPorRcl = new Map();
+    for (const fila of identidadLegacy) {
+      if (fila.estadoRcl !== 'asignado' || fila.rclCodigo == null) continue;
+      if (Number(fila.rclSubnivel) !== 1) continue; // mismo SUBNIVEL_UNICO de siempre (ver migracionBuffer.service.js)
+      mzPorRcl.set(`${fila.rclCodigo}|${Number(fila.rclNivel)}`, `${fila.mzPasillo}|${fila.mzColumna}`);
+    }
+    const claves = new Set();
+    for (const m of movimientosPendientesSlot) {
+      if (m.estado === 'recolectado') continue;
+      const clave = mzPorRcl.get(`${m.rclCodigo}|${Number(m.rclNivel)}`);
+      if (clave && clave !== pestanaActiva) claves.add(clave);
+    }
+    return claves;
+  }, [pestanaActiva, migracionSlots, movimientosPendientesSlot, identidadLegacy]);
 
   /** Lista de pick (F1.5-C) del destino MZ de la pestaña abierta -- independiente del estado del slot (la ficha decide cuándo mostrarla, ver FlujoMigracionSlot.jsx). Vacía si escenarioId (sala) o si no hay pestaña abierta. */
   useEffect(() => {
@@ -696,10 +735,22 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
    * sin este chequeo, permitía que dos equipos trabajando en simultáneo
    * eligieran racks que se necesitan mutuamente en el orden equivocado, y
    * nada lo impedía. Si está bloqueado, ni siquiera se intenta el insert.
+   *
+   * El plan (`migracion_movimientos`) y la identidad RCL se piden FRESCOS
+   * acá mismo, en vez de usar algo cacheado al abrir el mapa -- si un
+   * Supervisor aplica un plan nuevo mientras esta pestaña ya estaba
+   * abierta, este chequeo tiene que ver ESE plan nuevo, no el de cuando se
+   * cargó la página (pregunta real del usuario: "¿tomará los movimientos
+   * aplicados desde antes, o los que se van a hacer?" -- los que se van a
+   * hacer, siempre, con esto).
    */
   async function iniciarTraslado(pasillo, columna) {
     const etiqueta = `${pasillo}-C${String(columna).padStart(3, '0')}`;
-    const { listo, bloqueadoPor } = evaluarListoParaIniciar(pasillo, columna, movimientosParaSecuencia, identidadLegacy, migracionSlots);
+    const [movimientosVigentes, identidadVigente] = await Promise.all([
+      migracionMovimientosService.listarPendientesParaSecuencia(),
+      identidadLegacyService.listar(),
+    ]);
+    const { listo, bloqueadoPor } = evaluarListoParaIniciar(pasillo, columna, movimientosVigentes, identidadVigente, migracionSlots);
     if (!listo) {
       const racks = bloqueadoPor.map(b => `${b.mzPasillo}-C${String(b.mzColumna).padStart(3, '0')}`).join(', ');
       mostrarError(`Todavía no podés iniciar ${etiqueta} -- depende de que se vacíe(n) primero: ${racks}.`);
@@ -767,7 +818,14 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     }
 
     // 2) candidatos listos AHORA, ya ordenados por el simulador (oleada 0).
-    const { oleadas } = planificarSecuencia(movimientosParaSecuencia, identidadLegacy, migracionSlots);
+    // Plan e identidad se piden FRESCOS acá (no el cacheado al abrir el
+    // mapa) -- si un Supervisor aplicó un plan nuevo mientras esta pestaña
+    // ya estaba abierta, la asignación tiene que salir de ESE plan nuevo.
+    const [movimientosVigentes, identidadVigente] = await Promise.all([
+      migracionMovimientosService.listarPendientesParaSecuencia(),
+      identidadLegacyService.listar(),
+    ]);
+    const { oleadas } = planificarSecuencia(movimientosVigentes, identidadVigente, migracionSlots);
     const candidatos = oleadas[0] ?? [];
     if (candidatos.length === 0) {
       mostrarError('No hay ningún rack disponible para asignar ahora mismo.');
@@ -1125,6 +1183,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
                   rack={rack}
                   configuracionOcupacion={configuracionOcupacion}
                   resaltada={celdaResaltada === clave}
+                  resaltadoMigracion={clavesTareaPropia.has(clave) ? 'destino' : (clavesOrigenRecoleccion.has(clave) ? 'origen' : null)}
                   bloqueada={bloqueadas.has(clave)}
                   seleccionada={seleccionArea.has(clave)}
                   arrastrable={modoEdicion && !moviendo && !soloLectura && vistaContenido === 'mz'}
@@ -1489,7 +1548,7 @@ function CajasAnimadas({ puntos }) {
  * manejarFinDrag en MapaCanvas.jsx): los datos, no la posición del nodo
  * Konva, son la fuente de verdad de dónde vive cada rack.
  */
-const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion, onHover, onClick, onDragStart, onDragEnd, descripcionDe, resaltada, bloqueada, arrastrable, seleccionada }) {
+const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion, onHover, onClick, onDragStart, onDragEnd, descripcionDe, resaltada, resaltadoMigracion, bloqueada, arrastrable, seleccionada }) {
   const vacia = !rack || nArts(rack) === 0;
   const cantidad = vacia ? 0 : nArts(rack);
   const primerArticulo = vacia ? null : Object.values(rack.niveles)[0]?.[0];
@@ -1498,6 +1557,8 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
     : (primerArticulo?.tipo === 'CUERPO' ? colorDeClase(null, 'CUERPO') : colorDeClase(primerArticulo?.clase));
   const proporcionLlenura = !vacia && configuracionOcupacion ? llenura(rack, configuracionOcupacion) : 0;
   const colorBarra = !vacia && configuracionOcupacion ? colorLlenura(proporcionLlenura, configuracionOcupacion) : null;
+  // "destino" (verde, mismo tono que resaltada) -- a dónde hay que LLEVAR mercadería (F2, ver clavesTareaPropia en MapaCanvas.jsx). "origen" (morado) -- de dónde hay que SACARLA durante "Recolectando" (ver clavesOrigenRecoleccion).
+  const colorResaltadoMigracion = resaltadoMigracion === 'destino' ? ESTADOS.ok : (resaltadoMigracion === 'origen' ? MIGRACION_ORIGEN : null);
   const grupoRef = useRef(null);
 
   // Konva redibuja el LAYER entero (~300 celdas) en cada frame mientras se
@@ -1512,13 +1573,16 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
     nodo.cache();
     nodo.getLayer()?.batchDraw();
     return () => nodo.clearCache();
-  }, [relleno, cantidad, colorBarra, proporcionLlenura, bloqueada, seleccionada, resaltada]);
+  }, [relleno, cantidad, colorBarra, proporcionLlenura, bloqueada, seleccionada, resaltada, resaltadoMigracion]);
 
   function textoHover() {
-    if (vacia) return `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}\nVacío${bloqueada ? ' · Bloqueado' : ''}`;
+    const aviso = resaltadoMigracion === 'destino' ? ' · Tu tarea: llevar mercadería acá'
+      : resaltadoMigracion === 'origen' ? ' · Sacar artículo(s) de acá para tu tarea'
+      : '';
+    if (vacia) return `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}\nVacío${bloqueada ? ' · Bloqueado' : ''}${aviso}`;
     const consumo = consumoTotal(rack).toFixed(2);
     const desc = primerArticulo ? descripcionDe(primerArticulo.articulo) : '';
-    return `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}${bloqueada ? ' · Bloqueado' : ''}\n${cantidad} artículo(s) · consumo ${consumo}\n${desc}`;
+    return `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}${bloqueada ? ' · Bloqueado' : ''}${aviso}\n${cantidad} artículo(s) · consumo ${consumo}\n${desc}`;
   }
 
   return (
@@ -1532,16 +1596,19 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
       <Rect
         x={celda.x} y={celda.y} width={celda.ancho} height={celda.alto}
         fill={relleno}
-        stroke={seleccionada ? ESTADOS.medio : (resaltada ? ESTADOS.ok : (bloqueada ? '#C99A4A' : (vacia ? CAFE_CENIZA : 'rgba(0,0,0,.4)')))}
-        strokeWidth={seleccionada || resaltada || bloqueada ? 2.5 : (vacia ? 0.75 : 1.5)}
-        opacity={vacia && !resaltada && !seleccionada ? 0.5 : 1}
-        dash={vacia && !resaltada && !seleccionada ? [3, 3] : undefined}
+        stroke={seleccionada ? ESTADOS.medio : (resaltada ? ESTADOS.ok : (colorResaltadoMigracion ?? (bloqueada ? '#C99A4A' : (vacia ? CAFE_CENIZA : 'rgba(0,0,0,.4)'))))}
+        strokeWidth={seleccionada || resaltada || resaltadoMigracion || bloqueada ? 2.5 : (vacia ? 0.75 : 1.5)}
+        opacity={vacia && !resaltada && !seleccionada && !resaltadoMigracion ? 0.5 : 1}
+        dash={vacia && !resaltada && !seleccionada && !resaltadoMigracion ? [3, 3] : undefined}
         cornerRadius={6}
         perfectDrawEnabled={false}
         onMouseEnter={() => { onHover(textoHover()); const c = document.body.style; c.cursor = arrastrable && !vacia && !bloqueada ? 'grab' : 'pointer'; }}
         onMouseLeave={() => { onHover(null); document.body.style.cursor = 'default'; }}
         onClick={onClick}
       />
+      {colorResaltadoMigracion && (
+        <Rect x={celda.x} y={celda.y} width={celda.ancho} height={celda.alto} fill={colorResaltadoMigracion} opacity={0.22} cornerRadius={6} listening={false} />
+      )}
       {seleccionada && (
         <Rect x={celda.x} y={celda.y} width={celda.ancho} height={celda.alto} fill={ESTADOS.medio} opacity={0.22} cornerRadius={6} listening={false} />
       )}

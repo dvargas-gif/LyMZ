@@ -7,11 +7,16 @@ import { migracionAuditoriaService } from '../../shared/services/migracionAudito
 import { identidadLegacyService } from '../../shared/services/identidadLegacy.service.js';
 import { migracionSlotsService } from '../../shared/services/migracionSlots.service.js';
 import { usuariosService } from '../usuarios/usuarios.service.js';
+import { posicionesEliminadasService } from '../../shared/services/posicionesEliminadas.service.js';
 import { generarMovimientosMigracion } from './generarMovimientos.js';
 import { planificarSecuencia } from './planificarSecuencia.js';
 import ModalBase from '../../shared/components/ModalBase.jsx';
 
 const ESTADOS_ACTIVOS = new Set(['vaciando', 'recolectando']);
+// Mismo prefijo fijo que ya usa PanelLimpiarAgotadosRcl.jsx (PREFIJO_MOTIVO) -- no se
+// importa desde ahí para no acoplar 2 features por una constante de 1 palabra, pero
+// tiene que ser el mismo texto para que este cruce encuentre los mismos artículos.
+const PREFIJO_EXILIADO = 'Exiliado';
 
 const rackDe = s => `${s.mzPasillo}-C${String(s.mzColumna).padStart(3, '0')}`;
 const nombreDe = (usuarios, id) => (id ? (usuarios.get(id)?.nombre ?? '(usuario eliminado)') : '—');
@@ -214,22 +219,27 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [resultado, setResultado] = useState(null);
   const [simulacion, setSimulacion] = useState(null);
   const [simulando, setSimulando] = useState(false);
+  const [exiliadosEnAcomodo, setExiliadosEnAcomodo] = useState(null); // [{articulo, pasillo, columna, nivel, eliminadoEn, motivo}] | null
+  const [revisandoExiliados, setRevisandoExiliados] = useState(false);
 
   // -- Equipos + resumen --
   const [slots, setSlots] = useState(null); // null = cargando
   const [usuarios, setUsuarios] = useState(new Map());
   const [progreso, setProgreso] = useState(null); // {total, recolectados}
   const [destinosPendientes, setDestinosPendientes] = useState(null); // Set("pasillo|columna") con algún movimiento pendiente
+  const [hayRespaldo, setHayRespaldo] = useState(false); // ¿hay una aplicación anterior para deshacer?
+  const [deshaciendo, setDeshaciendo] = useState(false);
   const [procesando, setProcesando] = useState(null);
 
   const [error, setError] = useState('');
 
   async function cargar() {
     try {
-      const [mapaSlots, prog, todosPendientes] = await Promise.all([
+      const [mapaSlots, prog, todosPendientes, respaldo] = await Promise.all([
         migracionSlotsService.listar(),
         migracionMovimientosService.contarProgreso(),
         migracionMovimientosService.listarTodos(),
+        migracionMovimientosService.hayRespaldoParaDeshacer(),
       ]);
       setSlots([...mapaSlots.entries()].map(([clave, s]) => {
         const [mzPasillo, mzColumnaTxt] = clave.split('|');
@@ -237,6 +247,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
       }));
       setProgreso(prog);
       setDestinosPendientes(new Set(todosPendientes.map(m => `${m.mzPasillo}|${m.mzColumna}`)));
+      setHayRespaldo(respaldo);
     } catch (err) {
       setError(`No se pudo cargar el resumen: ${err.message || err}`);
     }
@@ -266,6 +277,35 @@ export default function PanelMigracion({ sesion, onCerrar }) {
       setError(`No se pudo calcular el plan: ${err.message || err}`);
     } finally {
       setCargandoPlan(false);
+    }
+  }
+
+  /**
+   * Cruza `inventario_slotting` (el acomodo MZ de fábrica, nunca se toca)
+   * contra los artículos ya marcados "Exiliado" en `posiciones_eliminadas`
+   * -- pedido explícito del usuario: SOLO avisar, nunca borrar nada del
+   * acomodo (podría ser un quiebre temporal, no necesariamente
+   * descontinuado para siempre). Es informativo -- no afecta qué se le
+   * asigna a un operador (eso ya lo filtra el "sin stock" del cálculo del
+   * plan, por otro camino completamente aparte).
+   */
+  async function revisarExiliadosEnAcomodo() {
+    setRevisandoExiliados(true);
+    setError('');
+    try {
+      const [acomodo, exiliados] = await Promise.all([
+        inventarioService.listar(),
+        posicionesEliminadasService.listarPorMotivoPrefijo(PREFIJO_EXILIADO),
+      ]);
+      const exiliadoPorArticulo = new Map(exiliados.map(e => [e.articulo, e]));
+      const encontrados = acomodo
+        .filter(a => exiliadoPorArticulo.has(a.articulo))
+        .map(a => ({ ...a, ...exiliadoPorArticulo.get(a.articulo) }));
+      setExiliadosEnAcomodo(encontrados);
+    } catch (err) {
+      setError(`No se pudo revisar los artículos exiliados: ${err.message || err}`);
+    } finally {
+      setRevisandoExiliados(false);
     }
   }
 
@@ -306,6 +346,55 @@ export default function PanelMigracion({ sesion, onCerrar }) {
 
   function reiniciarPlan() {
     setPaso('calcular'); setPrevia(null); setResultado(null); setSimulacion(null); setError('');
+  }
+
+  /**
+   * "Deshacer última aplicación" -- pedido explícito del usuario ("cómo
+   * hago las pruebas sin desordenar todo"). Restaura el pendiente al
+   * estado justo antes del último "Aplicar". Un solo nivel -- después de
+   * usarlo, no queda otra aplicación más vieja para deshacer.
+   */
+  async function deshacerAplicacion() {
+    if (!confirm('¿Deshacer la última aplicación? El plan pendiente vuelve a como estaba antes de esa aplicación. Lo ya recolectado no se toca.')) return;
+    setDeshaciendo(true);
+    setError('');
+    try {
+      const restaurados = await migracionMovimientosService.deshacerUltimaAplicacion(sesion.usuarioId);
+      await migracionBufferService.revincularConPlan();
+      setResultado({ aplicados: restaurados, sinStock: 0, revinculados: 0, esDeshacer: true });
+      setPaso('resultado');
+      await cargar();
+    } catch (err) {
+      setError(`No se pudo deshacer: ${err.message || err}`);
+    } finally {
+      setDeshaciendo(false);
+    }
+  }
+
+  /**
+   * "Reiniciar migración desde cero" -- distinto de "Deshacer última
+   * aplicación": borra TODO `migracion_movimientos` (no solo vuelve un
+   * paso atrás), pero el servicio mismo se niega a hacerlo si ya hay
+   * trabajo real (cualquier slot con progreso, algo en el buffer, o algo
+   * recolectado) -- pedido explícito del usuario: "que la borre solo
+   * cuando no hay nada aún cambiado", nunca a costa de perder trabajo.
+   */
+  async function reiniciarDesdeCero() {
+    if (!confirm('¿Reiniciar la migración desde cero? Se borra TODO el plan de recolección actual. Esto se rechaza solo si ya hay algún equipo trabajando -- si no hay nada en curso, no se puede deshacer después.')) return;
+    setDeshaciendo(true);
+    setError('');
+    try {
+      await migracionMovimientosService.reiniciarDesdeCeroSiEsSeguro();
+      setResultado(null);
+      setPrevia(null);
+      setSimulacion(null);
+      setPaso('calcular');
+      await cargar();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setDeshaciendo(false);
+    }
   }
 
   // ---- Equipos ----
@@ -400,7 +489,14 @@ export default function PanelMigracion({ sesion, onCerrar }) {
         {/* 2) PLAN -- calcular/aplicar + simular mejor orden. */}
         {/* ---------------------------------------------------------------- */}
         <section>
-          <h3 style={{ fontSize: 12.5, textTransform: 'uppercase', letterSpacing: '.3px', color: 'var(--texto-tenue)', margin: '0 0 8px' }}>Plan de recolección</h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+            <h3 style={{ fontSize: 12.5, textTransform: 'uppercase', letterSpacing: '.3px', color: 'var(--texto-tenue)', margin: 0 }}>Plan de recolección</h3>
+            {hayRespaldo && (
+              <button className="btn-secondary" disabled={deshaciendo} onClick={deshacerAplicacion} style={{ fontSize: 12 }}>
+                {deshaciendo ? 'Deshaciendo…' : '↺ Deshacer última aplicación'}
+              </button>
+            )}
+          </div>
           <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
             Cruza el plan de slotting (destino MZ + origen RCL por artículo) contra el inventario RCL más reciente para
             armar la lista de pick de cada posición MZ -- no sube ningún archivo, se calcula con lo que ya está cargado.
@@ -449,12 +545,64 @@ export default function PanelMigracion({ sesion, onCerrar }) {
 
           {paso === 'resultado' && resultado && (
             <div style={{ background: 'var(--verde-tenue)', border: '1px solid var(--green)', borderRadius: 10, padding: 14 }}>
-              <b style={{ color: 'var(--green)' }}>✓ Plan de recolección actualizado -- {resultado.aplicados} movimiento(s)</b>
+              <b style={{ color: 'var(--green)' }}>
+                {resultado.esDeshacer
+                  ? `✓ Aplicación deshecha -- ${resultado.aplicados} movimiento(s) restaurado(s)`
+                  : `✓ Plan de recolección actualizado -- ${resultado.aplicados} movimiento(s)`}
+              </b>
               {resultado.sinStock > 0 && <span style={{ color: 'var(--texto-tenue)', fontSize: 12.5 }}> — {resultado.sinStock} artículo(s) quedaron afuera por no tener stock real.</span>}
               {resultado.revinculados > 0 && <p style={{ color: 'var(--texto-tenue)', fontSize: 12.5, margin: '8px 0 0' }}>{resultado.revinculados} artículo(s) que ya estaban en el buffer ahora resolvieron su destino real.</p>}
               <button className="btn-secondary" onClick={reiniciarPlan} style={{ marginTop: 10, fontSize: 12 }}>Calcular otro plan</button>
             </div>
           )}
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={revisandoExiliados} onClick={revisarExiliadosEnAcomodo} style={{ fontSize: 12 }}>
+              {revisandoExiliados ? 'Revisando…' : 'Revisar artículos exiliados en el acomodo MZ'}
+            </button>
+            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0 0' }}>
+              Solo informa -- nunca borra nada de <code>inventario_slotting</code>. Un artículo exiliado puede ser un quiebre temporal, no necesariamente descontinuado para siempre.
+            </p>
+
+            {exiliadosEnAcomodo && (
+              exiliadosEnAcomodo.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: 'var(--green)', margin: '10px 0 0' }}>✓ Ningún artículo exiliado sigue planificado en el acomodo MZ.</p>
+              ) : (
+                <div style={{ marginTop: 10, overflowX: 'auto', maxWidth: '100%' }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ambar, #8A6412)', margin: '0 0 8px' }}>
+                    ⚠ {exiliadosEnAcomodo.length} artículo(s) siguen planificados en el acomodo MZ, pero ya están exiliados (sin stock real):
+                  </p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'var(--texto-tenue)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.3px' }}>
+                        <th style={{ padding: '6px 8px' }}>Artículo</th>
+                        <th style={{ padding: '6px 8px' }}>Posición planificada</th>
+                        <th style={{ padding: '6px 8px' }}>Exiliado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {exiliadosEnAcomodo.map((e, i) => (
+                        <tr key={`${e.articulo}-${i}`} style={{ borderTop: '1px solid var(--borde-claro)' }}>
+                          <td style={{ padding: '8px', fontFamily: 'monospace' }}>{e.articulo}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{e.pasillo}-C{String(e.columna).padStart(3, '0')}{e.nivel ? `-${e.nivel}` : ''}</td>
+                          <td style={{ padding: '8px', color: 'var(--texto-tenue)' }}>{e.motivo} -- {new Date(e.eliminado_en).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={deshaciendo} onClick={reiniciarDesdeCero} style={{ fontSize: 12, color: 'var(--red)' }}>
+              {deshaciendo ? 'Reiniciando…' : '⚠ Reiniciar migración desde cero'}
+            </button>
+            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0' }}>
+              Borra TODO el plan de recolección actual -- se rechaza solo si ya hay algún equipo trabajando, algo en el buffer o algo recolectado (nunca a costa de perder trabajo real).
+            </p>
+          </div>
         </section>
 
         {/* ---------------------------------------------------------------- */}

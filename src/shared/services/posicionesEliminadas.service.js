@@ -48,4 +48,18 @@ export const posicionesEliminadasService = {
     if (error) throw error;
     return count ?? 0;
   },
+
+  /** Lista completa (paginada) de artículos eliminados cuyo motivo empieza con `prefijo` -- a diferencia de contarPorMotivoPrefijo (solo el número), acá sí hace falta el detalle (ver PanelMigracion.jsx: cruzar contra inventario_slotting). */
+  async listarPorMotivoPrefijo(prefijo) {
+    const todos = [];
+    let desde = 0;
+    while (true) {
+      const { data, error } = await supabase.from('posiciones_eliminadas').select('*').ilike('motivo', `${prefijo}%`).range(desde, desde + TAMANO_PAGINA - 1);
+      if (error) throw error;
+      todos.push(...data);
+      if (data.length < TAMANO_PAGINA) break;
+      desde += TAMANO_PAGINA;
+    }
+    return todos;
+  },
 };

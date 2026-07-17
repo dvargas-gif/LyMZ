@@ -32,19 +32,19 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
   // Supervisor/Administrador, desde la cola de aprobaciones del Sidebar.
   if (esperandoAprobacion(estado)) {
     return (
-      <div style={{ margin: '0 16px 16px', padding: '12px 14px', borderRadius: 10, border: `1px solid ${BORDE_CLARO}`, background: BLANCO_HUESO_TARJETA }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <i className="ti ti-hourglass" style={{ fontSize: 13, color: ESTADOS.medio }} />
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>
+      <div style={{ margin: '0 16px 16px', padding: '16px 18px', borderRadius: 10, border: `1px solid ${BORDE_CLARO}`, background: BLANCO_HUESO_TARJETA }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <i className="ti ti-hourglass" style={{ fontSize: 16, color: ESTADOS.medio }} />
+          <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO }}>
             Esperando cupo
           </span>
         </div>
-        <p style={{ fontSize: 12, color: GRIS_TEXTO, margin: 0 }}>
+        <p style={{ fontSize: 15, lineHeight: 1.4, color: GRIS_TEXTO, margin: 0 }}>
           Ya hay equipos trabajando al máximo de su cupo libre -- un Supervisor o Administrador debe habilitar este equipo adicional antes de arrancar.
         </p>
         {puedeMigrar && (
-          <div style={{ marginTop: 10 }}>
-            <button className="btn-secondary" disabled={ocupado} onClick={onCancelarTraslado} style={{ fontSize: 12, color: ESTADOS.sobrecargado }}>
+          <div style={{ marginTop: 12 }}>
+            <button className="btn-secondary" disabled={ocupado} onClick={onCancelarTraslado} style={{ fontSize: 15, padding: '8px 16px', color: ESTADOS.sobrecargado }}>
               Retirar solicitud
             </button>
           </div>
@@ -62,33 +62,33 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
   }
 
   return (
-    <div style={{ margin: '0 16px 16px', padding: '12px 14px', borderRadius: 10, border: `1px solid ${BORDE_CLARO}`, background: BLANCO_HUESO_TARJETA }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <i className="ti ti-truck-delivery" style={{ fontSize: 13, color: ESTADOS.medio }} />
-        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>
+    <div style={{ margin: '0 16px 16px', padding: '16px 18px', borderRadius: 10, border: `1px solid ${BORDE_CLARO}`, background: BLANCO_HUESO_TARJETA }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <i className="ti ti-truck-delivery" style={{ fontSize: 16, color: ESTADOS.medio }} />
+        <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO }}>
           Migración -- paso {paso} de 3
         </span>
       </div>
-      <p style={{ fontSize: 12, color: GRIS_TEXTO, margin: 0 }}>{ETIQUETA_PASO[paso]}</p>
+      <p style={{ fontSize: 16, lineHeight: 1.4, fontWeight: 500, color: GRIS_TEXTO, margin: 0 }}>{ETIQUETA_PASO[paso]}</p>
 
       {/* Contenido actual del buffer de ESTE slot -- lo que ya se movió mientras se vacía/recolecta. */}
       {(paso === 1 || paso === 2) && bufferDelSlot.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <p style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE, margin: '0 0 6px' }}>
+        <div style={{ marginTop: 12 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE, margin: '0 0 8px' }}>
             En el buffer ({bufferDelSlot.length})
           </p>
-          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {bufferDelSlot.map(b => (
-              <li key={b.id} style={{ fontSize: 11.5, fontFamily: 'monospace', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <li key={b.id} style={{ fontSize: 14, fontFamily: 'monospace', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <span>{b.articulo}</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: GRIS_TEXTO_TENUE }}>{b.origenNivel}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: GRIS_TEXTO }}>{b.origenNivel}</span>
                   {puedeDevolver && (
                     <button
                       onClick={() => manejarDevolver(b.id, b.articulo, b.origenNivel)}
                       disabled={devolviendo.has(b.id)}
                       title={`Devolver ${b.articulo} a ${b.origenNivel} -- deshace este depósito`}
-                      style={{ border: 'none', background: 'transparent', color: ESTADOS.sobrecargado, cursor: devolviendo.has(b.id) ? 'default' : 'pointer', opacity: devolviendo.has(b.id) ? 0.5 : 1, fontSize: 11, padding: 0, display: 'flex', alignItems: 'center' }}
+                      style={{ border: 'none', background: 'transparent', color: ESTADOS.sobrecargado, cursor: devolviendo.has(b.id) ? 'default' : 'pointer', opacity: devolviendo.has(b.id) ? 0.5 : 1, fontSize: 15, padding: 0, display: 'flex', alignItems: 'center' }}
                     >
                       <i className="ti ti-arrow-back-up" />
                     </button>
@@ -101,34 +101,34 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
       )}
 
       {paso === 2 && (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 12 }}>
           {movimientosPendientes.length === 0 ? (
-            <p style={{ fontSize: 11, color: GRIS_TEXTO_TENUE, margin: '0 0 8px' }}>
+            <p style={{ fontSize: 13, color: GRIS_TEXTO_TENUE, margin: '0 0 10px' }}>
               Sin plan de recolección todavía para este destino (falta generarlo -- ver "Generar plan de recolección" en el menú).
             </p>
           ) : (
             <>
-              <p style={{ fontSize: 11, color: GRIS_TEXTO_TENUE, margin: '0 0 8px' }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: GRIS_TEXTO, margin: '0 0 10px' }}>
                 {movimientosPendientes.filter(m => m.estado === 'recolectado').length} de {movimientosPendientes.length} recolectado(s) -- traé cada artículo desde su origen RCL y marcalo acá.
               </p>
-              <ul style={{ margin: '0 0 10px', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <ul style={{ margin: '0 0 12px', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {movimientosPendientes.map(m => {
                   const listo = m.estado === 'recolectado';
                   return (
-                    <li key={m.id} style={{ fontSize: 11.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, opacity: listo ? 0.5 : 1 }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <li key={m.id} style={{ fontSize: 15, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, opacity: listo ? 0.5 : 1 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                         {puedeMigrar && (
                           <input
                             type="checkbox"
                             checked={listo}
                             disabled={listo || ocupado}
                             onChange={() => onMarcarRecolectado(m.id)}
-                            style={{ cursor: listo ? 'default' : 'pointer' }}
+                            style={{ width: 19, height: 19, cursor: listo ? 'default' : 'pointer', flexShrink: 0 }}
                           />
                         )}
-                        <span style={{ fontFamily: 'monospace', textDecoration: listo ? 'line-through' : 'none' }}>{m.articulo}</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, textDecoration: listo ? 'line-through' : 'none' }}>{m.articulo}</span>
                       </span>
-                      <span style={{ fontFamily: 'monospace', color: GRIS_TEXTO_TENUE, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'monospace', color: GRIS_TEXTO, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {m.rclCodigo}-N{String(m.rclNivel).padStart(2, '0')} · x{m.cantidad}
                       </span>
                     </li>
@@ -145,7 +145,7 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
                 disabled={ocupado || falta}
                 onClick={onMarcarListo}
                 title={falta ? 'Todavía faltan artículos por recolectar de esta lista' : undefined}
-                style={{ fontSize: 12 }}
+                style={{ fontSize: 15, padding: '9px 18px' }}
               >
                 {falta ? 'Faltan artículos por recolectar' : 'Marcar listo -- bloquea el slot para el supervisor'}
               </button>
@@ -155,12 +155,12 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
       )}
 
       {puedeMigrar && puedeCancelar(estado) && (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 12 }}>
           <button
             className="btn-secondary"
             disabled={ocupado}
             onClick={onCancelarTraslado}
-            style={{ fontSize: 12, color: ESTADOS.sobrecargado }}
+            style={{ fontSize: 15, padding: '8px 16px', color: ESTADOS.sobrecargado }}
           >
             {bufferDelSlot.length > 0 ? `Cancelar traslado (sacará ${bufferDelSlot.length} del buffer)` : 'Cancelar traslado'}
           </button>
