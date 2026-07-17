@@ -28,6 +28,7 @@ export default function MapaToolbar({
   soloLectura,
   vistaContenido, onCambiarVista, mostrarToggleVista = false,
   cambiosMigracion = [], bufferGlobal = [], mostrarBuffer = false, onDevolverBuffer, alertasDestinoListo = [],
+  mostrarGenerarMovimiento = false, onGenerarMovimiento,
 }) {
   const [buscarEnfocado, setBuscarEnfocado] = useState(false);
   const [terminalAbierta, setTerminalAbierta] = useState(false);
@@ -85,6 +86,23 @@ export default function MapaToolbar({
               onClick={() => setTerminalAbierta(v => !v)}
               activo={terminalAbierta}
             />
+          </>
+        )}
+
+        {/*
+          "Generar movimiento" (F2) -- pedido explícito del usuario: en vez
+          de que cada equipo elija libremente qué rack empezar (eso genera
+          variación frente al plan que ya se pensó de antemano), el sistema
+          le asigna el próximo según el mismo motor del simulador. Botón
+          destacado (no un ícono más) -- es la acción PRINCIPAL de quien
+          migra ahora, no una utilidad secundaria como el resto de la barra.
+        */}
+        {mostrarGenerarMovimiento && (
+          <>
+            <div className="mapa-toolbar__separador" />
+            <button className="btn-primary" onClick={onGenerarMovimiento} style={{ fontSize: 12, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+              <i className="ti ti-route-2" /> Generar movimiento
+            </button>
           </>
         )}
 

@@ -32,7 +32,7 @@ export default function PanelDetalle({
   enSala = false, onLimpiarSlot,
   // F2 -- migración RCL->MZ, ver DECISIONES.md ADR-015. Todo esto es
   // undefined/no-op fuera del mapa real (enSala=true nunca lo usa).
-  migracionEstado, puedeMigrar = false, puedeConfirmarMigracion = false,
+  migracionEstado, puedeMigrar = false, puedeElegirLibremente = true, puedeConfirmarMigracion = false,
   onIniciarTraslado, onConfirmarFinalizado, onDepositarBuffer, onMarcarListoMigracion, onCancelarTraslado, onDevolverBuffer,
   movimientosPendientesSlot = [], bufferDelSlot = [], etiquetaRcl = null, onMarcarRecolectado,
 }) {
@@ -75,8 +75,8 @@ export default function PanelDetalle({
             {enSala && (
               <BotonAccion icono="ti-trash" etiqueta="Vaciar rack" onClick={onLimpiarSlot} deshabilitado={moviendoAlgo || nArts(rack) === 0} destructivo />
             )}
-            {/* F2 -- visibilidad CONTEXTUAL, sin un "modo migración" global (decisión explícita del usuario): el botón aparece solo cuando hay trabajo real que hacer en ESTE slot. */}
-            {!enSala && puedeMigrar && puedeIniciarTraslado(migracionEstado) && (
+            {/* F2 -- visibilidad CONTEXTUAL, sin un "modo migración" global (decisión explícita del usuario): el botón aparece solo cuando hay trabajo real que hacer en ESTE slot. `puedeElegirLibremente` (Supervisor/Administrador) -- Operador ya no elige el rack a mano, solo tiene "Generar movimiento" en la barra (ver MapaToolbar.jsx/MapaCanvas.jsx). */}
+            {!enSala && puedeMigrar && puedeElegirLibremente && puedeIniciarTraslado(migracionEstado) && (
               <BotonAccion icono="ti-truck-delivery" etiqueta="Iniciar traslado" onClick={onIniciarTraslado} deshabilitado={moviendoAlgo} />
             )}
             {!enSala && puedeConfirmarMigracion && puedeConfirmar(migracionEstado) && (

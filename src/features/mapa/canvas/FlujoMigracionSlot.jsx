@@ -1,4 +1,4 @@
-import { pasoDelFlujo, puedeMarcarListo, puedeCancelar, puedeDevolverDelBuffer, todoRecolectado } from '../../migracion/flujoMigracionSlot.js';
+import { pasoDelFlujo, esperandoAprobacion, puedeMarcarListo, puedeCancelar, puedeDevolverDelBuffer, todoRecolectado } from '../../migracion/flujoMigracionSlot.js';
 import { useIdsEnCurso } from '../../../shared/hooks/useIdsEnCurso.js';
 import { GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO, BLANCO_HUESO_TARJETA, ESTADOS } from './paleta.js';
 
@@ -25,6 +25,33 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
   // Declarado ANTES del return temprano de abajo -- los hooks de React no
   // pueden ser condicionales.
   const { idsEnCurso: devolviendo, ejecutar } = useIdsEnCurso();
+
+  // Espera de cupo (F2, capacidad por equipo) -- ANTES del paso 1, no un
+  // paso más del flujo guiado (ver flujoMigracionSlot.js). Sin acción del
+  // operador acá salvo retirar la solicitud -- aprobar es cosa de
+  // Supervisor/Administrador, desde la cola de aprobaciones del Sidebar.
+  if (esperandoAprobacion(estado)) {
+    return (
+      <div style={{ margin: '0 16px 16px', padding: '12px 14px', borderRadius: 10, border: `1px solid ${BORDE_CLARO}`, background: BLANCO_HUESO_TARJETA }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <i className="ti ti-hourglass" style={{ fontSize: 13, color: ESTADOS.medio }} />
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>
+            Esperando cupo
+          </span>
+        </div>
+        <p style={{ fontSize: 12, color: GRIS_TEXTO, margin: 0 }}>
+          Ya hay equipos trabajando al máximo de su cupo libre -- un Supervisor o Administrador debe habilitar este equipo adicional antes de arrancar.
+        </p>
+        {puedeMigrar && (
+          <div style={{ marginTop: 10 }}>
+            <button className="btn-secondary" disabled={ocupado} onClick={onCancelarTraslado} style={{ fontSize: 12, color: ESTADOS.sobrecargado }}>
+              Retirar solicitud
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const paso = pasoDelFlujo(estado);
   if (!paso) return null;

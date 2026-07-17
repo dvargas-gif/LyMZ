@@ -90,7 +90,7 @@ export const migracionBufferService = {
    * Re-vincula filas del buffer que quedaron SIN destino (movimiento_id
    * null) porque se depositaron ANTES de que existiera el plan de
    * recolección (migracion_movimientos) -- se corre después de generar o
-   * regenerar el plan (ver PanelGenerarMovimientos.jsx), para que el buffer
+   * regenerar el plan (ver PanelMigracion.jsx), para que el buffer
    * viejo también empiece a resolver destino real en vez de quedar
    * "Sin destino asignado" para siempre. Devuelve cuántas filas se vincularon.
    */

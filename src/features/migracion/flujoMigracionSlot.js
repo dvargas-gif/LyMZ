@@ -1,16 +1,32 @@
 /**
  * Máquina de estados del flujo guiado de migración por slot (F2) --
- * pendiente -> vaciando -> recolectando -> bloqueado -> confirmado.
- * Funciones puras, sin Supabase (eso vive en migracionSlots.service.js) --
- * mismo criterio que identidadLegacy.service.js: la regla de negocio se
- * puede testear sin red.
+ * pendiente -> [esperando_aprobacion ->] vaciando -> recolectando ->
+ * bloqueado -> confirmado. Funciones puras, sin Supabase (eso vive en
+ * migracionSlots.service.js) -- mismo criterio que
+ * identidadLegacy.service.js: la regla de negocio se puede testear sin red.
  *
  * Ausencia de fila en migracion_slots === estado 'pendiente' (no se
  * persiste ese estado inicial, ver migracionSlots.service.js.iniciar()) --
  * por eso `estadoSlot` puede venir `undefined`/`null`.
+ *
+ * `esperando_aprobacion` (F2, capacidad por equipo): un trigger de la base
+ * fuerza este estado en vez de 'vaciando' cuando ya hay 1 o 2 equipos
+ * activos (2 cuerpos = 10 niveles c/u, máximo 3 concurrentes) -- ver
+ * 2026-07-17_migracion_cupo_aprobacion.sql. No es un paso más del flujo
+ * guiado (no cuenta para pasoDelFlujo), es una espera ANTES del paso 1.
  */
 export function puedeIniciarTraslado(estadoSlot) {
   return estadoSlot == null || estadoSlot === 'pendiente';
+}
+
+/** Mientras un slot espera que Supervisor/Administrador le habilite el cupo, no hay botón de acción del lado del operador -- solo el mensaje de espera. */
+export function esperandoAprobacion(estadoSlot) {
+  return estadoSlot === 'esperando_aprobacion';
+}
+
+/** Supervisor/Administrador -- ver src/features/auth/roles.js, mismo corte que puedeConfirmar. */
+export function puedeAprobarCupo(estadoSlot) {
+  return estadoSlot === 'esperando_aprobacion';
 }
 
 export function puedeDepositarEnBuffer(estadoSlot) {
@@ -39,9 +55,9 @@ export function puedeConfirmar(estadoSlot) {
   return estadoSlot === 'bloqueado';
 }
 
-/** "Cancelar traslado" -- solo mientras el operador todavía tiene margen de deshacerlo (antes de bloqueado, que ya espera al supervisor). */
+/** "Cancelar traslado" -- solo mientras el operador todavía tiene margen de deshacerlo (antes de bloqueado, que ya espera al supervisor). Incluye 'esperando_aprobacion': el propio equipo puede retirar su solicitud antes de que la aprueben. */
 export function puedeCancelar(estadoSlot) {
-  return estadoSlot === 'vaciando' || estadoSlot === 'recolectando';
+  return estadoSlot === 'esperando_aprobacion' || estadoSlot === 'vaciando' || estadoSlot === 'recolectando';
 }
 
 /** "Devolver" un artículo puntual del buffer (deshacer SOLO ese depósito, ver eliminarUno) -- mismo margen que Cancelar traslado: antes de bloqueado, que ya espera al supervisor. */

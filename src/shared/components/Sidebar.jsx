@@ -14,7 +14,7 @@ const PanelEliminarArticulosReales = lazy(() => import('../../features/eliminarA
 const PanelImportIdentidadLegacy = lazy(() => import('../../features/migracion/PanelImportIdentidadLegacy.jsx'));
 const PanelImportInventarioRcl = lazy(() => import('../../features/migracion/PanelImportInventarioRcl.jsx'));
 const PanelLimpiarAgotadosRcl = lazy(() => import('../../features/migracion/PanelLimpiarAgotadosRcl.jsx'));
-const PanelGenerarMovimientos = lazy(() => import('../../features/migracion/PanelGenerarMovimientos.jsx'));
+const PanelMigracion = lazy(() => import('../../features/migracion/PanelMigracion.jsx'));
 // Aparte (no junto a los de arriba): trae Framer Motion, que hoy solo carga
 // el Dashboard bajo demanda. El sidebar es parte del shell (siempre
 // montado), así que si se importara Framer Motion acá arriba, se coalescería
@@ -46,7 +46,7 @@ const SECCIONES = [
     items: [
       { id: 'import-identidad-legacy', tipo: 'panel', icon: 'ti-replace', label: 'Importar identidad RCL↔MZ' },
       { id: 'import-inventario-rcl', tipo: 'panel', icon: 'ti-package', label: 'Importar inventario actual (RCL)' },
-      { id: 'generar-movimientos-migracion', tipo: 'panel', icon: 'ti-route-2', label: 'Generar plan de recolección (RCL→MZ)', permiso: 'confirmar_migracion' },
+      { id: 'panel-migracion', tipo: 'panel', icon: 'ti-route-2', label: 'Panel de Migración (RCL→MZ)', permiso: 'confirmar_migracion' },
     ],
   },
   {
@@ -119,7 +119,7 @@ function ItemBoton({ item, activo, expandido, onClick }) {
  */
 export default function Sidebar({ sesion, activa, onCambiar }) {
   const [expandido, setExpandido] = useState(false);
-  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte' | 'carga-masiva' | 'eliminar-articulos' | 'import-identidad-legacy' | 'import-inventario-rcl' | 'limpiar-agotados-rcl' | 'generar-movimientos-migracion'
+  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte' | 'carga-masiva' | 'eliminar-articulos' | 'import-identidad-legacy' | 'import-inventario-rcl' | 'limpiar-agotados-rcl' | 'panel-migracion'
   const [seccionesCerradas, setSeccionesCerradas] = useState(SECCIONES_CERRADAS_DEFAULT);
   const navRef = useRef(null);
   // 3er argumento: expandir/colapsar o abrir/cerrar una sección cambia QUÉ
@@ -246,7 +246,7 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
             {panel === 'import-identidad-legacy' && <PanelImportIdentidadLegacy sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'import-inventario-rcl' && <PanelImportInventarioRcl sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'limpiar-agotados-rcl' && <PanelLimpiarAgotadosRcl sesion={sesion} onCerrar={() => setPanel(null)} />}
-            {panel === 'generar-movimientos-migracion' && <PanelGenerarMovimientos sesion={sesion} onCerrar={() => setPanel(null)} />}
+            {panel === 'panel-migracion' && <PanelMigracion sesion={sesion} onCerrar={() => setPanel(null)} />}
           </Suspense>
         </ErrorBoundary>
       )}

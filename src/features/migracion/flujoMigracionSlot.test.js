@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { puedeIniciarTraslado, puedeDepositarEnBuffer, puedeMarcarListo, todoRecolectado, puedeConfirmar, puedeCancelar, puedeDevolverDelBuffer, pasoDelFlujo } from './flujoMigracionSlot.js';
+import { puedeIniciarTraslado, esperandoAprobacion, puedeAprobarCupo, puedeDepositarEnBuffer, puedeMarcarListo, todoRecolectado, puedeConfirmar, puedeCancelar, puedeDevolverDelBuffer, pasoDelFlujo } from './flujoMigracionSlot.js';
 
 describe('puedeIniciarTraslado', () => {
   it('sin fila (undefined/null) o "pendiente" -> true', () => {
@@ -8,7 +8,18 @@ describe('puedeIniciarTraslado', () => {
     expect(puedeIniciarTraslado('pendiente')).toBe(true);
   });
   it('cualquier otro estado -> false', () => {
-    ['vaciando', 'recolectando', 'bloqueado', 'confirmado'].forEach(e => expect(puedeIniciarTraslado(e)).toBe(false));
+    ['esperando_aprobacion', 'vaciando', 'recolectando', 'bloqueado', 'confirmado'].forEach(e => expect(puedeIniciarTraslado(e)).toBe(false));
+  });
+});
+
+describe('esperandoAprobacion / puedeAprobarCupo', () => {
+  it('solo en "esperando_aprobacion"', () => {
+    expect(esperandoAprobacion('esperando_aprobacion')).toBe(true);
+    expect(puedeAprobarCupo('esperando_aprobacion')).toBe(true);
+    ['pendiente', undefined, 'vaciando', 'recolectando', 'bloqueado', 'confirmado'].forEach(e => {
+      expect(esperandoAprobacion(e)).toBe(false);
+      expect(puedeAprobarCupo(e)).toBe(false);
+    });
   });
 });
 
@@ -47,7 +58,8 @@ describe('puedeConfirmar', () => {
 });
 
 describe('puedeCancelar', () => {
-  it('solo mientras dura vaciando/recolectando -- ya no una vez bloqueado (esperando al supervisor)', () => {
+  it('esperando_aprobacion/vaciando/recolectando -- ya no una vez bloqueado (esperando al supervisor)', () => {
+    expect(puedeCancelar('esperando_aprobacion')).toBe(true);
     expect(puedeCancelar('vaciando')).toBe(true);
     expect(puedeCancelar('recolectando')).toBe(true);
     ['pendiente', undefined, 'bloqueado', 'confirmado'].forEach(e => expect(puedeCancelar(e)).toBe(false));

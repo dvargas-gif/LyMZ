@@ -17,6 +17,16 @@ export const migracionMovimientosService = {
     return data.map(d => ({ id: d.id, mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna }));
   },
 
+  /** TODOS los movimientos pendientes, con su origen RCL -- lo que necesita planificarSecuencia.js para armar el grafo de dependencias entre racks (a diferencia de listarTodos(), acá sí hace falta rcl_codigo/rcl_nivel). */
+  async listarPendientesParaSecuencia() {
+    const { data, error } = await supabase
+      .from('migracion_movimientos')
+      .select('id, mz_pasillo, mz_columna, rcl_codigo, rcl_nivel, articulo')
+      .eq('estado', 'pendiente');
+    if (error) throw error;
+    return data.map(d => ({ id: d.id, mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna, rclCodigo: d.rcl_codigo, rclNivel: d.rcl_nivel, articulo: d.articulo }));
+  },
+
   /** Lista de pick de UNA posición MZ destino, en orden de recolección. */
   async listarPorDestino(mzPasillo, mzColumna) {
     const { data, error } = await supabase
@@ -73,5 +83,16 @@ export const migracionMovimientosService = {
       .update({ estado: 'recolectado', recolectado_por: usuarioId, recolectado_en: new Date().toISOString() })
       .eq('id', id);
     if (error) throw error;
+  },
+
+  /** % del plan ya recolectado, para el resumen del Panel de Migración -- `count:'exact', head:true` trae solo el número, sin bajar ninguna fila (el plan puede tener miles). */
+  async contarProgreso() {
+    const [total, recolectados] = await Promise.all([
+      supabase.from('migracion_movimientos').select('id', { count: 'exact', head: true }),
+      supabase.from('migracion_movimientos').select('id', { count: 'exact', head: true }).eq('estado', 'recolectado'),
+    ]);
+    if (total.error) throw total.error;
+    if (recolectados.error) throw recolectados.error;
+    return { total: total.count ?? 0, recolectados: recolectados.count ?? 0 };
   },
 };
