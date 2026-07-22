@@ -110,7 +110,7 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
       ) : (
         <div style={{ overflowY: 'auto', flex: 1 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-            <thead style={{ position: 'sticky', top: 0, background: '#fff' }}>
+            <thead style={{ position: 'sticky', top: 0, background: 'var(--card)' }}>
               <tr style={{ textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' }}>
                 <th style={thStyle}>Artículo</th>
                 <th style={thStyle}>Descripción</th>

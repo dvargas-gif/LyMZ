@@ -7,7 +7,7 @@ import Sidebar from './shared/components/Sidebar.jsx';
 import ErrorBoundary from './shared/components/ErrorBoundary.jsx';
 import BienvenidaModal from './shared/components/BienvenidaModal.jsx';
 import SaludoToast from './shared/components/SaludoToast.jsx';
-import { ROLES } from './features/auth/roles.js';
+import { ROLES, puede } from './features/auth/roles.js';
 
 // Code-splitting: cada uno de estos es su propio chunk, descargado recién
 // cuando hace falta (login, o la tab/modal que se abre) en vez de ir todo
@@ -18,9 +18,10 @@ const Login = lazy(() => import('./features/auth/Login.jsx'));
 const SlottingFrame = lazy(() => import('./features/mapa/SlottingFrame.jsx'));
 const SalasView = lazy(() => import('./features/salas/SalasView.jsx'));
 const DashboardAnalitico = lazy(() => import('./features/dashboard/DashboardAnalitico.jsx'));
-const Historial = lazy(() => import('./features/historial/Historial.jsx'));
 const AuditoriaView = lazy(() => import('./features/auditoria/AuditoriaView.jsx'));
+const PanelDespacho = lazy(() => import('./features/despacho/PanelDespacho.jsx'));
 const AddRackModal = lazy(() => import('./features/mapa/AddRackModal.jsx'));
+const BurbujaMensajes = lazy(() => import('./shared/components/BurbujaMensajes.jsx'));
 
 // Saludo personalizado: exclusivo de Administrador y Supervisor — el resto
 // de los roles no lo ve. El Sidebar (navegación + herramientas admin) es
@@ -28,7 +29,7 @@ const AddRackModal = lazy(() => import('./features/mapa/AddRackModal.jsx'));
 const ROLES_PANEL_ADMIN = [ROLES.ADMIN, ROLES.SUPERVISOR];
 
 function Shell() {
-  const { sesion, logout } = useAuth();
+  const { sesion, logout, conectados } = useAuth();
   const [tab, setTab] = useState('mapa');
   const [apodo, setApodo] = useState(sesion.apodo);
   const [pedirApodo, setPedirApodo] = useState(false);
@@ -61,8 +62,8 @@ function Shell() {
             {tab === 'mapa' && <SlottingFrame sesion={sesion} onSolicitarAddRack={() => setMostrarAddRack(true)} />}
             {tab === 'salas' && <SalasView sesion={sesion} />}
             {tab === 'dashboard' && <DashboardAnalitico />}
-            {tab === 'historial' && <Historial sesion={sesion} />}
-            {tab === 'auditoria' && <AuditoriaView />}
+            {tab === 'auditoria' && <AuditoriaView sesion={sesion} />}
+            {tab === 'ordenes-ejecucion' && <PanelDespacho sesion={sesion} />}
           </Suspense>
         </ErrorBoundary>
       </main>
@@ -72,6 +73,13 @@ function Shell() {
         <ErrorBoundary mensaje="No se pudo cargar 'Añadir rack'.">
           <Suspense fallback={null}>
             <AddRackModal sesion={sesion} onCerrar={() => setMostrarAddRack(false)} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      {puede(sesion.rol, 'usar_mensajes') && (
+        <ErrorBoundary mensaje="No se pudo cargar Mensajes.">
+          <Suspense fallback={null}>
+            <BurbujaMensajes sesion={sesion} conectados={conectados} />
           </Suspense>
         </ErrorBoundary>
       )}

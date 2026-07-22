@@ -22,6 +22,7 @@
     "react-dom": "^18.2.0",
     "react-konva": "^18.2.16",
     "react-router-dom": "^6.22.0",
+    "three": "^0.185.1",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },

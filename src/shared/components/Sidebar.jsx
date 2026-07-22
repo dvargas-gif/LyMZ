@@ -2,18 +2,15 @@ import { lazy, Suspense, useRef, useState } from 'react';
 import { puede, ROLES } from '../../features/auth/roles.js';
 import { useEfectoCurvoScroll } from '../../ui/motion/useEfectoCurvoScroll.js';
 import { useArrastrarParaScrollear } from '../../ui/motion/useArrastrarParaScrollear.js';
+import { iniciales } from '../utils/iniciales.js';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import Logo from './Logo.jsx';
 
 // Cada panel es su propio chunk, descargado recién al abrirlo.
 const UsuariosPanel = lazy(() => import('../../features/usuarios/UsuariosPanel.jsx'));
-const EditarCroquisPanel = lazy(() => import('../../features/mapa/EditarCroquisPanel.jsx'));
-const ReportePanel = lazy(() => import('../../features/reportes/ReportePanel.jsx'));
 const PanelCargaMasiva = lazy(() => import('../../features/cargaMasiva/PanelCargaMasiva.jsx'));
-const PanelEliminarArticulosReales = lazy(() => import('../../features/eliminarArticulos/PanelEliminarArticulosReales.jsx'));
-const PanelImportIdentidadLegacy = lazy(() => import('../../features/migracion/PanelImportIdentidadLegacy.jsx'));
-const PanelImportInventarioRcl = lazy(() => import('../../features/migracion/PanelImportInventarioRcl.jsx'));
-const PanelLimpiarAgotadosRcl = lazy(() => import('../../features/migracion/PanelLimpiarAgotadosRcl.jsx'));
+const PanelEliminarArticulos = lazy(() => import('../../features/eliminarArticulos/PanelEliminarArticulos.jsx'));
+const PanelImportMigracion = lazy(() => import('../../features/migracion/PanelImportMigracion.jsx'));
 const PanelMigracion = lazy(() => import('../../features/migracion/PanelMigracion.jsx'));
 // Aparte (no junto a los de arriba): trae Framer Motion, que hoy solo carga
 // el Dashboard bajo demanda. El sidebar es parte del shell (siempre
@@ -37,30 +34,39 @@ const SECCIONES = [
       { id: 'mapa', tipo: 'nav', icon: 'ti-map-2', label: 'Mapa editable', permiso: 'ver_mapa' },
       { id: 'salas', tipo: 'nav', icon: 'ti-flask', label: 'Salas de simulación', permiso: 'usar_salas' },
       { id: 'dashboard', tipo: 'nav', icon: 'ti-chart-bar', label: 'Dashboard analítico', permiso: 'ver_dashboard' },
-      { id: 'historial', tipo: 'nav', icon: 'ti-history', label: 'Historial de movimientos', permiso: 'ver_historial' },
-      { id: 'reporte', tipo: 'panel', icon: 'ti-table', label: 'Reporte de posiciones' },
     ],
   },
   {
     id: 'migracion', label: 'Migración RCL→MZ', icon: 'ti-route',
     items: [
-      { id: 'import-identidad-legacy', tipo: 'panel', icon: 'ti-replace', label: 'Importar identidad RCL↔MZ' },
-      { id: 'import-inventario-rcl', tipo: 'panel', icon: 'ti-package', label: 'Importar inventario actual (RCL)' },
+      { id: 'import-migracion', tipo: 'panel', icon: 'ti-cloud-upload', label: 'Importar datos de migración' },
       { id: 'panel-migracion', tipo: 'panel', icon: 'ti-route-2', label: 'Panel de Migración (RCL→MZ)', permiso: 'confirmar_migracion' },
+      // 'nav' (no 'panel'): a diferencia del resto de esta sección, Operador
+      // SÍ tiene que poder verlo (es el "cabecilla de equipo" que genera y
+      // confirma el despacho) -- los 'panel' de acá arriba están limitados a
+      // Admin/Supervisor por `mostrarAcciones`, sin importar el permiso.
+      { id: 'ordenes-ejecucion', tipo: 'nav', icon: 'ti-clipboard-list', label: 'Órdenes de Ejecución', permiso: 'generar_despacho' },
     ],
   },
   {
     id: 'configuracion', label: 'Configuración', icon: 'ti-settings',
     items: [
       { id: 'usuarios', tipo: 'panel', icon: 'ti-users', label: 'Permisos de usuarios' },
-      { id: 'croquis', tipo: 'panel', icon: 'ti-palette', label: 'Editar croquis' },
       { id: 'carga-masiva', tipo: 'panel', icon: 'ti-upload', label: 'Carga masiva de posiciones' },
     ],
   },
   {
     id: 'auditoria', label: 'Auditoría', icon: 'ti-shield-check',
     items: [
-      { id: 'auditoria', tipo: 'nav', icon: 'ti-shield-check', label: 'Auditoría', permiso: 'ver_auditoria' },
+      // 'ver_historial' (no 'ver_auditoria') a propósito -- 2026-07-22, el
+      // historial de movimientos se fusionó DENTRO de AuditoriaView.jsx (ver
+      // ese archivo). 'ver_historial' es superset de 'ver_auditoria' hoy
+      // (todo rol con 'ver_auditoria' también tiene 'ver_historial', ver
+      // roles.js) y además incluye a "Solo lectura", que antes veía el
+      // historial en su propia pestaña -- adentro, AuditoriaView oculta la
+      // sección de seguridad (KPIs/intentos de login) a quien no tenga
+      // 'ver_auditoria', pero el historial de movimientos se ve igual.
+      { id: 'auditoria', tipo: 'nav', icon: 'ti-shield-check', label: 'Auditoría', permiso: 'ver_historial' },
     ],
   },
   {
@@ -70,7 +76,6 @@ const SECCIONES = [
     id: 'mantenimiento', label: 'Mantenimiento', icon: 'ti-alert-triangle', peligroso: true,
     items: [
       { id: 'eliminar-articulos', tipo: 'panel', icon: 'ti-trash', label: 'Eliminar artículos del mapa real', permiso: 'eliminar_articulos', peligroso: true },
-      { id: 'limpiar-agotados-rcl', tipo: 'panel', icon: 'ti-recycle', label: 'Limpiar artículos sin stock real (RCL)', permiso: 'eliminar_articulos', peligroso: true },
     ],
   },
 ];
@@ -78,13 +83,6 @@ const SECCIONES = [
 // Colapsada por defecto -- las acciones destructivas quedan un click más
 // lejos que el resto ("ocultar complejidad", pedido explícito del usuario).
 const SECCIONES_CERRADAS_DEFAULT = new Set(['mantenimiento']);
-
-/** Iniciales para el avatar del pie del sidebar -- "David Vargas" -> "DV". Sin nombre (no debería pasar, pero sesion es de afuera), un placeholder neutro en vez de romper. */
-function iniciales(nombre) {
-  if (!nombre) return '?';
-  const partes = nombre.trim().split(/\s+/);
-  return (partes[0][0] + (partes[1]?.[0] ?? '')).toUpperCase();
-}
 
 // Un solo botón de ítem para ambos modos (antes había dos JSX casi
 // idénticos repetidos) -- así el colapsado y el expandido nunca pueden
@@ -119,7 +117,7 @@ function ItemBoton({ item, activo, expandido, onClick }) {
  */
 export default function Sidebar({ sesion, activa, onCambiar }) {
   const [expandido, setExpandido] = useState(false);
-  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'croquis' | 'reporte' | 'carga-masiva' | 'eliminar-articulos' | 'import-identidad-legacy' | 'import-inventario-rcl' | 'limpiar-agotados-rcl' | 'panel-migracion'
+  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'reporte' | 'carga-masiva' | 'eliminar-articulos' | 'import-migracion' | 'panel-migracion'
   const [seccionesCerradas, setSeccionesCerradas] = useState(SECCIONES_CERRADAS_DEFAULT);
   const navRef = useRef(null);
   // 3er argumento: expandir/colapsar o abrir/cerrar una sección cambia QUÉ
@@ -239,13 +237,10 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
         <ErrorBoundary mensaje="No se pudo cargar este panel.">
           <Suspense fallback={null}>
             {panel === 'usuarios' && <UsuariosPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
-            {panel === 'croquis' && <EditarCroquisPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'reporte' && <ReportePanel onCerrar={() => setPanel(null)} />}
             {panel === 'carga-masiva' && <PanelCargaMasiva sesion={sesion} onCerrar={() => setPanel(null)} />}
-            {panel === 'eliminar-articulos' && <PanelEliminarArticulosReales sesion={sesion} onCerrar={() => setPanel(null)} />}
-            {panel === 'import-identidad-legacy' && <PanelImportIdentidadLegacy sesion={sesion} onCerrar={() => setPanel(null)} />}
-            {panel === 'import-inventario-rcl' && <PanelImportInventarioRcl sesion={sesion} onCerrar={() => setPanel(null)} />}
-            {panel === 'limpiar-agotados-rcl' && <PanelLimpiarAgotadosRcl sesion={sesion} onCerrar={() => setPanel(null)} />}
+            {panel === 'eliminar-articulos' && <PanelEliminarArticulos sesion={sesion} onCerrar={() => setPanel(null)} />}
+            {panel === 'import-migracion' && <PanelImportMigracion sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'panel-migracion' && <PanelMigracion sesion={sesion} onCerrar={() => setPanel(null)} />}
           </Suspense>
         </ErrorBoundary>

@@ -21,6 +21,12 @@
  * nivel de base). Este módulo simula el mismo cupo para sugerir un orden
  * que no proponga arrancar más equipos de los que realmente entran.
  *
+ * 2026-07-22: el usuario mencionó un cambio físico (3 pares de carritos
+ * pegados) pero dio dos descripciones que no cerraban entre sí sobre si
+ * eso sube el cupo a 6 equipos o lo deja en 3 equipos de 10 niveles cada
+ * uno -- NO se cambió este número hasta tener una respuesta sin ambigüedad
+ * (ver conversación), para no arriesgar una sobrecarga real de buffer.
+ *
  * Simplificación explícita (documentada, no un bug): cada "oleada" asume
  * que, para cuando arranca, las oleadas anteriores ya avanzaron lo
  * suficiente como para volver a la línea base de equipos REALMENTE activos
@@ -28,6 +34,17 @@
  * oleadas. Es una herramienta de sugerencia para un humano que igual puede
  * desviarse del orden, no un solver óptimo exacto (problema NP-hard en
  * general -- no vale la pena para una herramienta advisory).
+ *
+ * Ajuste 2026-07-22 (pedido explícito, verificado antes de tocar el
+ * trigger de cupo real -- ver 2026-07-22_cupo_ignora_racks_vacios.sql):
+ * el cupo de 3 protege el BUFFER FÍSICO, no el trabajo en sí -- un rack que
+ * hoy ya está vacío (nada real para sacar bajo su vieja identidad RCL)
+ * nunca ocupa un carro de buffer, así que no tiene sentido que compita por
+ * el mismo cupo que un rack de verdad lleno. `opciones.racksSinContenido`
+ * (Set opcional de "pasillo|columna") deja pasar esos racks SIEMPRE, sin
+ * importar cuánto cupo quede -- el resto de los candidatos sigue exactamente
+ * igual que antes. Sin este parámetro (el caso de todos los llamadores
+ * existentes hoy), el comportamiento es IDÉNTICO al de antes de este ajuste.
  */
 
 // Todas las sub-posiciones reales de identidad_legacy tienen subnivel=1 hoy
@@ -125,13 +142,16 @@ export function evaluarListoParaIniciar(mzPasillo, mzColumna, movimientosPendien
  * @param {Array<{mzPasillo, mzColumna, rclCodigo, rclNivel, articulo}>} movimientosPendientes -- migracionMovimientosService.listarPendientesParaSecuencia()
  * @param {Array<{mzPasillo, mzColumna, mzNivel, mzSubnivel, rclCodigo, rclNivel, rclSubnivel, estadoRcl}>} identidadLegacy -- identidadLegacyService.listar()
  * @param {Map<string, {estado}>} slotsActuales -- migracionSlotsService.listar() (clave "pasillo|columna")
- * @param {{capacidadMax?: number}} opciones
+ * @param {{capacidadMax?: number, racksSinContenido?: Set<string>}} opciones -- `racksSinContenido`: claves
+ *   "pasillo|columna" de racks que HOY no tienen contenido real para vaciar (ver contenidoActualDeRacks() en
+ *   generarLoteDespacho.js) -- entran a la oleada sin consumir cupo, nunca requieren aprobación.
  * @returns {{ oleadas: Array<Array<{mzPasillo, mzColumna, requiereAprobacion, rompeCiclo, libera: number, nivelesPropios: number}>>, equiposActivosIniciales: number, advertencias: string[] }}
  *   `libera`: cuántos otros racks quedan un paso más cerca de poder arrancar una vez que ESTE se vacía (grado de salida).
  *   `nivelesPropios`: cuántos niveles de origen distintos entrega este rack a otros -- proxy de cuánto tiempo/volumen de buffer implica.
  */
 export function planificarSecuencia(movimientosPendientes, identidadLegacy, slotsActuales, opciones = {}) {
   const capacidadMax = opciones.capacidadMax ?? 3;
+  const racksSinContenido = opciones.racksSinContenido ?? new Set();
   const advertencias = [];
 
   const { destinos, dependenciasPendientes, desbloquea, nivelesDeOrigen } = construirGrafoDependencias(movimientosPendientes, identidadLegacy, slotsActuales);
@@ -144,7 +164,13 @@ export function planificarSecuencia(movimientosPendientes, identidadLegacy, slot
 
   if (equiposActivosIniciales >= capacidadMax) {
     advertencias.push(`Cupo lleno ahora mismo (${equiposActivosIniciales} equipos activos) -- no se puede sugerir un inicio nuevo hasta que se libere uno.`);
-    return { oleadas: [], equiposActivosIniciales, advertencias };
+    // Con cupo lleno, los racks que SÍ necesitan buffer no tienen a dónde
+    // ir -- pero un rack sin contenido real no compite por ese mismo
+    // recurso, así que si hay alguno, igual vale la pena seguir armando la
+    // oleada solo con esos (ver racksSinContenido más abajo).
+    if (racksSinContenido.size === 0) {
+      return { oleadas: [], equiposActivosIniciales, advertencias };
+    }
   }
 
   function ordenarListos(claves) {
@@ -200,26 +226,39 @@ export function planificarSecuencia(movimientosPendientes, identidadLegacy, slot
     }
 
     listos = ordenarListos(listos);
-    const tomados = listos.slice(0, Math.max(cupoDisponible, 0));
+
+    // Racks sin contenido real HOY (no consumen cupo, ver opciones.racksSinContenido
+    // más arriba) entran SIEMPRE -- el resto sigue exactamente igual que antes,
+    // limitado a `cupoDisponible`. Con racksSinContenido vacío (default), `libres`
+    // siempre es [] y `tomadosConCupo` es idéntico al `tomados` de antes de este ajuste.
+    const libres = listos.filter(c => racksSinContenido.has(c));
+    const necesitanCupo = listos.filter(c => !racksSinContenido.has(c));
+    const tomadosConCupo = necesitanCupo.slice(0, Math.max(cupoDisponible, 0));
+    const tomados = [...libres, ...tomadosConCupo];
+
     if (tomados.length === 0) {
-      // No hay cupo ni para el primero de esta vuelta -- no puede pasar con
-      // la guardia de equiposActivosIniciales>=capacidadMax de más arriba,
-      // pero se protege igual en vez de girar en vacío.
+      // No hay cupo ni para el primero de esta vuelta (y ningún rack libre
+      // pendiente) -- no puede pasar con la guardia de
+      // equiposActivosIniciales>=capacidadMax de más arriba, pero se
+      // protege igual en vez de girar en vacío.
       advertencias.push('Sin cupo disponible para seguir sugiriendo -- el resto queda pendiente de una próxima simulación.');
       break;
     }
 
     totalRompeCiclo += tomados.filter(c => forzados.has(c)).length;
-    oleadas.push(tomados.map((clave, i) => {
+    const objeto = (clave, requiereAprobacion) => {
       const [mzPasillo, mzColumnaTxt] = clave.split('|');
       return {
-        mzPasillo, mzColumna: Number(mzColumnaTxt),
-        requiereAprobacion: (equiposActivosIniciales + i) >= 1,
+        mzPasillo, mzColumna: Number(mzColumnaTxt), requiereAprobacion,
         rompeCiclo: forzados.has(clave),
         libera: desbloquea.get(clave)?.size ?? 0,
         nivelesPropios: nivelesDeOrigen.get(clave)?.size ?? 0,
       };
-    }));
+    };
+    oleadas.push([
+      ...libres.map(clave => objeto(clave, false)), // nunca requieren aprobación -- no tocan el cupo de buffer
+      ...tomadosConCupo.map((clave, i) => objeto(clave, (equiposActivosIniciales + i) >= 1)),
+    ]);
 
     for (const clave of tomados) {
       restantes.delete(clave);

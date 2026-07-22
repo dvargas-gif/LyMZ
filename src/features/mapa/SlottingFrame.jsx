@@ -138,6 +138,9 @@ const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onC
     // para el iframe) desalinearía esa altura si acá también hubiera un
     // banner empujando contenido en flujo normal.
     const mostrarAnadirRack = !escenario && sesion.rol === ROLES.ADMIN;
+    // Reporte de posiciones (2026-07-22, antes en el Sidebar) -- mismo
+    // criterio que ya usaba esa entrada: Admin o Supervisor, nunca en una sala.
+    const mostrarReporte = !escenario && (sesion.rol === ROLES.ADMIN || sesion.rol === ROLES.SUPERVISOR);
     return (
       <Suspense fallback={<div style={{ color: '#9A9684', fontSize: 13, padding: 20 }}>Cargando canvas…</div>}>
         <MapaCanvas
@@ -149,6 +152,7 @@ const SlottingFrame = forwardRef(function SlottingFrame({ sesion, escenario, onC
           onSolicitarAddRack={onSolicitarAddRack}
           soloLectura={soloLectura}
           mostrarAnadirRack={mostrarAnadirRack}
+          mostrarReporte={mostrarReporte}
         />
       </Suspense>
     );

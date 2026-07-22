@@ -35,6 +35,26 @@ export const migracionMovimientosService = {
     return data.map(d => ({ id: d.id, mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna }));
   },
 
+  /**
+   * Destino MZ de TODOS los movimientos alguna vez generados, sin filtrar
+   * por estado -- a diferencia de `listarTodos()` (pendiente) o
+   * `listarPendientesParaSecuencia()`. Un `migracion_movimiento` solo existe
+   * si tuvo stock real al momento de "Calcular plan" (ver
+   * generarMovimientos.js/sinStock) -- así que contar estas filas por rack
+   * y compararlo contra el total planificado en `inventario_slotting` para
+   * ese mismo rack dice cuántos de sus artículos NUNCA llegaron a tener un
+   * movimiento real (sin stock hoy, van a quedar faltantes hasta que se
+   * recalcule el plan con stock nuevo). Pensado para
+   * despacho.service.js/generarLoteDespacho.js -- pedido explícito 2026-07-22
+   * tras un caso real (vaciar 14 para recolectar 1 en un rack cuyo plan SÍ
+   * tenía más artículos, solo que sin stock).
+   */
+  async listarTodosCualquierEstado() {
+    const { data, error } = await supabase.from('migracion_movimientos').select('mz_pasillo, mz_columna');
+    if (error) throw error;
+    return data.map(d => ({ mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna }));
+  },
+
   /** TODOS los movimientos pendientes, con su origen RCL -- lo que necesita planificarSecuencia.js para armar el grafo de dependencias entre racks (a diferencia de listarTodos(), acá sí hace falta rcl_codigo/rcl_nivel). */
   async listarPendientesParaSecuencia() {
     const { data, error } = await supabase

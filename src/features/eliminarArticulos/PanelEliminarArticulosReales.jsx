@@ -4,7 +4,6 @@ import { reporteService } from '../reportes/reporte.service.js';
 import { posicionesEliminadasService } from '../../shared/services/posicionesEliminadas.service.js';
 import { auditService } from '../auditoria/audit.service.js';
 import { ACCIONES } from '../auditoria/audit.schema.js';
-import ModalBase from '../../shared/components/ModalBase.jsx';
 
 /** Busca la primera columna cuyo encabezado (sin espacios/mayúsculas) empiece con el prefijo dado -- tolera "Articulo ", "Derscripcion " (typo real del archivo), etc. sin acoplarse a un encabezado exacto. */
 function valorPorPrefijo(fila, prefijo) {
@@ -22,8 +21,13 @@ function valorPorPrefijo(fila, prefijo) {
  * contra el estado actual -> confirmar), pero para ELIMINAR en vez de mover:
  * el cruce usa reporteService.obtener(null) para saber qué artículos del
  * Excel existen hoy en el mapa real antes de tocar nada.
+ *
+ * Contenido de una pestaña de PanelEliminarArticulos.jsx (2026-07-22) --
+ * misma acción de fondo que PanelLimpiarAgotadosRcl.jsx (marcar exiliado),
+ * distinta forma de detectar candidatos (lista manual vs cruce automático
+ * contra RCL). Ya no es su propio modal, no recibe `onCerrar`.
  */
-export default function PanelEliminarArticulosReales({ sesion, onCerrar }) {
+export default function PanelEliminarArticulosReales({ sesion }) {
   const [paso, setPaso] = useState('subir'); // 'subir' | 'previa' | 'resultado'
   const [motivo, setMotivo] = useState('Reubicación a otra área (reducir sobresaturación del Mezzanine)');
   const [previa, setPrevia] = useState(null); // {encontrados:[...], noEncontrados:[...]}
@@ -126,7 +130,7 @@ export default function PanelEliminarArticulosReales({ sesion, onCerrar }) {
   }
 
   return (
-    <ModalBase titulo="🗑️ Eliminar artículos del mapa real" onCerrar={onCerrar} maxWidth={900} maxHeight="88vh" scrollContenido>
+    <div>
       <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
         Para artículos que se reubican FUERA del Mezzanine (a otra área no controlada por este sistema).
         Subí un Excel/CSV con una columna de artículo -- se cruza contra el mapa real antes de tocar nada.
@@ -177,7 +181,7 @@ export default function PanelEliminarArticulosReales({ sesion, onCerrar }) {
           <button className="btn-primary" onClick={descargarReporte}><i className="ti ti-download" /> Descargar reporte (.xlsx)</button>
         </div>
       )}
-    </ModalBase>
+    </div>
   );
 }
 

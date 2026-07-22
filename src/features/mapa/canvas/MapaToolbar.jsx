@@ -5,6 +5,7 @@ import { interaccionBoton } from '../../../ui/motion/variants.js';
 import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
 import TerminalCambios from './TerminalCambios.jsx';
 import PanelBufferGlobal from './PanelBufferGlobal.jsx';
+import ReportePanel from '../../reportes/ReportePanel.jsx';
 
 /**
  * Barra de herramientas del canvas -- reemplaza al toolbar HTML del mapa
@@ -28,11 +29,12 @@ export default function MapaToolbar({
   soloLectura,
   vistaContenido, onCambiarVista, mostrarToggleVista = false,
   cambiosMigracion = [], bufferGlobal = [], mostrarBuffer = false, onDevolverBuffer, alertasDestinoListo = [],
-  mostrarGenerarMovimiento = false, onGenerarMovimiento,
+  mostrarReporte = false,
 }) {
   const [buscarEnfocado, setBuscarEnfocado] = useState(false);
   const [terminalAbierta, setTerminalAbierta] = useState(false);
   const [bufferAbierto, setBufferAbierto] = useState(false);
+  const [reporteAbierto, setReporteAbierto] = useState(false);
   const cantidadCambios = cambios.length; // SOLO lo deshacible -- el badge de Deshacer no debe contar eventos de migración
 
   // La Terminal muestra movimientos normales Y de migración juntos, en orden
@@ -89,23 +91,6 @@ export default function MapaToolbar({
           </>
         )}
 
-        {/*
-          "Generar movimiento" (F2) -- pedido explícito del usuario: en vez
-          de que cada equipo elija libremente qué rack empezar (eso genera
-          variación frente al plan que ya se pensó de antemano), el sistema
-          le asigna el próximo según el mismo motor del simulador. Botón
-          destacado (no un ícono más) -- es la acción PRINCIPAL de quien
-          migra ahora, no una utilidad secundaria como el resto de la barra.
-        */}
-        {mostrarGenerarMovimiento && (
-          <>
-            <div className="mapa-toolbar__separador" />
-            <button className="btn-primary" onClick={onGenerarMovimiento} style={{ fontSize: 12, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-              <i className="ti ti-route-2" /> Generar movimiento
-            </button>
-          </>
-        )}
-
         {/* Buffer de migración (F2/F3) -- vista GLOBAL, independiente de qué ficha esté abierta (el usuario no encontraba lo que había dejado apenas cambiaba de rack). */}
         {mostrarBuffer && (
           <>
@@ -116,6 +101,23 @@ export default function MapaToolbar({
               onClick={() => setBufferAbierto(v => !v)}
               activo={bufferAbierto}
               badge={bufferGlobal.length > 0 ? bufferGlobal.length : null}
+            />
+          </>
+        )}
+
+        {/* Reporte de posiciones (2026-07-22, antes vivía en el sidebar, ver
+            Sidebar.jsx) -- movido acá adentro: es una vista de datos del
+            mapa, no una herramienta administrativa aparte. Mismo componente,
+            mismo permiso (Admin/Supervisor, ver mostrarReporte en
+            SlottingFrame.jsx), cero cambio de datos/servicio. */}
+        {mostrarReporte && (
+          <>
+            <div className="mapa-toolbar__separador" />
+            <BotonToolbar
+              icono="ti-table"
+              titulo={reporteAbierto ? 'Ocultar reporte de posiciones' : 'Ver reporte de posiciones'}
+              onClick={() => setReporteAbierto(v => !v)}
+              activo={reporteAbierto}
             />
           </>
         )}
@@ -149,6 +151,10 @@ export default function MapaToolbar({
 
       {bufferAbierto && mostrarBuffer && (
         <PanelBufferGlobal items={bufferGlobal} onCerrar={() => setBufferAbierto(false)} onDevolver={onDevolverBuffer} alertas={alertasDestinoListo} />
+      )}
+
+      {reporteAbierto && mostrarReporte && (
+        <ReportePanel onCerrar={() => setReporteAbierto(false)} />
       )}
     </div>
   );

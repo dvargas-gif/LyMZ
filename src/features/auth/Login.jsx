@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { authService } from './auth.service.js';
@@ -8,6 +8,12 @@ import { useReducedMotion } from '../../ui/motion/prefersReducedMotion.js';
 import { entradaConStagger, entradaProtagonista, apareceFlotante } from '../../ui/motion/variants.js';
 import EscenaAlmacen, { ANCLAS_HUD, ESCENA_ANCHO, ESCENA_ALTO } from './loginEscenaAlmacen.jsx';
 import { DURACION } from '../../ui/motion/tokens.js';
+import { detectarWebGL2 } from '../../shared/utils/webgl.js';
+
+// three.js solo se importa dentro de este chunk separado (React.lazy) --
+// el bundle principal del Login nunca ve `three` (ver MASTER-PROMPT.md,
+// mismo criterio que Fase 4: "0 bytes de Three.js en el bundle principal").
+const Rack3DEscena = lazy(() => import('./rack3d/Rack3DEscena.jsx'));
 
 // % dentro de .login-escena -- misma matemática para los paneles HUD (acá)
 // y las líneas conectoras (dibujadas DENTRO de EscenaAlmacen, mismo
@@ -41,6 +47,16 @@ const DESCRIPCIONES_HUD = {
   inventario: 'Controla tu inventario con precisión y tomá decisiones basadas en datos, no en suposiciones.',
 };
 
+// Mismo contenido que PUNTOS_HUD/DESCRIPCIONES_HUD, pero en el formato que
+// espera Rack3DEscena.jsx -- ahí son puntos anclados al rack 3D que se
+// activan al pasar el mouse (pedido explícito: "que sean puntos en el rack
+// que cuando pasemos el mouse se active"), no paneles HUD posicionados con
+// las coordenadas 2D de la escena SVG vieja. Constante de módulo (no un
+// literal en el JSX) para que la referencia sea siempre la misma entre
+// renders -- Rack3DEscena la usa dentro de un efecto que solo debe correr
+// una vez al montar.
+const PUNTOS_INFO_RACK = PUNTOS_HUD.map(({ id, icono, etiqueta }) => ({ id, icono, etiqueta, descripcion: DESCRIPCIONES_HUD[id] }));
+
 // 5 eventos flotantes tipo "toast" repartidos sobre la escena (coordenadas
 // del mismo viewBox 400x260) -- posiciones fijas, lejos de los 3 anclajes
 // HUD para no superponerse. apareceFlotante() ya escalona la fase por
@@ -53,17 +69,35 @@ const BADGES_EVENTO = [
   { titulo: 'Inventario sincronizado', detalle: 'Hace 1 min', x: 300, y: 158 },
 ];
 
+// Mismo contenido que BADGES_EVENTO (título/detalle), pero reposicionado
+// para el fondo 3D full-bleed -- las coordenadas de arriba están afinadas
+// para cair sobre elementos concretos de la ilustración SVG (la cinta
+// transportadora, el forklift) y no aplican acá. En 3D solo hace falta
+// esquivar dos zonas: título/subtítulo (arriba-izquierda) y franja de
+// confianza + botón (abajo) -- estas 5 posiciones viven en la franja
+// central-derecha que queda libre entre ambas.
+const POSICIONES_BADGE_3D = [
+  { x: 260, y: 78 },
+  { x: 300, y: 150 },
+  { x: 320, y: 108 },
+  { x: 230, y: 190 },
+  { x: 310, y: 172 },
+];
+
 const FRANJA_CONFIANZA = [
   { icono: 'ti-shield-check', titulo: 'Seguro', desc: 'Tus datos protegidos con los más altos estándares.' },
   { icono: 'ti-clock', titulo: 'En tiempo real', desc: 'Información actualizada al instante.' },
   { icono: 'ti-circle-check', titulo: 'Confiable', desc: 'Operación continua y sin interrupciones.' },
 ];
 
-// Índices de la cascada de entrada -- marca, título, subtítulo, la escena
-// completa, y la franja de confianza al final. STAGGER_MS (ver tokens.js)
-// hace el resto -- ningún delay escrito a mano acá.
+// Índices de la cascada de entrada -- marca, título, subtítulo, [la escena
+// completa -- solo en el fallback SVG], y la franja de confianza al final.
+// STAGGER_MS (ver tokens.js) hace el resto -- ningún delay escrito a mano
+// acá. En 3D la escena ya no ocupa un lugar en este flujo (es fondo
+// full-bleed, con su propia animación de entrada -- ver rack3d-entrada en
+// index.css), así que ahí la franja de confianza hereda el índice 3 en vez
+// de esperar el turno de una escena que ya no compite por stagger.
 const INDICE_ESCENA = 3;
-const INDICE_CONFIANZA = INDICE_ESCENA + 1;
 // Los 5 badges de evento se reparten en fase a lo largo de un ciclo
 // completo (duración + pausa de apareceFlotante) -- así nunca coinciden
 // más de uno o dos a la vez sobre la escena.
@@ -92,6 +126,10 @@ export default function Login() {
   // aunque el mouse se mueva a otro lado, hasta que se cierre.
   const [legendaAbierta, setLegendaAbierta] = useState(null);
   const resaltado = legendaAbierta ?? hoverActivo;
+  // Mientras el rack 3D tiene un zoom activo (punto o nivel), los toasts
+  // ambientales se ocultan -- pedido explícito: "el rack está muy céntrico,
+  // cuando voy a los niveles se estorban [con los toasts]".
+  const [focoRackActivo, setFocoRackActivo] = useState(false);
 
   function manejarClickHud(id, e) {
     // Antes de revelar, un click en CUALQUIER parte del panel (incluido un
@@ -107,11 +145,13 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const reducido = useReducedMotion();
+  // Rack 3D solo si hay WebGL2 y el usuario no pidió movimiento reducido --
+  // en cualquier otro caso, la escena 2D (loginEscenaAlmacen) de siempre.
+  // detectarWebGL2() no cambia entre renders, un solo cálculo alcanza.
+  const mostrar3D = useMemo(() => detectarWebGL2(), []) && !reducido;
+  const indiceConfianza = mostrar3D ? INDICE_ESCENA : INDICE_ESCENA + 1;
 
   function revelar() { setRevelado(true); }
-  function revelarConTeclado(e) {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); revelar(); }
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -144,11 +184,6 @@ export default function Login() {
       <motion.div
         className={`login-visual ${!revelado ? 'login-visual--completo' : ''}`}
         aria-hidden={revelado ? 'true' : undefined}
-        role={revelado ? undefined : 'button'}
-        tabIndex={revelado ? undefined : 0}
-        aria-label={revelado ? undefined : 'Continuar a iniciar sesión'}
-        onClick={revelado ? undefined : revelar}
-        onKeyDown={revelado ? undefined : revelarConTeclado}
       >
         {/* Fondo decorativo: foco esmeralda + franjas de luz + partículas --
             nunca fotografía, todo CSS/SVG. Los relieves de hexágonos/líneas
@@ -159,100 +194,56 @@ export default function Login() {
         <div className="login-fondo-linea login-fondo-linea--1" aria-hidden="true" />
         <div className="login-fondo-linea login-fondo-linea--2" aria-hidden="true" />
 
-        <div className="login-visual__contenido">
-          <motion.div className="login-visual__marca" {...entradaConStagger(0, reducido)}>
-            <Logo size={52} suave />
-            <span className="login-visual__marca-nombre">
-              <span className="login-visual__marca-inicial">O</span>verseas{' '}
-              <span className="login-visual__marca-inicial">L</span>ogistics{' '}
-              <span className="login-visual__marca-inicial">O</span>perations
-            </span>
-          </motion.div>
+        {/* El rack 3D pasa a ser el escenario COMPLETO del panel (pedido
+            explícito: "conviertas toda la pantalla en un escenario conectado
+            al rack"), no una caja acotada -- fondo full-bleed, detrás de
+            todo el texto. El fallback SVG (EscenaAlmacen) sigue con su caja
+            acotada de siempre más abajo (su `pct()`/ANCLAS_HUD dependen del
+            viewBox fijo 400:260, no se toca). */}
+        {mostrar3D && (
+          <div className="login-escena-fondo">
+            <Suspense fallback={<EscenaAlmacen reducido={reducido} resaltado={resaltado} pausar={!!legendaAbierta} />}>
+              <Rack3DEscena puntosInfo={PUNTOS_INFO_RACK} onEnfoqueCambio={setFocoRackActivo} />
+            </Suspense>
+          </div>
+        )}
+        {/* Un solo scrim, abajo -- pedido explícito: el texto se movió TODO
+            abajo (ver login-visual__contenido--overlay) para no interferir
+            con "el despliegue del rack" arriba. Ya no hace falta el scrim de
+            arriba (no hay texto ahí). */}
+        {mostrar3D && <div className="login-escena-scrim login-escena-scrim--abajo" aria-hidden="true" />}
 
-          <motion.h2 className="login-visual__titulo" {...entradaConStagger(1, reducido)}>
-            Control total.<br />
-            <span className="login-visual__titulo-acento">Trazabilidad en cada movimiento.</span>
-          </motion.h2>
-          <motion.p className="login-visual__subtitulo" {...entradaConStagger(2, reducido)}>
-            Plataforma integral de slotting, trazabilidad y gestión de inventario en tiempo real.
-          </motion.p>
+        {mostrar3D ? (
+          // Overlay: el texto flota ENCIMA del escenario 3D en vez de
+          // compartir espacio de layout con él -- pointer-events:none acá,
+          // reactivado puntualmente en el único elemento realmente
+          // interactivo (el botón de abajo) para que arrastrar/zoom/clickear
+          // el rack siga funcionando en cualquier otro punto del panel.
+          <div className="login-visual__contenido login-visual__contenido--overlay">
+            <div className="login-visual__bloque-superior">
+              <motion.div className="login-visual__marca" {...entradaConStagger(0, reducido)}>
+                <Logo size={52} suave />
+                <span className="login-visual__marca-nombre">
+                  <span className="login-visual__marca-inicial">O</span>verseas{' '}
+                  <span className="login-visual__marca-inicial">L</span>ogistics{' '}
+                  <span className="login-visual__marca-inicial">O</span>perations
+                </span>
+              </motion.div>
 
-          <motion.div
-            className="login-escena"
-            onClick={() => setLegendaAbierta(null)}
-            {...entradaConStagger(INDICE_ESCENA, reducido)}
-          >
-          <div className="login-escena__caja">
-            <EscenaAlmacen reducido={reducido} resaltado={resaltado} pausar={!!legendaAbierta} />
+              <motion.h2 className="login-visual__titulo" {...entradaConStagger(1, reducido)}>
+                Control total.<br />
+                <span className="login-visual__titulo-acento">Trazabilidad en cada movimiento.</span>
+              </motion.h2>
+              <motion.p className="login-visual__subtitulo" {...entradaConStagger(2, reducido)}>
+                Plataforma integral de slotting, trazabilidad y gestión de inventario en tiempo real.
+              </motion.p>
+            </div>
 
-            {PUNTOS_HUD.map(p => (
-              <div key={p.id} className="login-hud-envoltorio" style={pct(ANCLAS_HUD[p.id].hud)}>
-                {p.id === 'inventario' ? (
-                  <button
-                    type="button"
-                    className={`login-dashboard ${resaltado === p.id ? 'login-dashboard--activo' : ''}`}
-                    onMouseEnter={() => setHoverActivo(p.id)}
-                    onMouseLeave={() => setHoverActivo(null)}
-                    onFocus={() => setHoverActivo(p.id)}
-                    onBlur={() => setHoverActivo(null)}
-                    onClick={e => manejarClickHud(p.id, e)}
-                    aria-expanded={legendaAbierta === p.id}
-                  >
-                    <span className="login-dashboard__titulo">Inventario en tiempo real</span>
-                    <div className="login-dashboard__cuerpo">
-                      <div className="login-dashboard__dona">
-                        <svg viewBox="0 0 36 36">
-                          <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="4" />
-                          <circle cx="18" cy="18" r="15" fill="none" stroke="#4FE0D1" strokeWidth="4" strokeLinecap="round" strokeDasharray="94.2" strokeDashoffset="1.3" transform="rotate(-90 18 18)" />
-                        </svg>
-                        <span>98.6%</span>
-                      </div>
-                      <ul className="login-dashboard__stats">
-                        <li><span>SKUs</span><strong>1.248</strong></li>
-                        <li><span>Unidades</span><strong>45.982</strong></li>
-                        <li><span>Órdenes activas</span><strong>26</strong></li>
-                      </ul>
-                    </div>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className={`login-hud ${resaltado === p.id ? 'login-hud--activo' : ''}`}
-                    onMouseEnter={() => setHoverActivo(p.id)}
-                    onMouseLeave={() => setHoverActivo(null)}
-                    onFocus={() => setHoverActivo(p.id)}
-                    onBlur={() => setHoverActivo(null)}
-                    onClick={e => manejarClickHud(p.id, e)}
-                    aria-expanded={legendaAbierta === p.id}
-                  >
-                    <i className={`ti ${p.icono}`} />
-                    <span>{p.etiqueta}</span>
-                  </button>
-                )}
-
-                {legendaAbierta === p.id && (
-                  <motion.div
-                    className={`login-hud__leyenda login-hud__leyenda--${p.lado} login-hud__leyenda--${p.alinear}`}
-                    onClick={e => e.stopPropagation()}
-                    initial={{ opacity: 0, scale: .92 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: DURACION.micro }}
-                  >
-                    <button type="button" className="login-hud__leyenda-cerrar" onClick={() => setLegendaAbierta(null)} aria-label="Cerrar">
-                      <i className="ti ti-x" />
-                    </button>
-                    <strong>{p.etiqueta}</strong>
-                    <p>{DESCRIPCIONES_HUD[p.id]}</p>
-                  </motion.div>
-                )}
-              </div>
-            ))}
-
-            {!reducido && !legendaAbierta && BADGES_EVENTO.map((b, i) => (
+            {!reducido && !focoRackActivo && BADGES_EVENTO.map((b, i) => (
               <motion.div
                 key={b.titulo}
                 className="login-badge-evento"
-                style={pct(b)}
+                style={pct(POSICIONES_BADGE_3D[i])}
                 {...apareceFlotante(reducido, (i * CICLO_BADGE) / BADGES_EVENTO.length)}
               >
                 <div className="login-badge-evento__icono"><i className="ti ti-box" /></div>
@@ -262,25 +253,153 @@ export default function Login() {
                 </div>
               </motion.div>
             ))}
-          </div>
-          </motion.div>
 
-          <motion.ul className="login-confianza" {...entradaConStagger(INDICE_CONFIANZA, reducido)}>
-            {FRANJA_CONFIANZA.map(f => (
-              <li key={f.titulo}>
-                <i className={`ti ${f.icono}`} />
-                <div><strong>{f.titulo}</strong><span>{f.desc}</span></div>
-              </li>
-            ))}
-          </motion.ul>
+            <div className="login-visual__bloque-inferior">
+              <motion.ul className="login-confianza" {...entradaConStagger(indiceConfianza, reducido)}>
+                {FRANJA_CONFIANZA.map(f => (
+                  <li key={f.titulo}>
+                    <i className={`ti ${f.icono}`} />
+                    <div><strong>{f.titulo}</strong><span>{f.desc}</span></div>
+                  </li>
+                ))}
+              </motion.ul>
 
-          {!revelado && (
-            <div className="login-visual__hint">
-              <i className="ti ti-hand-click" />
-              <span>Tocá para continuar</span>
+              {!revelado && (
+                <button type="button" className="login-visual__hint" onClick={revelar}>
+                  <span>Iniciar sesión</span>
+                  <i className="ti ti-arrow-right" />
+                </button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="login-visual__contenido">
+            <motion.div className="login-visual__marca" {...entradaConStagger(0, reducido)}>
+              <Logo size={52} suave />
+              <span className="login-visual__marca-nombre">
+                <span className="login-visual__marca-inicial">O</span>verseas{' '}
+                <span className="login-visual__marca-inicial">L</span>ogistics{' '}
+                <span className="login-visual__marca-inicial">O</span>perations
+              </span>
+            </motion.div>
+
+            <motion.h2 className="login-visual__titulo" {...entradaConStagger(1, reducido)}>
+              Control total.<br />
+              <span className="login-visual__titulo-acento">Trazabilidad en cada movimiento.</span>
+            </motion.h2>
+            <motion.p className="login-visual__subtitulo" {...entradaConStagger(2, reducido)}>
+              Plataforma integral de slotting, trazabilidad y gestión de inventario en tiempo real.
+            </motion.p>
+
+            <motion.div
+              className="login-escena"
+              onClick={() => setLegendaAbierta(null)}
+              {...entradaConStagger(INDICE_ESCENA, reducido)}
+            >
+            <div className="login-escena__caja">
+              <EscenaAlmacen reducido={reducido} resaltado={resaltado} pausar={!!legendaAbierta} />
+
+              {PUNTOS_HUD.map(p => (
+                <div key={p.id} className="login-hud-envoltorio" style={pct(ANCLAS_HUD[p.id].hud)}>
+                  {p.id === 'inventario' ? (
+                    <button
+                      type="button"
+                      className={`login-dashboard ${resaltado === p.id ? 'login-dashboard--activo' : ''}`}
+                      onMouseEnter={() => setHoverActivo(p.id)}
+                      onMouseLeave={() => setHoverActivo(null)}
+                      onFocus={() => setHoverActivo(p.id)}
+                      onBlur={() => setHoverActivo(null)}
+                      onClick={e => manejarClickHud(p.id, e)}
+                      aria-expanded={legendaAbierta === p.id}
+                    >
+                      <span className="login-dashboard__titulo">Inventario en tiempo real</span>
+                      <div className="login-dashboard__cuerpo">
+                        <div className="login-dashboard__dona">
+                          <svg viewBox="0 0 36 36">
+                            <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="4" />
+                            <circle cx="18" cy="18" r="15" fill="none" stroke="#4FE0D1" strokeWidth="4" strokeLinecap="round" strokeDasharray="94.2" strokeDashoffset="1.3" transform="rotate(-90 18 18)" />
+                          </svg>
+                          <span>98.6%</span>
+                        </div>
+                        <ul className="login-dashboard__stats">
+                          <li><span>SKUs</span><strong>1.248</strong></li>
+                          <li><span>Unidades</span><strong>45.982</strong></li>
+                          <li><span>Órdenes activas</span><strong>26</strong></li>
+                        </ul>
+                      </div>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`login-hud ${resaltado === p.id ? 'login-hud--activo' : ''}`}
+                      onMouseEnter={() => setHoverActivo(p.id)}
+                      onMouseLeave={() => setHoverActivo(null)}
+                      onFocus={() => setHoverActivo(p.id)}
+                      onBlur={() => setHoverActivo(null)}
+                      onClick={e => manejarClickHud(p.id, e)}
+                      aria-expanded={legendaAbierta === p.id}
+                    >
+                      <i className={`ti ${p.icono}`} />
+                      <span>{p.etiqueta}</span>
+                    </button>
+                  )}
+
+                  {legendaAbierta === p.id && (
+                    <motion.div
+                      className={`login-hud__leyenda login-hud__leyenda--${p.lado} login-hud__leyenda--${p.alinear}`}
+                      onClick={e => e.stopPropagation()}
+                      initial={{ opacity: 0, scale: .92 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: DURACION.micro }}
+                    >
+                      <button type="button" className="login-hud__leyenda-cerrar" onClick={() => setLegendaAbierta(null)} aria-label="Cerrar">
+                        <i className="ti ti-x" />
+                      </button>
+                      <strong>{p.etiqueta}</strong>
+                      <p>{DESCRIPCIONES_HUD[p.id]}</p>
+                    </motion.div>
+                  )}
+                </div>
+              ))}
+
+              {!reducido && !legendaAbierta && BADGES_EVENTO.map((b, i) => (
+                <motion.div
+                  key={b.titulo}
+                  className="login-badge-evento"
+                  style={pct(b)}
+                  {...apareceFlotante(reducido, (i * CICLO_BADGE) / BADGES_EVENTO.length)}
+                >
+                  <div className="login-badge-evento__icono"><i className="ti ti-box" /></div>
+                  <div className="login-badge-evento__texto">
+                    <strong>{b.titulo} <i className="ti ti-circle-check" /></strong>
+                    <span>{b.detalle}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            </motion.div>
+
+            <motion.ul className="login-confianza" {...entradaConStagger(indiceConfianza, reducido)}>
+              {FRANJA_CONFIANZA.map(f => (
+                <li key={f.titulo}>
+                  <i className={`ti ${f.icono}`} />
+                  <div><strong>{f.titulo}</strong><span>{f.desc}</span></div>
+                </li>
+              ))}
+            </motion.ul>
+
+            {!revelado && (
+              // Botón explícito -- antes cualquier click en el panel
+              // revelaba el formulario, pero eso entraba en conflicto con
+              // interactuar con el rack (arrastrar/zoom/clickear un badge
+              // también "click en el panel"). Ahora solo este botón revela.
+              <button type="button" className="login-visual__hint" onClick={revelar}>
+                <span>Iniciar sesión</span>
+                <i className="ti ti-arrow-right" />
+              </button>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {revelado && (

@@ -149,6 +149,60 @@ describe('planificarSecuencia', () => {
     expect(advertencias.some(a => a.includes('Cupo lleno'))).toBe(true);
   });
 
+  it('pedido explícito 2026-07-22: cupo lleno + un rack SIN contenido real -- igual se sugiere, sin pedir aprobación', () => {
+    const identidadLegacy = [];
+    const movimientos = [movimiento('MZ01', 1, 'RCL-X', 1, 'ART-A')]; // el único candidato -- resulta que ya está vacío
+    const slotsLlenos = new Map([
+      ['MZ02|1', { estado: 'vaciando' }],
+      ['MZ02|2', { estado: 'recolectando' }],
+      ['MZ02|3', { estado: 'vaciando' }],
+    ]);
+
+    const { oleadas, advertencias, equiposActivosIniciales } = planificarSecuencia(
+      movimientos, identidadLegacy, slotsLlenos, { racksSinContenido: new Set(['MZ01|1']) }
+    );
+
+    // La advertencia de "Cupo lleno" se sigue mostrando (información real,
+    // el cupo de verdad está lleno) -- pero NO bloquea al rack libre.
+    expect(equiposActivosIniciales).toBe(3);
+    expect(advertencias.some(a => a.includes('Cupo lleno'))).toBe(true);
+    expect(oleadas.flat()).toEqual([{ mzPasillo: 'MZ01', mzColumna: 1, requiereAprobacion: false, rompeCiclo: false, libera: 0, nivelesPropios: 0 }]);
+  });
+
+  it('racks libres se mezclan con los que sí necesitan cupo -- los libres nunca cuentan contra el límite ni piden aprobación', () => {
+    const identidadLegacy = [];
+    // 4 candidatos listos, cupo real de 3 -- pero 2 de ellos (columna 3 y 4) ya están vacíos.
+    const movimientos = [
+      movimiento('MZ01', 1, 'RCL-X1', 1, 'ART-A'),
+      movimiento('MZ01', 2, 'RCL-X2', 1, 'ART-B'),
+      movimiento('MZ01', 3, 'RCL-X3', 1, 'ART-C'), // libre
+      movimiento('MZ01', 4, 'RCL-X4', 1, 'ART-D'), // libre
+    ];
+
+    const { oleadas } = planificarSecuencia(
+      movimientos, identidadLegacy, SIN_PROGRESO, { capacidadMax: 3, racksSinContenido: new Set(['MZ01|3', 'MZ01|4']) }
+    );
+
+    // Los 2 libres entran SIEMPRE (no consumen cupo) + hasta 3 de los que sí necesitan cupo -- acá hay 2, entran los 2.
+    const columnas = oleadas[0].map(o => o.mzColumna).sort();
+    expect(columnas).toEqual([1, 2, 3, 4]);
+    expect(oleadas[0].find(o => o.mzColumna === 3).requiereAprobacion).toBe(false);
+    expect(oleadas[0].find(o => o.mzColumna === 4).requiereAprobacion).toBe(false);
+  });
+
+  it('sin racksSinContenido (parámetro omitido) -- comportamiento idéntico a antes de este ajuste', () => {
+    const identidadLegacy = [];
+    const movimientos = [movimiento('MZ01', 1, 'RCL-X', 1, 'ART-A')];
+    const slotsLlenos = new Map([
+      ['MZ02|1', { estado: 'vaciando' }], ['MZ02|2', { estado: 'recolectando' }], ['MZ02|3', { estado: 'vaciando' }],
+    ]);
+
+    const { oleadas, advertencias } = planificarSecuencia(movimientos, identidadLegacy, slotsLlenos);
+
+    expect(oleadas).toEqual([]);
+    expect(advertencias.some(a => a.includes('Cupo lleno'))).toBe(true);
+  });
+
   it('slots ya iniciados (cualquier estado post-pendiente) no vuelven a aparecer como candidatos', () => {
     const identidadLegacy = [];
     const movimientos = [

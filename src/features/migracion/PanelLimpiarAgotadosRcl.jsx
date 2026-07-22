@@ -7,7 +7,6 @@ import { migracionBufferService } from '../../shared/services/migracionBuffer.se
 import { auditService } from '../auditoria/audit.service.js';
 import { ACCIONES } from '../auditoria/audit.schema.js';
 import { detectarArticulosAgotados, detectarBufferSinStock } from './articulosAgotados.js';
-import ModalBase from '../../shared/components/ModalBase.jsx';
 
 // "Exiliado" es un prefijo FIJO, no editable (ver PREFIJO_MOTIVO abajo) --
 // el conteo corrido de "van X artículo(s) exiliados en total" cuenta por
@@ -37,8 +36,11 @@ function claveBuffer(f) { return `buffer:${f.id}`; }
  * destildar una por una para dejarla, o aplicar todo de una sola vez. Si
  * venía del buffer, además se purga esa fila (soft-delete, conserva
  * historial). Nunca se aplica solo: previsualiza, se elige, se confirma.
+ *
+ * Contenido de una pestaña de PanelEliminarArticulos.jsx (2026-07-22) --
+ * ya no es su propio modal, no recibe `onCerrar`.
  */
-export default function PanelLimpiarAgotadosRcl({ sesion, onCerrar }) {
+export default function PanelLimpiarAgotadosRcl({ sesion }) {
   const [paso, setPaso] = useState('detectar'); // 'detectar' | 'previa' | 'resultado'
   const [modo, setModo] = useState('accion'); // 'accion' (checkboxes + exiliar) | 'consulta' (solo mirar, sin tocar nada)
   const [detalleMotivo, setDetalleMotivo] = useState(DETALLE_DEFAULT);
@@ -151,7 +153,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion, onCerrar }) {
   }
 
   return (
-    <ModalBase titulo="🧹 Limpiar artículos sin stock real (RCL)" onCerrar={onCerrar} maxWidth={900} maxHeight="88vh" scrollContenido>
+    <div>
       <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
         Cruza el mapa MZ real Y el buffer de migración contra el inventario RCL importado más reciente: un artículo
         cuyo origen RCL ya no tiene stock real hoy se OFRECE como candidato a <b>exiliado</b> -- sacado del mezanine
@@ -245,7 +247,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion, onCerrar }) {
           <button className="btn-primary" onClick={descargarReporte}><i className="ti ti-download" /> Descargar reporte (.xlsx)</button>
         </div>
       )}
-    </ModalBase>
+    </div>
   );
 }
 

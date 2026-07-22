@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WMS · Slotting Mezanine</title>
+    <script>
+      // Aplica el tema guardado ANTES del primer paint -- sin esto, la
+      // página siempre arrancaría en claro y "saltaría" a oscuro recién
+      // cuando React montara (ver src/shared/theme.js, misma clave de
+      // localStorage). Sin preferencia guardada, no se toca nada acá: el
+      // @media (prefers-color-scheme) de index.css ya cubre ese caso solo con CSS.
+      (function () {
+        try {
+          var t = localStorage.getItem('wms-tema');
+          if (t === 'claro' || t === 'oscuro') document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

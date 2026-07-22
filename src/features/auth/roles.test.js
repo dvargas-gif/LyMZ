@@ -35,4 +35,25 @@ describe('puede', () => {
     expect(puede(ROLES.SUPERVISOR, 'confirmar_migracion')).toBe(true);
     expect(puede(ROLES.ADMIN, 'confirmar_migracion')).toBe(true);
   });
+
+  it('generar_despacho / confirmar_tarea_despacho (Módulo de Despacho): Operador SÍ puede, mismo corte que migrar_slot', () => {
+    expect(puede(ROLES.OPERADOR, 'generar_despacho')).toBe(true);
+    expect(puede(ROLES.OPERADOR, 'confirmar_tarea_despacho')).toBe(true);
+    expect(puede(ROLES.SUPERVISOR, 'generar_despacho')).toBe(true);
+    expect(puede(ROLES.ADMIN, 'generar_despacho')).toBe(true);
+    expect(puede(ROLES.LECTURA, 'generar_despacho')).toBe(false);
+  });
+
+  it('cerrar_lote_despacho (paso de auditoría final): SOLO Supervisor/Administrador, Operador no', () => {
+    expect(puede(ROLES.OPERADOR, 'cerrar_lote_despacho')).toBe(false);
+    expect(puede(ROLES.SUPERVISOR, 'cerrar_lote_despacho')).toBe(true);
+    expect(puede(ROLES.ADMIN, 'cerrar_lote_despacho')).toBe(true);
+  });
+
+  it('usar_mensajes (presencia + mensajería): los 4 roles pueden, a diferencia del resto de los permisos', () => {
+    expect(puede(ROLES.ADMIN, 'usar_mensajes')).toBe(true);
+    expect(puede(ROLES.SUPERVISOR, 'usar_mensajes')).toBe(true);
+    expect(puede(ROLES.OPERADOR, 'usar_mensajes')).toBe(true);
+    expect(puede(ROLES.LECTURA, 'usar_mensajes')).toBe(true);
+  });
 });

@@ -87,8 +87,9 @@ export const auditService = {
    * tabla y filtra en memoria; lo sigue usando Productividad.jsx, que
    * necesita el set completo para calcular agregados por usuario/día/hora),
    * esto filtra, ordena y pagina en el SERVIDOR: nunca descarga más que la
-   * página pedida. Pensado para Historial.jsx y AuditoriaView.jsx, que solo
-   * muestran una tabla y no agregan nada -- la auditoría es la única tabla
+   * página pedida. Pensado para AuditoriaView.jsx (el historial de
+   * movimientos vive ahí, fusionado -- ver ese archivo), que solo
+   * muestra una tabla y no agrega nada -- la auditoría es la única tabla
    * del proyecto sin techo natural (crece con cada login/movimiento), así
    * que era la candidata real a volverse lenta con el tiempo.
    *

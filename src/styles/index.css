@@ -31,7 +31,69 @@
   --naranja-sala-tenue: #FFF4EC;
   --kpi-bg: #F8F7F2;
   --divisor-login: #9CA3AF; /* separador "o" del login, único uso */
+  /* Sombras de hover que antes eran hex sueltos en vez de token -- mismo
+     valor exacto que ya tenían (cero cambio visual en claro), solo
+     centralizados para poder darles un valor distinto en oscuro. */
+  --accent-hover: #0F373B;
+  --fondo-sutil-hover: #E4E0D3;
+  --borde-hover: #D5D9DE;
 }
+
+/* ---- Modo oscuro (2026-07-22, pedido explícito: "Editar croquis" tenía un
+   selector de tema que nunca leía nadie -- ver EditarCroquisPanel.jsx,
+   eliminado) -- mismo acento que ya usa el Sidebar (--sb-acento, la única
+   superficie oscura que ya existía en la app), para que el modo oscuro
+   hable el mismo idioma de marca en vez de inventar un teal distinto.
+   Rack3D/Login/Sidebar NO se tocan acá: ya son escenas oscuras fijas por
+   diseño, ajenas a este toggle -- solo se redefinen los tokens del resto
+   de la app (shell, paneles, modales, tablas). */
+:root[data-theme="oscuro"] {
+  --bg: #16262A;
+  --card: #1E3236;
+  --ink: #E7EEEC;
+  --muted: #8FA3A0;
+  --line: #2A4145;
+  --accent: #3FA7AC;
+  --accent-rgb: 63, 167, 172;
+  --green: #2FBE8D;
+  --amber: #E0A83D;
+  --red: #E0655A;
+  --red-rgb: 224, 101, 90;
+  --overlay: rgba(6, 14, 13, .65);
+  --texto-tenue: #9FB0AC;
+  --texto-placeholder: #6E8280;
+  --borde-input: #35494C;
+  --borde-sutil: #23393C;
+  --borde-medio: #3E5A5C;
+  --borde-claro: #2E4548;
+  --fondo-sutil: #22383B;
+  --ink-oscuro: #D7F0EC;
+  --verde-tenue: #1C332B;
+  --rojo-tenue: #3A2224;
+  --amber-tenue: #3A2E18;
+  --naranja-sala: #E8935A;
+  --naranja-sala-tenue: #3A2A1C;
+  --kpi-bg: #1B2C2E;
+  --accent-hover: #4FC2C7;
+  --fondo-sutil-hover: #2C4548;
+  --borde-hover: #3D5457;
+}
+/* Sin preferencia explícita guardada (ver theme.js): seguir el tema del
+   sistema operativo -- mismo bloque de tokens, para no duplicar la lista. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="claro"]) {
+    --bg: #16262A; --card: #1E3236; --ink: #E7EEEC; --muted: #8FA3A0; --line: #2A4145;
+    --accent: #3FA7AC; --accent-rgb: 63, 167, 172; --green: #2FBE8D; --amber: #E0A83D;
+    --red: #E0655A; --red-rgb: 224, 101, 90; --overlay: rgba(6, 14, 13, .65);
+    --texto-tenue: #9FB0AC; --texto-placeholder: #6E8280; --borde-input: #35494C;
+    --borde-sutil: #23393C; --borde-medio: #3E5A5C; --borde-claro: #2E4548;
+    --fondo-sutil: #22383B; --ink-oscuro: #D7F0EC; --verde-tenue: #1C332B;
+    --rojo-tenue: #3A2224; --amber-tenue: #3A2E18; --naranja-sala: #E8935A;
+    --naranja-sala-tenue: #3A2A1C; --kpi-bg: #1B2C2E; --accent-hover: #4FC2C7;
+    --fondo-sutil-hover: #2C4548; --borde-hover: #3D5457;
+  }
+}
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -61,7 +123,7 @@ body {
   background: var(--fondo-sutil); border: none; border-radius: 8px; width: 34px; height: 34px;
   cursor: pointer; color: var(--muted); font-size: 15px; transition: background .15s ease;
 }
-.btn-logout:hover { background: #E4E0D3; }
+.btn-logout:hover { background: var(--fondo-sutil-hover); }
 .app-main { flex: 1; padding: 24px; max-width: 1500px; margin: 0 auto; width: 100%; }
 
 /* ---- ErrorBoundary (fallback si un chunk lazy no carga) ---- */
@@ -298,8 +360,7 @@ body {
    que se vea la animación completa, pedido explícito) -- incluso en el
    rango donde normalmente se oculta (ver el media query de abajo, ahora
    con :not() para no taparlo acá). */
-.login-visual--completo { width: 100%; max-width: none; cursor: pointer; }
-.login-visual--completo:focus-visible { outline: 2px solid #34C3B6; outline-offset: -3px; }
+.login-visual--completo { width: 100%; max-width: none; }
 /* Antes, al enfocar un campo del formulario, el panel turquesa se retraía
    a 30%/24% -- esa era justo la ventana angosta donde los paneles
    HUD/dashboard (tamaño fijo en px) se superponían y rompían la escena.
@@ -387,12 +448,70 @@ body {
    ocupar mucho más a lo ancho (pedido explícito: "usa el espacio que
    tenés"), sin arriesgarse a desbordar en una más chica. */
 .login-escena__caja {
-  position: relative; aspect-ratio: 400 / 260; width: auto; height: min(48vh, 100%);
+  /* 62vh (antes 48vh) -- pedido explícito: "que ocupe 55-60% del hero, que
+     sea lo primero que se vea al entrar". */
+  position: relative; aspect-ratio: 400 / 260; width: auto; height: min(62vh, 100%);
   max-width: 100%; max-height: 100%;
   transition: width .3s cubic-bezier(.16, 1, .3, 1), height .3s cubic-bezier(.16, 1, .3, 1);
 }
 .login-escena__caja svg { display: block; width: 100%; height: 100%; }
 @media (prefers-reduced-motion: reduce) { .login-escena__caja { transition: none; } }
+
+/* ---- Rack 3D como escenario completo (no una caja) ----
+   Pedido explícito: "conviertas toda la pantalla en un escenario conectado
+   al rack". El canvas ocupa TODO .login-visual de fondo (position:absolute,
+   detrás del texto) -- a diferencia de la escena SVG de arriba, no necesita
+   mantener un aspect-ratio fijo: Rack3DEscena.jsx ya adapta su cámara a
+   cualquier proporción vía ResizeObserver. */
+.login-escena-fondo { position: absolute; inset: 0; z-index: 0; }
+.login-escena-fondo > * { width: 100%; height: 100%; }
+/* Scrim -- el texto (ahora todo abajo, ver .login-visual__contenido--overlay)
+   flota ENCIMA de un fondo que se mueve de verdad (drag, balanceo idle), así
+   que necesita algo de contraste detrás. Ancho completo con degradé en las
+   DOS direcciones (vertical Y horizontal) -- pedido explícito: "no quiero
+   que esté dividido el color de fondo". Antes el scrim tenía un `width` fijo
+   (columna izquierda) con un degradé solo vertical, y el borde derecho de
+   esa caja se notaba como una costura/split de color contra el resto del
+   fondo. Ahora se desvanece gradualmente en ambos ejes, sin ningún borde
+   duro en ninguna parte. pointer-events:none, igual que .login-fondo-foco. */
+.login-escena-scrim { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.login-escena-scrim--abajo {
+  background:
+    linear-gradient(to top, rgba(4, 18, 15, .72) 0%, transparent 55%),
+    linear-gradient(to right, rgba(4, 18, 15, .5) 0%, transparent 60%);
+}
+
+/* El contenido de texto pasa a ser un overlay sobre el escenario 3D en vez
+   de compartir el flujo normal con él -- pointer-events:none acá, para que
+   arrastrar/zoom/clickear el rack funcione en cualquier punto sin texto
+   encima; se reactiva puntualmente en .login-visual__hint (el único
+   elemento realmente interactivo de este overlay). justify-content:flex-end
+   -- pedido explícito: "que las letras estuvieran hacia abajo para que no
+   me interfiera con el despliegue del rack" -- todo el texto (antes
+   dividido en un bloque arriba y otro abajo) ahora se apila al fondo,
+   dejando el resto del panel completamente libre para el rack. */
+.login-visual__contenido--overlay {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  gap: clamp(10px, 2.2vh, 18px);
+  padding: clamp(14px, 3vh, 40px) clamp(28px, 6vw, 72px);
+}
+/* max-width -- pedido explícito: "pongamos el rack a la derecha donde no
+   interfiera con los textos". Antes el título/subtítulo/franja de
+   confianza no tenían tope de ancho (llegaban a ocupar todo el panel); acá
+   se acota todo el bloque de texto a una columna izquierda, dejando la
+   derecha entera libre para el rack. */
+.login-visual__bloque-superior, .login-visual__bloque-inferior {
+  display: flex; flex-direction: column; gap: clamp(10px, 2.2vh, 18px);
+  max-width: min(52%, 620px);
+}
+/* align-self:flex-start (no center) SOLO en el overlay 3D -- pedido
+   explícito: "pongamos el rack a la derecha... con los textos de las otras
+   partes que componen el frontal" -- el botón se alinea con el resto de la
+   columna de texto en vez de centrarse en un ancho que ya no es el panel
+   completo. El fallback SVG (.login-visual__hint sin el overlay) sigue
+   centrado como siempre. */
+.login-visual__contenido--overlay .login-visual__hint { pointer-events: auto; align-self: flex-start; }
 /* Los paneles HUD/dashboard/badges son HTML con tamaño fijo en px -- NO
    se achican junto con la escena (el SVG sí, vía aspect-ratio). En una
    ventana angosta Y baja a la vez, la escena se achica mucho pero estos
@@ -481,6 +600,222 @@ body {
 }
 .login-hud__leyenda-cerrar:hover { color: #fff; background: rgba(255, 255, 255, .1); }
 
+/* Contenedor del rack 3D (Rack3DEscena.jsx) -- llena la misma caja que
+   antes ocupaba el <svg> de EscenaAlmacen (.login-escena__caja ya define el
+   tamaño real vía aspect-ratio). touch-action:none para que el drag de
+   rotación no dispare scroll táctil en móvil. */
+.rack3d-contenedor {
+  position: relative; width: 100%; height: 100%; cursor: grab; touch-action: none;
+  animation: rack3d-entrada .8s cubic-bezier(.16, 1, .3, 1);
+}
+.rack3d-contenedor:active { cursor: grabbing; }
+.rack3d-contenedor canvas { display: block; width: 100%; height: 100%; }
+@keyframes rack3d-entrada {
+  from { opacity: 0; transform: scale(.94) translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .rack3d-contenedor { animation: none; } }
+
+/* Nota: se probó una viñeta acá (radial-gradient oscureciendo las esquinas)
+   pero el canvas es transparente (alpha:true) -- la viñeta oscurecía SU
+   PROPIO rectángulo sin relación al fondo real de la página detrás, y el
+   borde de esa caja quedaba visible como un recorte pegado encima (reportado
+   explícitamente: se notaba "de dónde es el recuadro"). Revertido -- sin
+   fondo propio, el canvas ya se funde solo con el fondo de .login-visual.
+
+/* Puntos de información sobre el rack 3D (Rack3DEscena.jsx los posiciona en
+   cada render vía projection, por eso left/top quedan en JS, no acá) --
+   pedido explícito: "que sean puntos... que cuando pasemos el mouse se
+   active", reemplazan a los paneles HUD de la escena 2D. */
+.rack3d-punto {
+  position: absolute; z-index: 3; transform: translate(-50%, -50%);
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.rack3d-punto__nucleo {
+  width: 11px; height: 11px; border-radius: 50%; background: #4FE0D1;
+  box-shadow: 0 0 0 4px rgba(79, 224, 209, .22), 0 0 12px rgba(79, 224, 209, .7);
+  transition: transform .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s cubic-bezier(.16, 1, .3, 1);
+}
+.rack3d-punto--activo .rack3d-punto__nucleo { transform: scale(1.35); box-shadow: 0 0 0 6px rgba(79, 224, 209, .3), 0 0 18px rgba(79, 224, 209, .9); }
+@media (prefers-reduced-motion: reduce) { .rack3d-punto__nucleo { transition: none; } }
+
+.rack3d-punto__leyenda {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  width: 240px; max-width: 62vw; text-align: left;
+  background: rgba(18, 32, 38, .95); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(79, 224, 209, .4); border-radius: 13px; padding: 14px 34px 14px 16px;
+  box-shadow: 0 20px 45px -14px rgba(0, 0, 0, .65);
+}
+.rack3d-punto__leyenda strong { display: flex; align-items: center; gap: 7px; font-size: 14px; color: #4FE0D1; margin-bottom: 6px; }
+.rack3d-punto__leyenda p { margin: 0; font-size: 13.5px; line-height: 1.55; color: rgba(255, 255, 255, .85); white-space: normal; }
+.rack3d-punto__leyenda-cerrar {
+  position: absolute; top: 9px; right: 9px; border: none; background: none; color: rgba(255, 255, 255, .5);
+  font-size: 14px; cursor: pointer; width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+}
+.rack3d-punto__leyenda-cerrar:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+
+/* Variante "enfocada" -- cuando el click dispara el zoom de cámara hacia el
+   punto (pedido explícito: "que se vea que la intención es que se pueda leer
+   bien"), la leyenda crece y gana más presencia que la vista rápida al
+   hover, para leerse como el foco real de la pantalla, no un tooltip más.
+   Agrandado de nuevo (pedido explícito: "quiero que estos cuadros de
+   presentación sean más grandes") -- estas son las tarjetas de contenido
+   central de la presentación, no un tooltip secundario. */
+.rack3d-punto__leyenda--enfocada {
+  width: 330px; padding: 22px 40px 22px 22px; border-radius: 16px;
+  border-color: rgba(79, 224, 209, .6);
+  box-shadow: 0 24px 60px -14px rgba(0, 0, 0, .75), 0 0 0 1px rgba(79, 224, 209, .15);
+  animation: rack3d-leyenda-entrada .35s cubic-bezier(.16, 1, .3, 1);
+}
+.rack3d-punto__leyenda--enfocada strong { font-size: 17px; margin-bottom: 9px; gap: 9px; }
+.rack3d-punto__leyenda--enfocada strong i { font-size: 19px; }
+.rack3d-punto__leyenda--enfocada p { font-size: 15px; line-height: 1.6; color: rgba(255, 255, 255, .92); }
+@keyframes rack3d-leyenda-entrada {
+  from { opacity: 0; transform: translateX(-50%) scale(.9); }
+  to { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .rack3d-punto__leyenda--enfocada { animation: none; } }
+
+/* Líneas punteadas de los badges numerados por nivel -- x1/y1/x2/y2 los pone
+   Rack3DEscena.jsx en cada render (projection 3D->2D), acá solo el trazo. */
+/* Antes punteadas -- pedido explícito: "líneas finas luminosas, como
+   interfaces de ciencia ficción" en vez de dashed. */
+.rack3d-conectores { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; overflow: visible; }
+.rack3d-conectores line {
+  stroke: rgba(79, 224, 209, .65); stroke-width: 1;
+  filter: drop-shadow(0 0 2px rgba(79, 224, 209, .8));
+}
+
+/* Envoltorio del badge por nivel -- posicionado por JS (projection 3D->2D,
+   ver Rack3DEscena.jsx); el badge y el panel de abajo son hijos normales,
+   relativos a este punto. */
+.rack3d-nivel-envoltorio { position: absolute; z-index: 3; transform: translate(-50%, -50%); }
+
+/* Badge de coordenada ("A-01-0X") -- pedido explícito, referencia visual:
+   siempre visible (a diferencia de los puntos de información, que solo
+   aparecen al hover), formato de ubicación real en vez de solo "01". */
+.rack3d-nivel-badge {
+  min-width: 30px; padding: 4px 8px; border-radius: 7px; text-align: center; white-space: nowrap;
+  background: rgba(18, 32, 38, .9); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(79, 224, 209, .45); color: #4FE0D1;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .02em; font-family: inherit; cursor: pointer;
+  transition: border-color .2s cubic-bezier(.16, 1, .3, 1), transform .2s cubic-bezier(.16, 1, .3, 1);
+}
+.rack3d-nivel-badge:hover, .rack3d-nivel-badge:focus-visible { border-color: rgba(79, 224, 209, .9); transform: scale(1.08); outline: none; }
+.rack3d-nivel-badge--activo { border-color: rgba(79, 224, 209, .95); background: rgba(79, 224, 209, .16); transform: scale(1.08); }
+@media (prefers-reduced-motion: reduce) { .rack3d-nivel-badge, .rack3d-nivel-badge:hover { transition: none; transform: none; } }
+
+/* Bug real reportado con captura: al revelar el formulario, .login-visual
+   se angosta (64%/50%, ver .login-visual--completo) y esos mismos badges
+   terminan pisando el título/subtítulo/franja de confianza -- "Trazabilidad"
+   quedaba literalmente encima de la palabra "Trazabilidad" del título. Se
+   atenúan (no compiten por el mismo renglón de texto) en vez de ocultarse
+   de golpe con display:none. */
+.login-visual:not(.login-visual--completo) .rack3d-nivel-badge,
+.login-visual:not(.login-visual--completo) .rack3d-conectores {
+  opacity: 0; pointer-events: none; transition: opacity .3s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-visual:not(.login-visual--completo) .rack3d-nivel-badge,
+  .login-visual:not(.login-visual--completo) .rack3d-conectores { transition: none; }
+}
+
+/* Panel de capacidad por nivel -- pedido explícito: "esta será la
+   presentación de mi proyecto", nada de un cajón de texto plano. Mismo
+   lenguaje visual "enfocado" que el de los puntos de información (más
+   grande, más presencia) más un eyebrow con el número de nivel. */
+.rack3d-nivel-panel {
+  /* Posición FIJA en pantalla (ya no anclada al badge) -- bug real
+     reportado: con el badge como ancla, el panel podía proyectarse justo
+     debajo del título según el ángulo/zoom del rack. Centro-derecha,
+     vertical centrado -- lejos del título/subtítulo (arriba-izquierda) y
+     de la franja de confianza/botón (abajo-centro), sea cual sea el estado
+     del rack. */
+  position: absolute; z-index: 6; top: 50%; right: clamp(20px, 5vw, 64px); transform: translateY(-50%);
+  width: 360px; max-width: 68vw; text-align: left;
+  background: rgba(18, 32, 38, .96); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(79, 224, 209, .6); border-radius: 16px; padding: 20px 38px 20px 22px;
+  box-shadow: 0 24px 60px -14px rgba(0, 0, 0, .75), 0 0 0 1px rgba(79, 224, 209, .15);
+  animation: rack3d-panel-entrada .35s cubic-bezier(.16, 1, .3, 1);
+}
+/* Keyframe propio (no rack3d-leyenda-entrada) -- ese ya hardcodea
+   translateX(-50%) para el centrado horizontal de .rack3d-punto__leyenda;
+   acá el centrado es vertical (translateY(-50%)), reusarlo rompía la
+   posición durante los .35s de la animación. */
+@keyframes rack3d-panel-entrada {
+  from { opacity: 0; transform: translateY(-50%) scale(.9); }
+  to { opacity: 1; transform: translateY(-50%) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .rack3d-nivel-panel { animation: none; } }
+.rack3d-nivel-panel__eyebrow {
+  display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: rgba(79, 224, 209, .75); margin-bottom: 7px;
+}
+.rack3d-nivel-panel strong { display: flex; align-items: center; gap: 9px; font-size: 17px; color: #4FE0D1; margin-bottom: 9px; }
+.rack3d-nivel-panel strong i { font-size: 19px; }
+.rack3d-nivel-panel p { margin: 0; font-size: 15px; line-height: 1.6; color: rgba(255, 255, 255, .92); white-space: normal; }
+.rack3d-nivel-panel__cerrar {
+  position: absolute; top: 12px; right: 12px; border: none; background: none; color: rgba(255, 255, 255, .5);
+  font-size: 14px; cursor: pointer; width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+}
+.rack3d-nivel-panel__cerrar:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+
+/* Píldora de estado -- decorativa, misma referencia visual ("RACK-04 ·
+   Óptimo"). Posición fija en la esquina, no depende de projection 3D. */
+.rack3d-status {
+  position: absolute; top: 10px; right: 10px; z-index: 5;
+  display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  background: rgba(18, 32, 38, .85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, .14); color: rgba(255, 255, 255, .85);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .02em; white-space: nowrap;
+}
+.rack3d-status__punto { width: 6px; height: 6px; border-radius: 50%; background: #3FBF7F; box-shadow: 0 0 8px rgba(63, 191, 127, .8); }
+
+/* Etiqueta flotante de la transferencia RCL -> MZ -- sigue a la caja
+   viajera (projection 3D->2D en cada render, igual que los demás anclajes). */
+.rack3d-transferencia {
+  position: absolute; z-index: 4; transform: translate(-50%, calc(-100% - 14px));
+  display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  background: rgba(18, 32, 38, .92); border: 1px solid rgba(79, 224, 209, .5); color: #4FE0D1;
+  font-size: 11px; font-weight: 700; white-space: nowrap; pointer-events: none;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6);
+  transition: border-color .2s cubic-bezier(.16, 1, .3, 1), color .2s cubic-bezier(.16, 1, .3, 1);
+}
+/* Fase "llegada" -- pedido explícito: "el nivel parpadea... ✓ Ubicación
+   óptima" -- vira a verde de confirmación en vez del teal de "en tránsito". */
+.rack3d-transferencia--llegada { border-color: rgba(63, 191, 127, .6); color: #3FBF7F; }
+@media (prefers-reduced-motion: reduce) { .rack3d-transferencia { transition: none; } }
+
+/* Tarjeta de SKU/producto al abrir una caja -- pedido explícito: convive
+   con el panel de nivel, es una capa de detalle sobre la mercadería. Mismo
+   lenguaje visual oscuro+teal que el resto de la escena. */
+.rack3d-caja-card {
+  position: absolute; z-index: 6; transform: translate(-50%, calc(-100% - 16px));
+  width: 220px; text-align: left;
+  background: rgba(18, 32, 38, .96); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(79, 224, 209, .5); border-radius: 12px; padding: 14px 16px;
+  box-shadow: 0 20px 50px -14px rgba(0, 0, 0, .7);
+  animation: rack3d-leyenda-entrada .3s cubic-bezier(.16, 1, .3, 1);
+}
+.rack3d-caja-card__posicion { display: block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(79, 224, 209, .8); margin-bottom: 8px; }
+.rack3d-caja-card__fila { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: rgba(255, 255, 255, .6); padding: 3px 0; }
+.rack3d-caja-card__fila strong { color: #fff; font-weight: 600; }
+.rack3d-caja-card__estado--ok { color: #3FBF7F !important; display: inline-flex; align-items: center; gap: 4px; }
+.rack3d-caja-card__estado--ok i, .rack3d-caja-card__estado--alerta i { font-size: 7px; }
+.rack3d-caja-card__estado--alerta { color: #e0a13f !important; display: inline-flex; align-items: center; gap: 4px; }
+.rack3d-caja-card__ultimo { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .08); font-size: 10.5px; color: rgba(255, 255, 255, .45); }
+@media (prefers-reduced-motion: reduce) { .rack3d-caja-card { animation: none; } }
+
+/* Nota: el selector de vista (3/4/Frente/Lateral) se retiró -- pedido
+   explícito: "quitá el apartado de abajo que hacía que el rack se moviera
+   para un lado u otro". El rack ahora solo se reorienta con el drag. */
+
+/* Nota: el panel de capacidad por nivel vivía acá (fijo, arriba-centro),
+   pero se movió a Rack3DEscena.jsx (.rack3d-nivel-panel) -- ahora aparece
+   junto al badge del nivel clickeado y dispara zoom de cámara, en vez de un
+   panel fijo desconectado del rack. */
+
 /* Badge de evento tipo "toast" (ícono + título + check + detalle) --
    mismo formato que la imagen de referencia del usuario, en vez del pill
    de una sola línea de la iteración anterior. */
@@ -530,13 +865,29 @@ body {
      superponerse a nada, sin importar cuánto mida la franja de arriba. */
   align-self: center; margin-top: clamp(4px, 1.2vh, 10px); z-index: 1;
   display: flex; align-items: center; gap: 8px;
-  font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, .75);
-  animation: login-hint-pulso 2s ease-in-out infinite, login-hint-brinco 1s cubic-bezier(.34, 1.56, .64, 1) 3;
+  font-size: 14px; font-weight: 700; color: #06201d;
+  /* Antes era una píldora casi invisible (borde tenue + fondo transparente)
+     -- pedido explícito: "le falta color, sabor, animación". Sólido, con el
+     mismo teal que el resto del escenario, más un glow que respira en vez
+     de la píldora sutil de antes. */
+  border: none; border-radius: 999px; background: linear-gradient(135deg, #79F3E2, #34C3B6);
+  padding: 11px 26px; cursor: pointer; font-family: inherit;
+  animation: login-hint-brillo 2.4s ease-in-out infinite, login-hint-brinco 1s cubic-bezier(.34, 1.56, .64, 1) 3;
+  transition: transform .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s cubic-bezier(.16, 1, .3, 1);
+}
+.login-visual__hint:hover, .login-visual__hint:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px -8px rgba(79, 224, 209, .75), 0 0 0 1px rgba(79, 224, 209, .5);
+  outline: none;
 }
 .login-visual__hint i { font-size: 16px; }
-@keyframes login-hint-pulso { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .login-visual__hint { transition: none; } }
+@keyframes login-hint-brillo {
+  0%, 100% { box-shadow: 0 8px 22px -8px rgba(79, 224, 209, .45), 0 0 0 1px rgba(79, 224, 209, .2); }
+  50% { box-shadow: 0 10px 32px -6px rgba(79, 224, 209, .8), 0 0 0 1px rgba(79, 224, 209, .45); }
+}
 @keyframes login-hint-brinco { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } 55% { transform: translateY(0); } 75% { transform: translateY(-4px); } }
-@media (prefers-reduced-motion: reduce) { .login-visual__hint { animation: none; opacity: .85; } }
+@media (prefers-reduced-motion: reduce) { .login-visual__hint { animation: none; box-shadow: 0 8px 22px -8px rgba(79, 224, 209, .45); } }
 
 /* align-items:safe center -- si la card no entra igual (celular muy bajo,
    zoom alto), evita el bug clásico de "center" en un contenedor con
@@ -597,7 +948,7 @@ body {
    real de los racks); 95vw es solo el techo/respaldo antes de esa medición
    o si el grid terminara siendo más ancho que la pantalla disponible. */
 .slotting-frame { display: flex; flex-direction: column; height: calc(100vh - 130px); width: 95vw; max-width: 95vw; min-width: 600px; position: relative; left: 50%; transform: translateX(-50%); }
-.slotting-frame__aviso { background: #FAEEDA; color: var(--amber); font-size: 12px; padding: 8px 14px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.slotting-frame__aviso { background: var(--amber-tenue); color: var(--amber); font-size: 12px; padding: 8px 14px; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .slotting-frame__iframe { flex: 1; width: 100%; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 
 /* ---- Panels / tables ---- */
@@ -630,11 +981,11 @@ body {
 .btn-primary {
   background: var(--accent); color: #fff; border: none; box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
 }
-.btn-primary:hover:not(:disabled) { background: #0F373B; box-shadow: 0 6px 16px rgba(21, 69, 74, .28); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); box-shadow: 0 6px 16px rgba(var(--accent-rgb), .28); }
 .btn-secondary {
-  background: #fff; color: var(--ink); border: 1px solid var(--line);
+  background: var(--card); color: var(--ink); border: 1px solid var(--line);
 }
-.btn-secondary:hover:not(:disabled) { background: var(--bg); border-color: #D5D9DE; box-shadow: 0 4px 12px rgba(0, 0, 0, .08); }
+.btn-secondary:hover:not(:disabled) { background: var(--bg); border-color: var(--borde-hover); box-shadow: 0 4px 12px rgba(0, 0, 0, .08); }
 .btn-secondary.activo { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-icon {
   display: inline-flex; align-items: center; justify-content: center;
@@ -642,7 +993,7 @@ body {
   background: var(--fondo-sutil); color: var(--muted); cursor: pointer;
   transition: background .15s ease, transform .12s cubic-bezier(.2, .8, .2, 1);
 }
-.btn-icon:hover { background: #E4E0D3; transform: scale(1.08); }
+.btn-icon:hover { background: var(--fondo-sutil-hover); transform: scale(1.08); }
 .btn-icon:active { transform: scale(.92); }
 .tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tabla th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--line); }
@@ -650,8 +1001,8 @@ body {
 .tabla tbody tr { transition: background .12s ease; }
 .tabla tbody tr:hover { background: var(--bg); }
 .estado-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 6px; }
-.estado-badge--ok { background: #EAF3EE; color: var(--green); }
-.estado-badge--warn { background: #FCEBEB; color: var(--red); }
+.estado-badge--ok { background: var(--verde-tenue); color: var(--green); }
+.estado-badge--warn { background: var(--rojo-tenue); color: var(--red); }
 
 /* ---- Timeline ---- */
 .timeline { list-style: none; margin: 0; padding: 0; }
@@ -669,7 +1020,7 @@ body {
 .lista-simple li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .pend-banner { background: var(--fondo-sutil); border: 1px dashed var(--borde-medio); border-radius: 10px; padding: 12px 16px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .kpis-mini { display: flex; gap: 14px; }
-.kpi-mini { background: #F6F7F9; border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }
+.kpi-mini { background: var(--kpi-bg); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }
 .kpi-mini .v { font-size: 22px; font-weight: 600; }
 .kpi-mini .l { font-size: 11px; color: var(--muted); }
 .kpi-mini--warn .v { color: var(--red); }
@@ -681,21 +1032,35 @@ body {
 @keyframes saludoOut { from { opacity: 1; transform: translate(-50%, 0) scale(1); } to { opacity: 0; transform: translate(-50%, -16px) scale(.96); } }
 .saludo-toast {
   position: fixed; top: 20px; left: 50%; max-width: 90vw;
-  background: linear-gradient(135deg, var(--accent), #2E8B8F);
-  color: #fff; padding: 16px 22px; border-radius: 14px;
-  box-shadow: 0 12px 30px rgba(21, 69, 74, .35);
-  display: flex; align-items: center; gap: 12px;
+  background: var(--card); color: var(--ink); border: 1px solid var(--borde-claro);
+  padding: 16px 22px 16px 16px; border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+  display: flex; align-items: flex-start; gap: 12px;
   z-index: 3000; animation: saludoIn .5s cubic-bezier(.34, 1.56, .64, 1) forwards;
 }
 .saludo-toast.saliendo { animation: saludoOut .35s ease forwards; }
-.saludo-toast__icono { font-size: 24px; }
-.saludo-toast__texto strong { font-size: 15px; display: block; letter-spacing: -.2px; }
-.saludo-toast__texto span { font-size: 12px; opacity: .85; }
-.saludo-toast__cerrar { background: rgba(255, 255, 255, .18); border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; margin-left: 4px; flex-shrink: 0; }
+.saludo-toast__avatar {
+  flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%;
+  background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; margin-top: 2px;
+  box-shadow: 0 0 0 6px rgba(var(--accent-rgb), .15), 0 0 0 12px rgba(var(--accent-rgb), .07);
+}
+.saludo-toast__texto { display: flex; flex-direction: column; gap: 3px; }
+.saludo-toast__texto strong { font-size: 16px; letter-spacing: -.2px; }
+.saludo-toast__nombre { color: var(--accent); }
+.saludo-toast__texto > span:not(.saludo-toast__en-linea) { font-size: 12px; color: var(--texto-tenue); }
+.saludo-toast__en-linea {
+  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-top: 4px;
+  background: var(--amber-tenue); border: 1px solid var(--amber); color: var(--amber);
+  font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px;
+}
+.saludo-toast__en-linea i { font-size: 8px; color: var(--green); }
+.saludo-toast__cerrar { background: var(--fondo-sutil); border: none; color: var(--texto-tenue); width: 26px; height: 26px; border-radius: 50%; cursor: pointer; margin-left: 4px; flex-shrink: 0; }
+.saludo-toast__cerrar:hover { background: var(--fondo-sutil-hover); }
 .saludo-toast__cerrar:hover { background: rgba(255, 255, 255, .3); }
 
 .bienvenida-overlay { position: fixed; inset: 0; background: rgba(28, 58, 62, .6); display: flex; align-items: center; justify-content: center; z-index: 3000; padding: 20px; }
-.bienvenida-card { background: #fff; border-radius: 18px; max-width: 420px; width: 100%; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); animation: saludoIn .45s cubic-bezier(.34, 1.56, .64, 1); }
+.bienvenida-card { background: var(--card); border-radius: 18px; max-width: 420px; width: 100%; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); animation: saludoIn .45s cubic-bezier(.34, 1.56, .64, 1); }
 .bienvenida-card__header { background: linear-gradient(135deg, var(--accent), #2E8B8F); color: #fff; padding: 28px 26px 22px; }
 .bienvenida-card__header .emoji { font-size: 32px; display: block; margin-bottom: 8px; }
 .bienvenida-card__header h2 { font-size: 19px; font-weight: 700; margin-bottom: 4px; }
@@ -705,3 +1070,104 @@ body {
 .bienvenida-card__body button[type=submit] { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
 .bienvenida-card__body button[type=submit]:disabled { opacity: .5; cursor: default; }
 .bienvenida-card__omitir { display: block; text-align: center; margin-top: 12px; font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; width: 100%; }
+
+/* ---- Módulo de Despacho: hoja(s) de trabajo imprimible(s) (sesión 2026-07-21, ampliado 2026-07-22) ----
+   Pantalla: texto grande y espaciado, pensado para leerse de un vistazo
+   ("que sea el trabajo que seguiría un niño de 7 años" -- pedido explícito).
+   Primera vez que el proyecto imprime algo -- ver HojaTrabajo.jsx para el
+   porqué del "visibility hack" en vez de agregar una librería de PDF.
+
+   Ahora puede imprimir VARIOS trabajadores de una sola pasada (pedido
+   explícito 2026-07-22, antes había que abrir/imprimir de a uno) -- por
+   eso el "visibility hack" apunta al CONTENEDOR (`.hoja-trabajo-contenedor`),
+   no a cada `.hoja-trabajo` suelto: si cada una se posicionara `absolute`
+   por separado, todas caerían una encima de la otra en la misma hoja. Cada
+   `.hoja-trabajo` es su propia página impresa (`page-break-after`) -- nadie
+   corta papeles a mano. */
+.hoja-trabajo__encabezado { font-size: 22px; font-weight: 800; margin: 0 0 14px; }
+.hoja-trabajo__lista { margin: 0 0 18px; padding: 0 0 0 22px; display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 1.4; }
+.hoja-trabajo__pie { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* ---- Hoja de verificación del cabecilla (2026-07-22) -- reusa el mismo
+   "visibility hack" de arriba (.hoja-trabajo-contenedor/.hoja-trabajo), solo
+   agrega su propia lista de zonas con casillero para tildar a mano. ---- */
+.hoja-verificacion__lista { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.hoja-verificacion__zona-cabecera { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; }
+.hoja-verificacion__casillero { flex-shrink: 0; width: 20px; height: 20px; border: 2px solid var(--ink); border-radius: 4px; }
+.hoja-verificacion__detalle { margin: 6px 0 0 30px; padding: 0; list-style: disc; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: var(--muted); }
+
+/* Segundo bug real de impresión el mismo día (captura: hojas de distintos
+   trabajadores superpuestas/mezcladas en la misma página) -- causa de
+   fondo: este modal vivía anidado dentro de .panel/.app-main (el resto de
+   la app), y el viejo truco de impresión necesitaba "escaparse" de esa
+   jerarquía con `position:absolute` -- pero Chrome no pagina bien
+   contenido absoluto que ocupa más de una hoja física, termina
+   redibujando/superponiendo fragmentos de páginas distintas en vez de
+   fluir una tras otra. Fix real: HojaTrabajo.jsx/HojaVerificacionCabecilla.jsx
+   ahora se renderizan con un portal DIRECTO a <body> (ver createPortal en
+   esos archivos), como hijos de `#root`, no anidados adentro -- así
+   imprimir un documento de varias páginas ya no necesita ningún truco de
+   posición: alcanza con ocultar `#root` entero (el resto de la app) y
+   dejar el modal en el flujo normal del documento, que es lo único que el
+   motor de impresión pagina de forma confiable. */
+@media print {
+  #root { display: none !important; }
+  .modal-overlay { position: static !important; padding: 0 !important; background: none !important; }
+  .modal-card { position: static !important; max-width: none !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; padding: 0 !important; }
+  .hoja-trabajo-contenedor { width: 100%; padding: 24px; overflow: visible !important; }
+  .hoja-trabajo { page-break-after: always; }
+  .hoja-trabajo:last-of-type { page-break-after: auto; }
+}
+
+/* ---- Burbuja de mensajería + panel flotante (sesión 2026-07-22) --
+   pedido explícito: "que se pueda mover en el set a conveniencia" --
+   nunca un overlay bloqueante como ModalBase, el resto de la app sigue
+   siendo interactuable mientras el panel está abierto. z-index por encima
+   del Sidebar expandido (999) y de cualquier modal (2000/3000) a propósito
+   -- es la única pieza que tiene sentido que quede siempre alcanzable. */
+.burbuja-mensajes {
+  position: fixed; z-index: 3100; width: 52px; height: 52px; border-radius: 50%;
+  background: var(--accent); color: #fff; border: none; cursor: grab;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+  transition: box-shadow .15s ease, transform .12s cubic-bezier(.2, .8, .2, 1);
+}
+.burbuja-mensajes:hover { box-shadow: 0 8px 26px rgba(0, 0, 0, .38); }
+.burbuja-mensajes:active, .burbuja-mensajes--arrastrando { cursor: grabbing; transform: scale(.96); }
+.burbuja-mensajes__badge {
+  position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 999px; background: var(--red); color: #fff; font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg);
+}
+
+.panel-flotante-mensajes {
+  position: fixed; z-index: 3099; width: 320px; height: 440px; max-height: 70vh;
+  background: var(--card); color: var(--ink); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .35); display: flex; flex-direction: column;
+  border: 1px solid var(--borde-claro);
+}
+.panel-flotante-mensajes__header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 14px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 13.5; flex-shrink: 0;
+}
+.panel-flotante-mensajes__volver {
+  display: flex; align-items: center; gap: 4px; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-weight: 700; font-size: 13.5; color: inherit; padding: 0;
+}
+.panel-flotante-mensajes__cerrar {
+  border: none; background: none; cursor: pointer; color: var(--texto-tenue); font-size: 15px; flex-shrink: 0;
+}
+.panel-flotante-mensajes__lista { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.panel-flotante-mensajes__contacto {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: none; background: none;
+  border-bottom: 1px solid var(--borde-sutil); cursor: pointer; text-align: left; font-family: inherit; color: inherit;
+  width: 100%;
+}
+.panel-flotante-mensajes__contacto:hover { background: var(--fondo-sutil); }
+.panel-flotante-mensajes__badge {
+  flex-shrink: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: var(--red); color: #fff; font-size: 10.5px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.panel-flotante-mensajes__hilo { flex: 1; overflow-y: auto; padding: 12px 14px; }
+.panel-flotante-mensajes__compositor { flex-shrink: 0; padding: 10px 12px; border-top: 1px solid var(--line); }

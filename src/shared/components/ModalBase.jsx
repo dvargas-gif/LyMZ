@@ -18,7 +18,7 @@
  */
 import { useEffect } from 'react';
 
-const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,58,62,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 };
+const overlayStyle = { position: 'fixed', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 };
 const headerRowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 };
 const tituloStyle = { fontSize: 18, fontWeight: 600 };
 
@@ -30,14 +30,14 @@ export default function ModalBase({ titulo, onCerrar, maxWidth = 460, maxHeight,
   }, [onCerrar]);
 
   const cardStyle = {
-    background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth,
+    background: 'var(--card)', color: 'var(--ink)', borderRadius: 14, padding: 24, width: '100%', maxWidth,
     boxShadow: '0 20px 60px rgba(0,0,0,.35)',
     ...(maxHeight ? { maxHeight, ...(scrollContenido ? { display: 'flex', flexDirection: 'column' } : { overflowY: 'auto' }) } : {}),
   };
 
   return (
-    <div style={overlayStyle} onClick={e => e.target === e.currentTarget && onCerrar()}>
-      <div style={cardStyle} role="dialog" aria-modal="true" aria-label={titulo}>
+    <div className="modal-overlay" style={overlayStyle} onClick={e => e.target === e.currentTarget && onCerrar()}>
+      <div className="modal-card" style={cardStyle} role="dialog" aria-modal="true" aria-label={titulo}>
         <div style={headerRowStyle}>
           <h2 style={tituloStyle}>{titulo}</h2>
           <button onClick={onCerrar} className="btn-icon" aria-label="Cerrar"><i className="ti ti-x" /></button>

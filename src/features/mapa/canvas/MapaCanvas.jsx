@@ -26,7 +26,7 @@ import { identidadLegacyService } from '../../../shared/services/identidadLegacy
 import { inventarioRclService } from '../../../shared/services/inventarioRcl.service.js';
 import { construirVistaRcl } from '../../migracion/vistaRcl.js';
 import { puedeDevolverDelBuffer } from '../../migracion/flujoMigracionSlot.js';
-import { evaluarListoParaIniciar, planificarSecuencia } from '../../migracion/planificarSecuencia.js';
+import { evaluarListoParaIniciar } from '../../migracion/planificarSecuencia.js';
 import { detectarDestinosListos, ESTADOS_LISTO_PARA_RECIBIR } from '../../migracion/alertasBuffer.js';
 import { puede, ROLES } from '../../auth/roles.js';
 import './canvas.css';
@@ -57,7 +57,7 @@ const ESCALA_BUSQUEDA_MIN = 1; // si el usuario está muy alejado, Buscar acerca
  * sala (SalasView.jsx) ya manda hoy, ahora resueltos DIRECTO acá en vez de
  * un postMessage al iframe (ver SlottingFrame.jsx).
  */
-const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, onCambio, onSeleccionCambia, onSolicitarAddRack, soloLectura = false, mostrarAnadirRack = false }, ref) {
+const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, onCambio, onSeleccionCambia, onSolicitarAddRack, soloLectura = false, mostrarAnadirRack = false, mostrarReporte = false }, ref) {
   const [racks, setRacks] = useState(null); // null = cargando
   const [configuracionOcupacion, setConfiguracionOcupacion] = useState(null);
   const [descripcionDe, setDescripcionDe] = useState(() => () => 'Sin descripción disponible');
@@ -778,90 +778,6 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     }
   }
 
-  /** Navega la cámara al rack + abre su pestaña -- mismo trío que ya usa buscarArticulo() (animarVistaA/calcularVistaCentradaEnCelda/abrirPestana), reutilizado para que "Generar movimiento" deje al operador mirando directo su tarea asignada, sin que tenga que buscarla. */
-  function navegarYAbrir(pasillo, columna) {
-    const celda = celdas.find(c => c.pasillo === pasillo && c.columna === columna);
-    if (celda) {
-      const escalaDestino = Math.max(vistaActualRef.current.escala, ESCALA_BUSQUEDA_MIN);
-      animarVistaA(calcularVistaCentradaEnCelda(celda, tamano, escalaDestino));
-    }
-    abrirPestana(`${pasillo}|${columna}`);
-  }
-
-  /** Código Postgres de violación de UNIQUE, expuesto por Supabase-JS en err.code -- migracion_slots tiene PK (mz_pasillo, mz_columna), así que dos "Generar movimiento" casi simultáneos que caen en el mismo candidato producen esto en el segundo insert. */
-  function esConflictoDeClaveUnica(err) {
-    return err?.code === '23505';
-  }
-
-  /**
-   * "Generar movimiento" (F2) -- pedido explícito del usuario: el Operador
-   * ya no elige qué rack empezar (ver `puedeElegirLibremente` más arriba;
-   * Supervisor/Administrador siguen usando `iniciarTraslado` libre). El
-   * sistema le asigna el próximo según el MISMO motor que ya arma "Simular
-   * mejor orden de movimiento" (planificarSecuencia.js) -- la oleada 0 es
-   * exactamente "los racks listos para arrancar ahora mismo, ya ordenados".
-   * Sin tabla ni cola nueva: `migracion_slots` + ese motor ya alcanzan.
-   */
-  async function generarMovimiento() {
-    // 1) ¿ya tiene una tarea propia sin terminar? No se le asigna una
-    // segunda -- se lo lleva de vuelta a la que ya tenía. "Bloqueado" no
-    // cuenta acá: ahí ya terminó su parte física, está libre de tomar otra.
-    const propia = [...migracionSlots.entries()].find(([, s]) =>
-      s.iniciadoPor === sesion?.usuarioId && ['vaciando', 'recolectando', 'esperando_aprobacion'].includes(s.estado)
-    );
-    if (propia) {
-      const [clave] = propia;
-      const [p, c] = clave.split('|');
-      navegarYAbrir(p, Number(c));
-      mostrarError(`Ya tenés una tarea en curso: ${p}-C${String(c).padStart(3, '0')}.`);
-      return;
-    }
-
-    // 2) candidatos listos AHORA, ya ordenados por el simulador (oleada 0).
-    // Plan e identidad se piden FRESCOS acá (no el cacheado al abrir el
-    // mapa) -- si un Supervisor aplicó un plan nuevo mientras esta pestaña
-    // ya estaba abierta, la asignación tiene que salir de ESE plan nuevo.
-    const [movimientosVigentes, identidadVigente] = await Promise.all([
-      migracionMovimientosService.listarPendientesParaSecuencia(),
-      identidadLegacyService.listar(),
-    ]);
-    const { oleadas } = planificarSecuencia(movimientosVigentes, identidadVigente, migracionSlots);
-    const candidatos = oleadas[0] ?? [];
-    if (candidatos.length === 0) {
-      mostrarError('No hay ningún rack disponible para asignar ahora mismo.');
-      return;
-    }
-
-    // 3) reclamar con reintento -- SOLO ante la carrera esperada (alguien
-    // más se adelantó al mismo candidato); cualquier otro error se muestra
-    // normal, sin seguir probando el resto de la lista.
-    for (const candidato of candidatos) {
-      const etiqueta = `${candidato.mzPasillo}-C${String(candidato.mzColumna).padStart(3, '0')}`;
-      try {
-        const { id: slotId, estado } = await migracionSlotsService.iniciar({ mzPasillo: candidato.mzPasillo, mzColumna: candidato.mzColumna, usuarioId: sesion?.usuarioId });
-        setMigracionSlots(actuales => new Map(actuales).set(`${candidato.mzPasillo}|${candidato.mzColumna}`, { id: slotId, estado }));
-        navegarYAbrir(candidato.mzPasillo, candidato.mzColumna);
-        if (estado === 'esperando_aprobacion') {
-          registrarCambioMigracion(`Traslado ${etiqueta}`, 'Pendiente', 'Esperando aprobación', 'solicitado');
-          mostrarError(`Tu tarea: ${etiqueta} -- ya hay equipos trabajando al máximo de su cupo libre, se solicitó aprobación a un Supervisor/Administrador.`);
-        } else {
-          registrarCambioMigracion(`Traslado ${etiqueta}`, 'Pendiente', 'Vaciando', 'iniciado');
-          mostrarError(`Tu tarea: ${etiqueta}.`);
-        }
-        return;
-      } catch (err) {
-        if (esConflictoDeClaveUnica(err)) continue;
-        console.error('generarMovimiento', err);
-        const cupoLleno = /cupo lleno/i.test(err?.message ?? '');
-        mostrarError(cupoLleno
-          ? 'Cupo lleno -- ya hay 3 equipos trabajando en simultáneo. Esperá a que se libere uno.'
-          : 'No se pudo asignar el movimiento. Revisá tu conexión e intentá de nuevo.');
-        return;
-      }
-    }
-    mostrarError('Los racks disponibles se asignaron justo antes que vos -- probá de nuevo.');
-  }
-
   /**
    * Paso 1 (vaciar): mueve UN artículo al buffer -- persiste en
    * migracion_buffer (con auto-resolución de destino/snapshot de RCL, ver
@@ -1246,8 +1162,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           mostrarBuffer={!escenarioId}
           onDevolverBuffer={item => devolverDelBuffer(item.slotOrigenId, item.id, item.articulo, item.origenNivel)}
           alertasDestinoListo={alertasDestinoListo}
-          mostrarGenerarMovimiento={puedeMigrar}
-          onGenerarMovimiento={generarMovimiento}
+          mostrarReporte={mostrarReporte}
         />
       )}
 

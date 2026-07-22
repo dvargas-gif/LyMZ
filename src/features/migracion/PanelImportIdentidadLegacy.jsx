@@ -2,7 +2,6 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { parsearFilasIdentidad, validarIdentidadLegacy } from './identidadLegacy.service.js';
 import { identidadLegacyService } from '../../shared/services/identidadLegacy.service.js';
-import ModalBase from '../../shared/components/ModalBase.jsx';
 
 /**
  * Import de la tabla maestra RCL<->MZ por SUB-POSICIÓN (F1 de la migración
@@ -12,6 +11,9 @@ import ModalBase from '../../shared/components/ModalBase.jsx';
  * (headers "MZ"/"RCL" exactos, sin sinónimos) porque es un archivo que arma
  * una sola persona a mano, no un Excel externo variable -- ver
  * identidadLegacy.service.js.
+ *
+ * Contenido de una pestaña de PanelImportMigracion.jsx (2026-07-22) -- ya
+ * no es su propio modal, no recibe `onCerrar`.
  */
 const UNIVERSO_ESPERADO = 1550; // universo total de sub-posiciones del archivo real del cliente -- solo informativo, no bloquea nada
 
@@ -21,7 +23,7 @@ const UNIVERSO_ESPERADO = 1550; // universo total de sub-posiciones del archivo 
 // hay garantía de que el cliente la deje primera en su Excel.
 const NOMBRE_HOJA_IDENTIDAD = 'Migracion RCL - MZ';
 
-export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
+export default function PanelImportIdentidadLegacy({ sesion }) {
   const [previa, setPrevia] = useState(null); // { filas, validas, rechazadas }
   const [cargando, setCargando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
@@ -85,7 +87,7 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
   }
 
   return (
-    <ModalBase titulo="🔗 Importar identidad RCL↔MZ" onCerrar={onCerrar} maxWidth={880} maxHeight="88vh" scrollContenido>
+    <div>
       <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
         Subí el archivo con dos columnas — headers exactos <b>MZ</b> y <b>RCL</b> — con el formato de sub-posición
         <code style={{ margin: '0 4px' }}>MZ01-C001-N01-1</code> / <code>RCL112-C001-N01-1</code>. Podés volver a
@@ -156,7 +158,7 @@ export default function PanelImportIdentidadLegacy({ sesion, onCerrar }) {
           )}
         </div>
       )}
-    </ModalBase>
+    </div>
   );
 }
 
