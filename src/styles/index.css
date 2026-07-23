@@ -393,6 +393,25 @@ body {
   .login-fondo-linea--1, .login-fondo-linea--2 { animation: none; }
 }
 
+/* Clientes de confianza (2026-07-23) -- textura de fondo, no una sección de
+   marketing: sin texto, sin interacción (pointer-events:none, igual que el
+   resto de esta capa z-index:0). `grayscale(1) brightness(0) invert(1)`
+   fuerza CUALQUIER logo (sin importar sus colores originales: azul, rosa,
+   oliva...) a una silueta blanca pareja -- así los 5 se ven consistentes
+   entre sí en vez de que cada uno "pese" distinto según qué tan oscuros
+   eran sus colores de marca. La opacidad bajísima es la que hace que lea
+   como fondo y no como una barra de auspiciantes. */
+.login-logos-clientes {
+  position: absolute; top: clamp(20px, 4vh, 48px); left: 0; right: 0; z-index: 0; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: clamp(28px, 4vw, 56px); padding: 0 clamp(28px, 6vw, 72px);
+}
+.login-logos-clientes img {
+  height: clamp(20px, 2.8vh, 28px); width: auto;
+  filter: grayscale(1) brightness(0) invert(1);
+  opacity: .15;
+}
+
 /* Sin max-width acá a propósito: antes título/subtítulo quedaban topeados
    a ~460-480px mientras el panel llega a 1000px -- ESE era el hueco vacío
    real que se veía a la derecha (diagnóstico del usuario, "contenido

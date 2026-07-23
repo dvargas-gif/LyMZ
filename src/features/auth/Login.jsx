@@ -9,6 +9,24 @@ import { entradaConStagger, entradaProtagonista, apareceFlotante } from '../../u
 import EscenaAlmacen, { ANCLAS_HUD, ESCENA_ANCHO, ESCENA_ALTO } from './loginEscenaAlmacen.jsx';
 import { DURACION } from '../../ui/motion/tokens.js';
 import { detectarWebGL2 } from '../../shared/utils/webgl.js';
+import logoFebeca from './rack3d/clientes/febeca.png';
+import logoCofersa from './rack3d/clientes/cofersa.png';
+import logoRenovar from './rack3d/clientes/renovar.png';
+import logoBeval from './rack3d/clientes/beval.png';
+import logoSillaca from './rack3d/clientes/sillaca.png';
+
+// Clientes de confianza (pedido explícito 2026-07-23) -- solo para el fondo
+// de la pantalla del rack 3D, tratamiento bien discreto: silueta blanca
+// uniforme (no el color real de cada marca, ver .login-logos-clientes img
+// en index.css) a muy baja opacidad, sin texto ni interacción -- es
+// textura ambiente, no una sección de marketing "confían en nosotros".
+const LOGOS_CLIENTES = [
+  { src: logoFebeca, alt: 'Febeca' },
+  { src: logoCofersa, alt: 'Cofersa' },
+  { src: logoRenovar, alt: 'EPA Renovar' },
+  { src: logoBeval, alt: 'Beval' },
+  { src: logoSillaca, alt: 'Sillaca' },
+];
 
 // three.js solo se importa dentro de este chunk separado (React.lazy) --
 // el bundle principal del Login nunca ve `three` (ver MASTER-PROMPT.md,
@@ -193,6 +211,15 @@ export default function Login() {
         <div className="login-fondo-foco" aria-hidden="true" />
         <div className="login-fondo-linea login-fondo-linea--1" aria-hidden="true" />
         <div className="login-fondo-linea login-fondo-linea--2" aria-hidden="true" />
+
+        {/* Clientes de confianza -- solo en la escena 3D (pedido explícito),
+            arriba del todo: es la única franja que el texto (anclado abajo,
+            ver .login-visual__contenido--overlay) deja completamente libre. */}
+        {mostrar3D && (
+          <div className="login-logos-clientes" aria-hidden="true">
+            {LOGOS_CLIENTES.map(l => <img key={l.alt} src={l.src} alt="" />)}
+          </div>
+        )}
 
         {/* El rack 3D pasa a ser el escenario COMPLETO del panel (pedido
             explícito: "conviertas toda la pantalla en un escenario conectado
