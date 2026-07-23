@@ -265,6 +265,16 @@ export default function PanelMigracion({ sesion, onCerrar }) {
     finally { setProcesando(null); }
   }
 
+  /**
+   * Bug real encontrado 2026-07-23 (mismo que en PanelDespacho.jsx, que
+   * copió este mismo patrón): el registro de auditoría iba ANTES de
+   * refrescar la lista -- si esa llamada fallaba, el catch agarraba el
+   * error y `cargar()` nunca corría, aunque el buffer y el slot YA se
+   * hubieran borrado de verdad. La pantalla seguía mostrando el rack como
+   * activo, dando la sensación de que "Eliminar" no hacía nada. Ahora el
+   * refresco es lo primero que pasa apenas se confirma el borrado real --
+   * la auditoría queda como best-effort después, sin bloquear nada.
+   */
   async function eliminar(s) {
     if (!confirm(`¿Eliminar el traslado de ${rackDe(s)}? Esto libera su cupo y su buffer -- no se puede deshacer.`)) return;
     setProcesando(s.id);
@@ -272,11 +282,11 @@ export default function PanelMigracion({ sesion, onCerrar }) {
     try {
       await migracionBufferService.eliminarPorSlot(s.id);
       await migracionSlotsService.cancelar(s.id);
-      await migracionAuditoriaService.registrar({
+      await cargar();
+      migracionAuditoriaService.registrar({
         mzPasillo: s.mzPasillo, mzColumna: s.mzColumna, evento: 'traslado_eliminado_admin',
         detalle: `Eliminado por un administrador (estaba en "${s.estado}").`, usuarioId: sesion.usuarioId,
-      });
-      await cargar();
+      }).catch(err => console.error('No se pudo registrar en auditoría (el borrado sí se aplicó de verdad):', err));
     } catch (err) {
       setError(`No se pudo eliminar: ${err.message || err}`);
     } finally {

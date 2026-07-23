@@ -200,8 +200,19 @@ export default function PanelDespacho({ sesion }) {
    * "Eliminar" de PanelMigracion.jsx (nunca se reimplementa esta lógica):
    * primero se libera el buffer del slot (migracion_buffer.slot_origen_id
    * no tiene ON DELETE CASCADE, el borrado del slot fallaría si queda algo
-   * ahí), después se borra el slot en sí, y se dejar constancia en la
-   * auditoría de que fue un borrado administrativo, no un paso real del flujo.
+   * ahí), después se borra el slot en sí.
+   *
+   * Bug real encontrado 2026-07-23 ("lo elimino y no me deja, sigue en 3"):
+   * el registro de auditoría iba ANTES de refrescar la lista -- si esa
+   * llamada fallaba por lo que sea, el catch agarraba el error y `cargar()`
+   * NUNCA se ejecutaba, aunque el buffer y el slot YA se hubieran borrado
+   * de verdad. La pantalla se quedaba mostrando el rack como si siguiera
+   * activo (mintiendo sobre el estado real), y el usuario reintentaba
+   * "eliminar" un rack que technically ya no existía, sin ver ningún
+   * cambio. Ahora el refresco pasa a ser lo primero que ocurre apenas se
+   * confirma el borrado real (antes de la auditoría) -- lo importante
+   * (liberar el rack) nunca puede quedar oculto por un problema en lo
+   * accesorio (dejar constancia).
    */
   async function eliminarSlotActivo(s) {
     if (!confirm(`¿Eliminar el traslado de ${rackTexto(s.mzPasillo, s.mzColumna)}? Esto libera su cupo y su buffer -- no se puede deshacer.`)) return;
@@ -210,11 +221,11 @@ export default function PanelDespacho({ sesion }) {
     try {
       await migracionBufferService.eliminarPorSlot(s.id);
       await migracionSlotsService.cancelar(s.id);
-      await migracionAuditoriaService.registrar({
+      await cargar();
+      migracionAuditoriaService.registrar({
         mzPasillo: s.mzPasillo, mzColumna: s.mzColumna, evento: 'traslado_eliminado_admin',
         detalle: `Eliminado desde Órdenes de Ejecución por un administrador (estaba en "${s.estado}").`, usuarioId: sesion.usuarioId,
-      });
-      await cargar();
+      }).catch(err => console.error('No se pudo registrar en auditoría (el borrado sí se aplicó de verdad):', err));
     } catch (err) {
       setError(`No se pudo eliminar: ${err.message || err}`);
     } finally {

@@ -149,8 +149,32 @@ export const despachoService = {
     // base puede devolver 'esperando_aprobacion' en vez de 'vaciando' --
     // se acepta igual, el rack queda esperando aprobación como cualquier
     // otro, no se aborta la generación del lote por esto.
-    for (const rack of oleada) {
-      await migracionSlotsService.iniciar({ mzPasillo: rack.mzPasillo, mzColumna: rack.mzColumna, usuarioId: generadoPor });
+    //
+    // Si el trigger RECHAZA un insert a mitad de este loop (cupo real lleno
+    // -- ej. dos personas generando una orden casi al mismo tiempo, cada
+    // una con su propia foto de "cupo disponible" ya desactualizada apenas
+    // la otra inserta la suya), los racks de las vueltas ANTERIORES de este
+    // mismo loop ya quedaron insertados de verdad en migracion_slots, sin
+    // ningún despacho_lote que los reclame (ese insert recién pasa más
+    // abajo) -- huérfanos, invisibles salvo por el diagnóstico manual de
+    // "racks activos" en PanelDespacho.jsx. Bug real reportado 2026-07-23:
+    // "sigo generando y borrando, necesito que esto no pase". Ahora, si
+    // falla cualquier rack de esta tanda, se deshace (mismo camino que
+    // "Eliminar" en PanelDespacho.jsx: libera el buffer, borra el slot) todo
+    // lo que esta MISMA llamada alcanzó a insertar antes de re-lanzar el
+    // error -- un intento fallido de generar no deja rastro.
+    const iniciados = [];
+    try {
+      for (const rack of oleada) {
+        const { id } = await migracionSlotsService.iniciar({ mzPasillo: rack.mzPasillo, mzColumna: rack.mzColumna, usuarioId: generadoPor });
+        iniciados.push(id);
+      }
+    } catch (err) {
+      await Promise.allSettled(iniciados.map(async id => {
+        await migracionBufferService.eliminarPorSlot(id);
+        await migracionSlotsService.cancelar(id);
+      }));
+      throw err;
     }
 
     const { data: loteInsertado, error: errorLote } = await supabase
