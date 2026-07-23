@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react';
 import { despachoService } from '../../shared/services/despacho.service.js';
+import { migracionSlotsService } from '../../shared/services/migracionSlots.service.js';
+import { migracionBufferService } from '../../shared/services/migracionBuffer.service.js';
+import { migracionAuditoriaService } from '../../shared/services/migracionAuditoria.service.js';
 import { puede } from '../auth/roles.js';
 import ChecklistTrabajador from './ChecklistTrabajador.jsx';
 import HojaTrabajo from './HojaTrabajo.jsx';
 import HojaVerificacionCabecilla from './HojaVerificacionCabecilla.jsx';
 
 const CANTIDAD_DEFECTO = 6;
+const ESTADOS_CUENTAN_COMO_ACTIVO = new Set(['vaciando', 'recolectando']);
+
+function rackTexto(mzPasillo, mzColumna) {
+  return `${mzPasillo}-C${String(mzColumna).padStart(3, '0')}`;
+}
 
 /**
  * Módulo de Órdenes de Ejecución (sesión 2026-07-21, renombrado 2026-07-22
@@ -27,6 +35,10 @@ export default function PanelDespacho({ sesion }) {
   const [cerrando, setCerrando] = useState(false);
   const [cancelandoLote, setCancelandoLote] = useState(false);
   const [deshaciendoLote, setDeshaciendoLote] = useState(false);
+  const [historial, setHistorial] = useState(null); // null hasta que se pide -- órdenes CERRADAS (canceladas o auditadas), para poder deshacer una que ya no está activa
+  const [deshaciendoHistorialId, setDeshaciendoHistorialId] = useState(null);
+  const [slotsActivos, setSlotsActivos] = useState(null); // racks que cuentan para el cupo de equipos AHORA MISMO -- ver "equipos activos", 2026-07-23: "por qué sigue en 7 si ya deshice 8 órdenes"
+  const [eliminandoSlotId, setEliminandoSlotId] = useState(null);
   // Un solo estado para las 3 hojas imprimibles (nunca 3 booleans/valores
   // independientes) -- bug real reportado con captura: HojaTrabajo.jsx y
   // HojaVerificacionCabecilla.jsx comparten el mismo truco de impresión
@@ -43,7 +55,15 @@ export default function PanelDespacho({ sesion }) {
 
   async function cargar() {
     try {
-      setLote(await despachoService.obtenerLoteActivo());
+      const [loteActivo, slots] = await Promise.all([despachoService.obtenerLoteActivo(), migracionSlotsService.listar()]);
+      setLote(loteActivo);
+      const activos = [...slots.entries()]
+        .filter(([, s]) => ESTADOS_CUENTAN_COMO_ACTIVO.has(s.estado))
+        .map(([clave, s]) => {
+          const [mzPasillo, mzColumnaTxt] = clave.split('|');
+          return { ...s, mzPasillo, mzColumna: Number(mzColumnaTxt) };
+        });
+      setSlotsActivos(activos);
     } catch (err) {
       setError(`No se pudo cargar la orden activa: ${err.message || err}`);
     } finally {
@@ -139,6 +159,69 @@ export default function PanelDespacho({ sesion }) {
     }
   }
 
+  async function cargarHistorial() {
+    setError('');
+    try {
+      setHistorial(await despachoService.listarHistorial());
+    } catch (err) {
+      setError(`No se pudo cargar el historial: ${err.message || err}`);
+    }
+  }
+
+  /**
+   * Deshacer una orden que YA quedó cerrada (cancelada o auditada) -- pedido
+   * explícito 2026-07-23: "cancelé estas órdenes y aun así me sigue
+   * apareciendo como si hubieran equipos activos". `cancelar_lote_despacho`
+   * a propósito no toca migracion_slots (trata "iniciar" como algo ya real,
+   * igual que el mapa) -- así que una orden de PRUEBA cancelada deja sus
+   * racks contando para siempre como "equipos activos" si nadie la
+   * deshace. El botón de arriba (`deshacerLoteCompleto`) solo existe
+   * mientras la orden sigue ACTIVA -- una vez cerrada, este es el único
+   * camino que queda para liberarla.
+   */
+  async function deshacerDesdeHistorial(loteHist) {
+    if (!confirm(`¿Deshacer la orden #${loteHist.id} (ya cerrada) por completo? Revierte lo confirmado y libera los racks que hayan quedado como "equipo activo" por esta orden.`)) return;
+    setDeshaciendoHistorialId(loteHist.id);
+    setError('');
+    try {
+      await despachoService.deshacerLote(loteHist.id);
+      await Promise.all([cargar(), cargarHistorial()]);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setDeshaciendoHistorialId(null);
+    }
+  }
+
+  /**
+   * Elimina un rack "activo" que no pertenece a ninguna orden (o cuya orden
+   * ya no existe) -- pedido explícito 2026-07-23: "necesito reversar estos
+   * procesos cuando hay pruebas". Mismo camino EXACTO que ya usa el botón
+   * "Eliminar" de PanelMigracion.jsx (nunca se reimplementa esta lógica):
+   * primero se libera el buffer del slot (migracion_buffer.slot_origen_id
+   * no tiene ON DELETE CASCADE, el borrado del slot fallaría si queda algo
+   * ahí), después se borra el slot en sí, y se dejar constancia en la
+   * auditoría de que fue un borrado administrativo, no un paso real del flujo.
+   */
+  async function eliminarSlotActivo(s) {
+    if (!confirm(`¿Eliminar el traslado de ${rackTexto(s.mzPasillo, s.mzColumna)}? Esto libera su cupo y su buffer -- no se puede deshacer.`)) return;
+    setEliminandoSlotId(s.id);
+    setError('');
+    try {
+      await migracionBufferService.eliminarPorSlot(s.id);
+      await migracionSlotsService.cancelar(s.id);
+      await migracionAuditoriaService.registrar({
+        mzPasillo: s.mzPasillo, mzColumna: s.mzColumna, evento: 'traslado_eliminado_admin',
+        detalle: `Eliminado desde Órdenes de Ejecución por un administrador (estaba en "${s.estado}").`, usuarioId: sesion.usuarioId,
+      });
+      await cargar();
+    } catch (err) {
+      setError(`No se pudo eliminar: ${err.message || err}`);
+    } finally {
+      setEliminandoSlotId(null);
+    }
+  }
+
   if (cargando) return <p className="muted" style={{ textAlign: 'center', padding: 40 }}>Cargando…</p>;
 
   const totalTareas = lote?.trabajadores.reduce((acc, t) => acc + t.tareas.length, 0) ?? 0;
@@ -156,6 +239,39 @@ export default function PanelDespacho({ sesion }) {
         <div style={{ border: '1px solid #D9A72C', background: 'var(--amarillo-tenue, #FDF3D8)', borderRadius: 10, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: '#8A6412' }}>
           <b style={{ display: 'block', marginBottom: 4 }}>Por qué esta oleada trajo lo que trajo:</b>
           {advertenciasGeneracion.map((a, i) => <p key={i} style={{ margin: i === 0 ? 0 : '4px 0 0' }}>{a}</p>)}
+        </div>
+      )}
+
+      {/* Diagnóstico de "equipos activos" (2026-07-23, pedido explícito:
+          "deshice 8 órdenes y me sigue apareciendo como si hubieran equipos
+          activos") -- el cupo cuenta TODO migracion_slots en vaciando/
+          recolectando, no solo lo que pasó por Despacho -- un rack iniciado
+          a mano desde el Mapa cuenta igual, y "Deshacer orden" solo libera
+          los racks de ESA orden puntual. Este listado muestra cuáles son
+          los racks reales detrás del número, para saber si pertenecen a
+          alguna orden (y cuál) o si hay que resolverlos desde el Mapa. */}
+      {puedeCerrarOCancelar && slotsActivos && slotsActivos.length > 0 && (
+        <div style={{ border: '1px solid var(--borde-claro)', borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
+          <b style={{ display: 'block', marginBottom: 6, fontSize: 12.5 }}>
+            Racks que cuentan como "equipo activo" ahora mismo ({slotsActivos.length}):
+          </b>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {slotsActivos.map(s => (
+              <div key={`${s.mzPasillo}|${s.mzColumna}`} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                <span style={{ flex: 1 }}>
+                  {rackTexto(s.mzPasillo, s.mzColumna)} -- {s.estado}
+                  {s.iniciadoEn && ` -- iniciado ${new Date(s.iniciadoEn).toLocaleString()}`}
+                </span>
+                <button
+                  className="btn-secondary" style={{ fontSize: 11, color: 'var(--red)' }}
+                  disabled={eliminandoSlotId === s.id}
+                  onClick={() => eliminarSlotActivo(s)}
+                >
+                  {eliminandoSlotId === s.id ? 'Eliminando…' : 'Eliminar'}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -234,6 +350,40 @@ export default function PanelDespacho({ sesion }) {
             ))}
           </div>
         </>
+      )}
+
+      {puedeCerrarOCancelar && (
+        <div style={{ marginTop: 28 }}>
+          {historial === null ? (
+            <button className="btn-secondary" style={{ fontSize: 12 }} onClick={cargarHistorial}>
+              Ver órdenes cerradas recientes (para deshacer una ya cancelada)
+            </button>
+          ) : (
+            <>
+              <h3 style={{ fontSize: 13.5, marginBottom: 8 }}>Órdenes cerradas recientes</h3>
+              {historial.length === 0 ? (
+                <p className="muted" style={{ fontSize: 12 }}>Todavía no hay ninguna.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {historial.map(h => (
+                    <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '6px 10px', border: '1px solid var(--borde-sutil)', borderRadius: 8 }}>
+                      <span style={{ flex: 1 }}>
+                        Orden #{h.id} -- {h.cantidadOperadores} operador(es) -- cerrada {new Date(h.cerradoEn).toLocaleString()}
+                      </span>
+                      <button
+                        className="btn-secondary" style={{ fontSize: 11, color: 'var(--red)' }}
+                        disabled={deshaciendoHistorialId === h.id}
+                        onClick={() => deshacerDesdeHistorial(h)}
+                      >
+                        {deshaciendoHistorialId === h.id ? 'Deshaciendo…' : '↺ Deshacer'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {modalImpresion?.tipo === 'trabajador' && (

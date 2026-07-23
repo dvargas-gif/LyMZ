@@ -2,13 +2,34 @@ import { useEffect, useRef, useState } from 'react';
 
 const UMBRAL_ARRASTRE_PX = 6; // por debajo de esto, se trata como un click normal -- no como un arrastre (mismo criterio que useArrastrarParaScrollear.js)
 const MARGEN_PANTALLA_PX = 8;
+// Debe coincidir con el tamaño real del elemento arrastrable (.burbuja-mensajes
+// en index.css: width/height 52px) -- se usa para poder acotar la posición
+// ANTES de que el elemento exista en el DOM (no hay getBoundingClientRect
+// todavía en el primer render), tanto al restaurar de localStorage como al defecto.
+const TAMANO_ELEMENTO_PX = 52;
 
+function acotar(pos) {
+  return {
+    x: Math.min(Math.max(pos.x, MARGEN_PANTALLA_PX), window.innerWidth - TAMANO_ELEMENTO_PX - MARGEN_PANTALLA_PX),
+    y: Math.min(Math.max(pos.y, MARGEN_PANTALLA_PX), window.innerHeight - TAMANO_ELEMENTO_PX - MARGEN_PANTALLA_PX),
+  };
+}
+
+/**
+ * Bug real reportado 2026-07-23 ("no se ve" la burbuja): la posición
+ * guardada en localStorage se restauraba tal cual, sin comprobar que
+ * siguiera entrando en la ventana ACTUAL -- si se había arrastrado con una
+ * ventana más grande (u otro monitor) y después se abre con una más chica,
+ * la burbuja queda fuera de la vista, invisible pero técnicamente montada.
+ * El clamp de abajo (acotar()) antes solo corría DURANTE el arrastre --
+ * ahora también corre acá, al restaurar/al usar el default.
+ */
 function posicionInicial(clave, defecto) {
   try {
     const guardada = localStorage.getItem(clave);
-    if (guardada) return JSON.parse(guardada);
+    if (guardada) return acotar(JSON.parse(guardada));
   } catch { /* localStorage bloqueado o valor corrupto -- se usa el default */ }
-  return defecto;
+  return acotar(defecto);
 }
 
 /**
