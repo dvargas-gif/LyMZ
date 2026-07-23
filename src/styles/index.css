@@ -1134,6 +1134,18 @@ body {
 }
 .burbuja-mensajes:hover { box-shadow: 0 8px 26px rgba(0, 0, 0, .38); }
 .burbuja-mensajes:active, .burbuja-mensajes--arrastrando { cursor: grabbing; transform: scale(.96); }
+/* Aviso de mensaje nuevo con la burbuja cerrada -- pedido explícito
+   2026-07-22: "que se aprecie... como una especie de notificación", no
+   solo el numerito del badge. Se apaga solo (ver DURACION_AVISO_MS en
+   BurbujaMensajes.jsx) o al abrir el panel. */
+.burbuja-mensajes--aviso { animation: burbuja-mensajes-aviso 1s ease-in-out 3; }
+@keyframes burbuja-mensajes-aviso {
+  0%, 100% { box-shadow: 0 6px 20px rgba(0, 0, 0, .3), 0 0 0 0 rgba(var(--red-rgb), .55); }
+  50% { box-shadow: 0 6px 20px rgba(0, 0, 0, .3), 0 0 0 10px rgba(var(--red-rgb), 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .burbuja-mensajes--aviso { animation: none; }
+}
 .burbuja-mensajes__badge {
   position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px;
   border-radius: 999px; background: var(--red); color: #fff; font-size: 11px; font-weight: 800;

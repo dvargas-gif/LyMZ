@@ -119,4 +119,21 @@ export const mensajesService = {
       .subscribe();
     return () => supabase.removeChannel(canal);
   },
+
+  /**
+   * Confirmación de lectura en vivo -- pedido explícito 2026-07-22: "y
+   * cuando el otro lo vea, que me confirme cuándo es leído". La única
+   * actualización que existe sobre una fila de `mensajes` es justo
+   * `leido_en` (marcar_mensaje_leido/marcar_conversacion_leida, ver SQL),
+   * así que cualquier UPDATE sobre un mensaje que YO mandé es, por
+   * construcción, el otro lado marcándolo leído.
+   */
+  suscribirConfirmacionesLectura(miUsuarioId, onLeido) {
+    const canal = supabase
+      .channel(`mensajes-confirmaciones-${miUsuarioId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'mensajes', filter: `remitente_id=eq.${miUsuarioId}` },
+        payload => onLeido(filaAMensaje(payload.new)))
+      .subscribe();
+    return () => supabase.removeChannel(canal);
+  },
 };

@@ -93,10 +93,9 @@ function Adjunto({ mensaje }) {
  * Dos vistas con un estado local simple: 'contactos' (lista, conectados
  * primero) y 'conversacion' (hilo con la persona elegida).
  */
-export default function PanelFlotanteMensajes({ sesion, conectados, posicion, onCerrar, onCambioNoLeidos }) {
+export default function PanelFlotanteMensajes({ sesion, conectados, posicion, resumen, ultimoEntrante, onCerrar, onRefrescarResumen }) {
   const [vista, setVista] = useState('contactos');
   const [contactos, setContactos] = useState(null);
-  const [resumen, setResumen] = useState(new Map());
   const [contactoActivo, setContactoActivo] = useState(null);
   const [mensajes, setMensajes] = useState([]);
   const [texto, setTexto] = useState('');
@@ -105,17 +104,12 @@ export default function PanelFlotanteMensajes({ sesion, conectados, posicion, on
   const [error, setError] = useState('');
   const finRef = useRef(null);
 
-  async function cargarResumen() {
-    const r = await mensajesService.listarResumenConversaciones(sesion.usuarioId);
-    setResumen(r);
-    onCambioNoLeidos([...r.values()].reduce((acc, c) => acc + c.noLeidos, 0));
-  }
-
   useEffect(() => {
     (async () => {
       try {
-        const [listaContactos] = await Promise.all([mensajesService.listarContactos(), cargarResumen()]);
+        const listaContactos = await mensajesService.listarContactos();
         setContactos(listaContactos.filter(c => c.id !== sesion.usuarioId));
+        onRefrescarResumen();
       } catch (err) {
         setError(`No se pudo cargar Mensajes: ${err.message || err} -- ¿ya se aplicó el SQL de mensajería y se creó el bucket "mensajes-adjuntos"?`);
       }
@@ -123,16 +117,27 @@ export default function PanelFlotanteMensajes({ sesion, conectados, posicion, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // El mensaje entrante en sí viene de la suscripción única que vive en
+  // BurbujaMensajes (siempre activa, ver ese archivo) -- acá solo se
+  // reacciona SI la conversación abierta ahora mismo es justo con quien lo
+  // mandó, agregándolo al hilo en vivo y marcándolo leído de una.
   useEffect(() => {
-    return mensajesService.suscribirMensajesEntrantes(sesion.usuarioId, async nuevo => {
-      if (vista === 'conversacion' && contactoActivo && nuevo.remitenteId === contactoActivo.id) {
-        setMensajes(actuales => [...actuales, nuevo]);
-        await mensajesService.marcarConversacionLeida(contactoActivo.id);
-      }
-      cargarResumen();
+    if (!ultimoEntrante) return;
+    if (vista === 'conversacion' && contactoActivo && ultimoEntrante.remitenteId === contactoActivo.id) {
+      setMensajes(actuales => [...actuales, ultimoEntrante]);
+      mensajesService.marcarConversacionLeida(contactoActivo.id).then(onRefrescarResumen);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ultimoEntrante]);
+
+  // Confirmación de lectura en vivo: si el otro lado marca como leído lo
+  // que yo mandé, se actualiza el ticket en el hilo abierto sin recargar.
+  useEffect(() => {
+    return mensajesService.suscribirConfirmacionesLectura(sesion.usuarioId, actualizado => {
+      setMensajes(actuales => actuales.map(m => (m.id === actualizado.id ? actualizado : m)));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vista, contactoActivo]);
+  }, []);
 
   useEffect(() => { finRef.current?.scrollIntoView({ block: 'end' }); }, [mensajes]);
 
@@ -144,7 +149,7 @@ export default function PanelFlotanteMensajes({ sesion, conectados, posicion, on
     setMensajes(hilo);
     if (resumen.get(contacto.id)?.noLeidos > 0) {
       await mensajesService.marcarConversacionLeida(contacto.id);
-      await cargarResumen();
+      await onRefrescarResumen();
     }
   }
 
@@ -159,7 +164,7 @@ export default function PanelFlotanteMensajes({ sesion, conectados, posicion, on
       setMensajes(actuales => [...actuales, nuevo]);
       setTexto('');
       setArchivo(null);
-      cargarResumen();
+      onRefrescarResumen();
     } catch (err) {
       setError(`No se pudo enviar: ${err.message || err}`);
     } finally {
@@ -229,7 +234,16 @@ export default function PanelFlotanteMensajes({ sesion, conectados, posicion, on
                   {m.contenido && <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.contenido}</div>}
                   {m.archivoRuta && <Adjunto mensaje={m} />}
                 </div>
-                <span style={{ fontSize: 10, color: 'var(--texto-placeholder)', marginTop: 2 }}>{formatearHora(m.creadoEn)}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--texto-placeholder)', marginTop: 2 }}>
+                  {formatearHora(m.creadoEn)}
+                  {m.remitenteId === sesion.usuarioId && (
+                    <i
+                      className={`ti ${m.leidoEn ? 'ti-checks' : 'ti-check'}`}
+                      title={m.leidoEn ? `Visto ${formatearHora(m.leidoEn)}` : 'Enviado'}
+                      style={{ fontSize: 12, color: m.leidoEn ? 'var(--accent)' : 'var(--texto-placeholder)' }}
+                    />
+                  )}
+                </span>
               </div>
             ))}
             <div ref={finRef} />
