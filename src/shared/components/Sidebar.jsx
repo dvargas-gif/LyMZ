@@ -7,10 +7,7 @@ import ErrorBoundary from './ErrorBoundary.jsx';
 import Logo from './Logo.jsx';
 
 // Cada panel es su propio chunk, descargado recién al abrirlo.
-const UsuariosPanel = lazy(() => import('../../features/usuarios/UsuariosPanel.jsx'));
-const PanelCargaMasiva = lazy(() => import('../../features/cargaMasiva/PanelCargaMasiva.jsx'));
 const PanelEliminarArticulos = lazy(() => import('../../features/eliminarArticulos/PanelEliminarArticulos.jsx'));
-const PanelImportMigracion = lazy(() => import('../../features/migracion/PanelImportMigracion.jsx'));
 const PanelMigracion = lazy(() => import('../../features/migracion/PanelMigracion.jsx'));
 // Aparte (no junto a los de arriba): trae Framer Motion, que hoy solo carga
 // el Dashboard bajo demanda. El sidebar es parte del shell (siempre
@@ -39,7 +36,11 @@ const SECCIONES = [
   {
     id: 'migracion', label: 'Migración RCL→MZ', icon: 'ti-route',
     items: [
-      { id: 'import-migracion', tipo: 'panel', icon: 'ti-cloud-upload', label: 'Importar datos de migración' },
+      // Fusión 2026-07-23 de "Importar datos de migración" + "Carga masiva
+      // de posiciones" en una sola página con pestañas (ver
+      // PanelImportMigracion.jsx) -- también dejó de ser modal. Vive en
+      // esta sección (no en Configuración) -- pedido explícito 2026-07-23.
+      { id: 'cargas', tipo: 'nav', icon: 'ti-cloud-upload', label: 'Cargas e importaciones', permiso: 'cargar_datos' },
       { id: 'panel-migracion', tipo: 'panel', icon: 'ti-route-2', label: 'Panel de Migración (RCL→MZ)', permiso: 'confirmar_migracion' },
       // 'nav' (no 'panel'): a diferencia del resto de esta sección, Operador
       // SÍ tiene que poder verlo (es el "cabecilla de equipo" que genera y
@@ -49,15 +50,19 @@ const SECCIONES = [
     ],
   },
   {
+    // Configuración/administración agrupadas juntas (pedido explícito
+    // 2026-07-23: "que auditoría y eliminar artículos vivan dentro de
+    // configuración") -- antes Auditoría y "Mantenimiento" (eliminar
+    // artículos) eran sus propias secciones sueltas del sidebar.
     id: 'configuracion', label: 'Configuración', icon: 'ti-settings',
     items: [
-      { id: 'usuarios', tipo: 'panel', icon: 'ti-users', label: 'Permisos de usuarios' },
-      { id: 'carga-masiva', tipo: 'panel', icon: 'ti-upload', label: 'Carga masiva de posiciones' },
-    ],
-  },
-  {
-    id: 'auditoria', label: 'Auditoría', icon: 'ti-shield-check',
-    items: [
+      // 'nav' (no 'panel', desde 2026-07-23) -- pedido explícito: la
+      // pantalla de usuarios dejó de ser un modal para poder mostrar la
+      // matriz de permisos por rol con más aire. Gateado por su propio
+      // permiso ('administrar_usuarios', SOLO Administrador) en vez de
+      // depender de `mostrarAcciones` (Admin U Supervisor) como antes --
+      // corrige de paso que Supervisor podía abrirlo sin tener ese permiso.
+      { id: 'usuarios', tipo: 'nav', icon: 'ti-users', label: 'Usuarios y permisos', permiso: 'administrar_usuarios' },
       // 'ver_historial' (no 'ver_auditoria') a propósito -- 2026-07-22, el
       // historial de movimientos se fusionó DENTRO de AuditoriaView.jsx (ver
       // ese archivo). 'ver_historial' es superset de 'ver_auditoria' hoy
@@ -67,22 +72,10 @@ const SECCIONES = [
       // sección de seguridad (KPIs/intentos de login) a quien no tenga
       // 'ver_auditoria', pero el historial de movimientos se ve igual.
       { id: 'auditoria', tipo: 'nav', icon: 'ti-shield-check', label: 'Auditoría', permiso: 'ver_historial' },
-    ],
-  },
-  {
-    // "peligroso" a nivel SECCIÓN: encabezado y chevron también en rojo --
-    // pedido explícito del usuario, mismo criterio que ya tenían los ítems
-    // sueltos, ahora agrupados bajo su propio rótulo "Mantenimiento".
-    id: 'mantenimiento', label: 'Mantenimiento', icon: 'ti-alert-triangle', peligroso: true,
-    items: [
       { id: 'eliminar-articulos', tipo: 'panel', icon: 'ti-trash', label: 'Eliminar artículos del mapa real', permiso: 'eliminar_articulos', peligroso: true },
     ],
   },
 ];
-
-// Colapsada por defecto -- las acciones destructivas quedan un click más
-// lejos que el resto ("ocultar complejidad", pedido explícito del usuario).
-const SECCIONES_CERRADAS_DEFAULT = new Set(['mantenimiento']);
 
 // Un solo botón de ítem para ambos modos (antes había dos JSX casi
 // idénticos repetidos) -- así el colapsado y el expandido nunca pueden
@@ -117,8 +110,8 @@ function ItemBoton({ item, activo, expandido, onClick }) {
  */
 export default function Sidebar({ sesion, activa, onCambiar }) {
   const [expandido, setExpandido] = useState(false);
-  const [panel, setPanel] = useState(null); // null | 'usuarios' | 'reporte' | 'carga-masiva' | 'eliminar-articulos' | 'import-migracion' | 'panel-migracion'
-  const [seccionesCerradas, setSeccionesCerradas] = useState(SECCIONES_CERRADAS_DEFAULT);
+  const [panel, setPanel] = useState(null); // null | 'eliminar-articulos' | 'panel-migracion'
+  const [seccionesCerradas, setSeccionesCerradas] = useState(() => new Set());
   const navRef = useRef(null);
   // 3er argumento: expandir/colapsar o abrir/cerrar una sección cambia QUÉ
   // ítems están montados sin disparar scroll/resize -- sin este disparador,
@@ -236,11 +229,7 @@ export default function Sidebar({ sesion, activa, onCambiar }) {
       {mostrarAcciones && (
         <ErrorBoundary mensaje="No se pudo cargar este panel.">
           <Suspense fallback={null}>
-            {panel === 'usuarios' && <UsuariosPanel sesion={sesion} onCerrar={() => setPanel(null)} />}
-            {panel === 'reporte' && <ReportePanel onCerrar={() => setPanel(null)} />}
-            {panel === 'carga-masiva' && <PanelCargaMasiva sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'eliminar-articulos' && <PanelEliminarArticulos sesion={sesion} onCerrar={() => setPanel(null)} />}
-            {panel === 'import-migracion' && <PanelImportMigracion sesion={sesion} onCerrar={() => setPanel(null)} />}
             {panel === 'panel-migracion' && <PanelMigracion sesion={sesion} onCerrar={() => setPanel(null)} />}
           </Suspense>
         </ErrorBoundary>

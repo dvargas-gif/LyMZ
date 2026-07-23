@@ -10,7 +10,7 @@
  * así el título/buscador quedan fijos y solo la tabla larga se desplaza
  * (patrón de ReportePanel/PanelCargaMasiva/PanelCargaPicks). Sin
  * `scrollContenido`, `maxHeight` aplica `overflowY:auto` directo al card
- * completo (patrón de UsuariosPanel, donde todo el modal se desplaza junto).
+ * completo (para un modal corto y sin partes propias que deban quedar fijas).
  *
  * Escape cierra el modal — si algún contenido adentro también usa Escape
  * para algo propio (ej. cancelar una edición inline), tiene que frenar la

@@ -1085,8 +1085,24 @@ body {
    `.hoja-trabajo` es su propia página impresa (`page-break-after`) -- nadie
    corta papeles a mano. */
 .hoja-trabajo__encabezado { font-size: 22px; font-weight: 800; margin: 0 0 14px; }
-.hoja-trabajo__lista { margin: 0 0 18px; padding: 0 0 0 22px; display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 1.4; }
+.hoja-trabajo__lista { margin: 0 0 18px; padding: 0 0 0 26px; display: flex; flex-direction: column; gap: 14px; font-size: 16px; line-height: 1.4; }
+.hoja-trabajo__lista li::marker { font-weight: 800; }
 .hoja-trabajo__pie { font-size: 13px; color: var(--muted); margin: 0; }
+/* Preimagen -> imagen por tarea (2026-07-23, pedido explícito a partir del
+   diagrama de conjuntos que mandó el usuario) -- sin librería de íconos:
+   esta hoja se imprime, no se puede depender de que la fuente de íconos
+   cargue en el motor de impresión. Solo texto, borde y una flecha unicode. */
+.hoja-trabajo__tarea {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+}
+.hoja-trabajo__verbo { font-weight: 700; color: var(--muted); }
+.hoja-trabajo__articulo { font-weight: 800; }
+.hoja-trabajo__mapeo { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.hoja-trabajo__casillero {
+  border: 2px solid var(--ink); border-radius: 6px; padding: 3px 9px; font-size: 14px; font-weight: 700;
+}
+.hoja-trabajo__casillero--imagen { border-style: double; border-width: 4px; }
+.hoja-trabajo__flecha { font-size: 18px; font-weight: 800; }
 
 /* ---- Hoja de verificación del cabecilla (2026-07-22) -- reusa el mismo
    "visibility hack" de arriba (.hoja-trabajo-contenedor/.hoja-trabajo), solo
@@ -1154,7 +1170,7 @@ body {
 
 .panel-flotante-mensajes {
   position: fixed; z-index: 3099; width: 320px; height: 440px; max-height: 70vh;
-  background: var(--card); color: var(--ink); border-radius: 16px; overflow: hidden;
+  background: var(--card); color: var(--ink); border-radius: 22px; overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, .35); display: flex; flex-direction: column;
   border: 1px solid var(--borde-claro);
 }
@@ -1168,14 +1184,36 @@ body {
 }
 .panel-flotante-mensajes__cerrar {
   border: none; background: none; cursor: pointer; color: var(--texto-tenue); font-size: 15px; flex-shrink: 0;
+  border-radius: 999px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  transition: background .15s ease;
 }
-.panel-flotante-mensajes__lista { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.panel-flotante-mensajes__cerrar:hover { background: var(--fondo-sutil); }
+/* Repositorio de personas -- pedido explícito 2026-07-23: barra de
+   búsqueda + look "más fluido, tipo rosca" (filas redondeadas con aire
+   entre sí, no una lista de renglones con línea divisoria). */
+.panel-flotante-mensajes__buscador { flex-shrink: 0; position: relative; padding: 10px 14px 4px; }
+.panel-flotante-mensajes__buscador i {
+  position: absolute; left: 25px; top: 50%; transform: translateY(-50%);
+  color: var(--texto-tenue); font-size: 13px; pointer-events: none;
+}
+.panel-flotante-mensajes__buscador input {
+  width: 100%; border: 1px solid var(--borde-input); border-radius: 999px; background: var(--fondo-sutil);
+  color: inherit; font-family: inherit; font-size: 12.5; padding: 7px 12px 7px 30px;
+  transition: border-color .15s ease, background .15s ease;
+}
+.panel-flotante-mensajes__buscador input:focus {
+  outline: none; border-color: var(--accent); background: var(--card);
+}
+.panel-flotante-mensajes__lista {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding: 6px 8px 10px;
+}
 .panel-flotante-mensajes__contacto {
-  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: none; background: none;
-  border-bottom: 1px solid var(--borde-sutil); cursor: pointer; text-align: left; font-family: inherit; color: inherit;
-  width: 100%;
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: none; background: none;
+  border-radius: 14px; cursor: pointer; text-align: left; font-family: inherit; color: inherit;
+  width: 100%; transition: background .15s ease, transform .12s ease;
 }
-.panel-flotante-mensajes__contacto:hover { background: var(--fondo-sutil); }
+.panel-flotante-mensajes__contacto:hover { background: var(--fondo-sutil); transform: translateY(-1px); }
+.panel-flotante-mensajes__contacto:active { transform: translateY(0) scale(.98); }
 .panel-flotante-mensajes__badge {
   flex-shrink: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
   background: var(--red); color: #fff; font-size: 10.5px; font-weight: 800;

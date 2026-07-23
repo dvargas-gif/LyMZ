@@ -96,6 +96,7 @@ function Adjunto({ mensaje }) {
 export default function PanelFlotanteMensajes({ sesion, conectados, posicion, resumen, ultimoEntrante, onCerrar, onRefrescarResumen }) {
   const [vista, setVista] = useState('contactos');
   const [contactos, setContactos] = useState(null);
+  const [busqueda, setBusqueda] = useState('');
   const [contactoActivo, setContactoActivo] = useState(null);
   const [mensajes, setMensajes] = useState([]);
   const [texto, setTexto] = useState('');
@@ -173,13 +174,19 @@ export default function PanelFlotanteMensajes({ sesion, conectados, posicion, re
   }
 
   const contactosOrdenados = contactos
-    ? [...contactos].sort((a, b) => {
-        const aOnline = conectados.has(a.id), bOnline = conectados.has(b.id);
-        if (aOnline !== bOnline) return aOnline ? -1 : 1;
-        const fa = resumen.get(a.id)?.ultimoMensaje?.creadoEn ?? '';
-        const fb = resumen.get(b.id)?.ultimoMensaje?.creadoEn ?? '';
-        return fb.localeCompare(fa);
-      })
+    ? [...contactos]
+        .filter(c => {
+          const termino = busqueda.trim().toLowerCase();
+          if (!termino) return true;
+          return [c.nombre, c.apodo, c.rol].some(v => v?.toLowerCase().includes(termino));
+        })
+        .sort((a, b) => {
+          const aOnline = conectados.has(a.id), bOnline = conectados.has(b.id);
+          if (aOnline !== bOnline) return aOnline ? -1 : 1;
+          const fa = resumen.get(a.id)?.ultimoMensaje?.creadoEn ?? '';
+          const fb = resumen.get(b.id)?.ultimoMensaje?.creadoEn ?? '';
+          return fb.localeCompare(fa);
+        })
     : [];
 
   return (
@@ -195,11 +202,24 @@ export default function PanelFlotanteMensajes({ sesion, conectados, posicion, re
         <button className="panel-flotante-mensajes__cerrar" onClick={onCerrar} title="Cerrar"><i className="ti ti-x" /></button>
       </div>
 
+      {vista === 'contactos' && contactos !== null && contactos.length > 0 && (
+        <div className="panel-flotante-mensajes__buscador">
+          <i className="ti ti-search" />
+          <input
+            type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar persona…"
+          />
+        </div>
+      )}
+
       {vista === 'contactos' && (
         <div className="panel-flotante-mensajes__lista">
           {contactos === null && !error && <p className="muted" style={{ textAlign: 'center', padding: 20, fontSize: 12.5 }}>Cargando…</p>}
           {contactos === null && error && <p style={{ color: 'var(--red)', fontSize: 12, padding: '16px 14px', margin: 0 }}>{error}</p>}
           {contactos?.length === 0 && <p className="muted" style={{ textAlign: 'center', padding: 20, fontSize: 12.5 }}>No hay otros usuarios todavía.</p>}
+          {contactos?.length > 0 && contactosOrdenados.length === 0 && (
+            <p className="muted" style={{ textAlign: 'center', padding: 20, fontSize: 12.5 }}>Nadie coincide con "{busqueda}".</p>
+          )}
           {contactosOrdenados.map(c => {
             const info = resumen.get(c.id);
             return (

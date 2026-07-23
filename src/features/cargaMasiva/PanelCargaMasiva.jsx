@@ -9,7 +9,6 @@ import { parsearTextoPegado } from '../salas/analisisPicks.js';
 import { auditService } from '../auditoria/audit.service.js';
 import { ACCIONES } from '../auditoria/audit.schema.js';
 import EdicionEnVivoTabla from './EdicionEnVivoTabla.jsx';
-import ModalBase from '../../shared/components/ModalBase.jsx';
 import BadgeClase from '../../shared/components/BadgeClase.jsx';
 import { formatearPosicion } from '../../shared/utils/formatearPosicion.js';
 
@@ -23,7 +22,12 @@ import { formatearPosicion } from '../../shared/utils/formatearPosicion.js';
  *   selector de destino (mapa real o una sala) y la misma validación de
  *   conflictos (validarCargaMasiva), para no duplicar esa lógica.
  */
-export default function PanelCargaMasiva({ sesion, onCerrar }) {
+// 2026-07-23: dejó de tener su propio ModalBase -- ahora es contenido de
+// una pestaña dentro de "Cargas e importaciones" (ver PanelImportMigracion.jsx,
+// pedido explícito: "englobar la carga masiva de posición... que deje de
+// ser modal y sea hoja completa"). La lógica interna no se tocó, solo el
+// shell (modal -> div simple).
+export default function PanelCargaMasiva({ sesion }) {
   const [modo, setModo] = useState('excel'); // 'excel' | 'vivo'
   const [destino, setDestino] = useState('real'); // 'real' | id de escenario
   const [salas, setSalas] = useState([]);
@@ -105,7 +109,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
   }
 
   return (
-    <ModalBase titulo="📥✏️ Carga y edición de posiciones" onCerrar={onCerrar} maxWidth={900} maxHeight="88vh" scrollContenido>
+    <div>
       <div style={{ display: 'flex', gap: 8, margin: '10px 0 14px' }}>
         <button className={`btn-secondary ${modo === 'excel' ? 'activo' : ''}`} onClick={() => setModo('excel')}>
           <i className="ti ti-file-spreadsheet" /> Carga por Excel
@@ -182,7 +186,7 @@ export default function PanelCargaMasiva({ sesion, onCerrar }) {
       )}
       </>
       )}
-    </ModalBase>
+    </div>
   );
 }
 

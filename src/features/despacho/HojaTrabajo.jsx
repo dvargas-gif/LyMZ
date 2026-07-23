@@ -30,11 +30,39 @@ function origenRcl(tarea) {
   return `${tarea.rclCodigo}-N${String(tarea.rclNivel).padStart(2, '0')}`;
 }
 
-function instruccion(tarea, indice) {
-  if (tarea.tipo === 'vaciar') {
-    return `${indice}. Sacar "${tarea.articulo}" de ${origenRcl(tarea)} (rack ${rackTexto(tarea.mzPasillo, tarea.mzColumna)}) y dejarlo en el carro.`;
-  }
-  return `${indice}. Buscar "${tarea.articulo}" en ${tarea.rclCodigo ?? '(sin origen)'} y llevarlo a ${rackTexto(tarea.mzPasillo, tarea.mzColumna)}.`;
+// Cada tarea como preimagen -> imagen (pedido explícito 2026-07-23, mismo
+// lenguaje que el diagrama de conjuntos que mandó el usuario): el origen
+// RCL es siempre la "preimagen" (de dónde sale), y la "imagen" es a dónde
+// llega -- el carro de Buffer para 'vaciar' (verificado: es justo donde
+// inserta confirmar_tarea_despacho), o el rack MZ destino para 'recolectar'.
+// Un rack vacío no cambia nada acá -- ya hoy no genera tarea 'vaciar'
+// (ver planificarSecuencia.js), así que ese rack simplemente nunca tiene
+// una fila "-> Buffer", solo las de "-> MZ" de lo que le están trayendo.
+function verbo(tarea) {
+  return tarea.tipo === 'vaciar' ? 'Sacar' : 'Traer';
+}
+function imagen(tarea) {
+  return tarea.tipo === 'vaciar' ? 'Buffer' : rackTexto(tarea.mzPasillo, tarea.mzColumna);
+}
+
+function Tarea({ tarea }) {
+  // El <li> NUNCA lleva display:flex -- eso le quita el `display:list-item`
+  // (bug real encontrado al verificar con una captura real: el numerito
+  // automático del <ol> desaparecía por completo). El flex va en un <div>
+  // interno, el <li> se queda con su numeración nativa intacta.
+  return (
+    <li>
+      <div className="hoja-trabajo__tarea">
+        <span className="hoja-trabajo__verbo">{verbo(tarea)}</span>
+        <span className="hoja-trabajo__articulo">"{tarea.articulo}"</span>
+        <span className="hoja-trabajo__mapeo">
+          <span className="hoja-trabajo__casillero">{origenRcl(tarea)}</span>
+          <span className="hoja-trabajo__flecha" aria-hidden="true">→</span>
+          <span className="hoja-trabajo__casillero hoja-trabajo__casillero--imagen">{imagen(tarea)}</span>
+        </span>
+      </div>
+    </li>
+  );
 }
 
 // `esPrimero` decide el separador visual EN PANTALLA (línea punteada entre
@@ -52,9 +80,7 @@ function HojaDeUnTrabajador({ trabajador, esPrimero }) {
     <div className="hoja-trabajo" style={esPrimero ? undefined : { borderTop: '2px dashed var(--borde-medio)', marginTop: 22, paddingTop: 22 }}>
       <p className="hoja-trabajo__encabezado">Trabajador {String(trabajador.numero).padStart(3, '0')}</p>
       <ol className="hoja-trabajo__lista">
-        {trabajador.tareas.map((tarea, i) => (
-          <li key={tarea.id ?? i}>{instruccion(tarea, i + 1)}</li>
-        ))}
+        {trabajador.tareas.map((tarea, i) => <Tarea key={tarea.id ?? i} tarea={tarea} />)}
       </ol>
       <p className="hoja-trabajo__pie">Al terminar cada paso, avisá al cabecilla de equipo.</p>
     </div>

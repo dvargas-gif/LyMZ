@@ -56,4 +56,11 @@ describe('puede', () => {
     expect(puede(ROLES.OPERADOR, 'usar_mensajes')).toBe(true);
     expect(puede(ROLES.LECTURA, 'usar_mensajes')).toBe(true);
   });
+
+  it('cargar_datos (Cargas e importaciones, 2026-07-23): SOLO Supervisor/Administrador', () => {
+    expect(puede(ROLES.ADMIN, 'cargar_datos')).toBe(true);
+    expect(puede(ROLES.SUPERVISOR, 'cargar_datos')).toBe(true);
+    expect(puede(ROLES.OPERADOR, 'cargar_datos')).toBe(false);
+    expect(puede(ROLES.LECTURA, 'cargar_datos')).toBe(false);
+  });
 });

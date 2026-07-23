@@ -20,6 +20,8 @@ const SalasView = lazy(() => import('./features/salas/SalasView.jsx'));
 const DashboardAnalitico = lazy(() => import('./features/dashboard/DashboardAnalitico.jsx'));
 const AuditoriaView = lazy(() => import('./features/auditoria/AuditoriaView.jsx'));
 const PanelDespacho = lazy(() => import('./features/despacho/PanelDespacho.jsx'));
+const UsuariosPanel = lazy(() => import('./features/usuarios/UsuariosPanel.jsx'));
+const PanelImportMigracion = lazy(() => import('./features/migracion/PanelImportMigracion.jsx'));
 const AddRackModal = lazy(() => import('./features/mapa/AddRackModal.jsx'));
 const BurbujaMensajes = lazy(() => import('./shared/components/BurbujaMensajes.jsx'));
 
@@ -64,6 +66,8 @@ function Shell() {
             {tab === 'dashboard' && <DashboardAnalitico />}
             {tab === 'auditoria' && <AuditoriaView sesion={sesion} />}
             {tab === 'ordenes-ejecucion' && <PanelDespacho sesion={sesion} />}
+            {tab === 'usuarios' && <UsuariosPanel sesion={sesion} />}
+            {tab === 'cargas' && <PanelImportMigracion sesion={sesion} />}
           </Suspense>
         </ErrorBoundary>
       </main>
