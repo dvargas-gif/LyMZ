@@ -80,10 +80,15 @@ export default function PanelDespacho({ sesion }) {
     try {
       const { advertencias } = await despachoService.generarLote({ cantidadOperadores, generadoPor: sesion.usuarioId });
       setAdvertenciasGeneracion(advertencias ?? []);
-      await cargar();
     } catch (err) {
       setError(err.message || String(err));
     } finally {
+      // Bug real 2026-07-23: antes `cargar()` solo corría en el camino de
+      // éxito -- si generarLote() fallaba (ej. "cupo lleno"), la lista de
+      // "racks activos" se quedaba con el snapshot viejo, justo cuando más
+      // hace falta ver qué cambió de verdad. Ahora se refresca siempre,
+      // haya salido bien o mal.
+      await cargar();
       setGenerando(false);
     }
   }
