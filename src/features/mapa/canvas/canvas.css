@@ -169,6 +169,31 @@
   .mapa-terminal, .mapa-terminal__cerrar { animation: none; transition: none; }
 }
 
+/* Leyenda de colores (2026-07-24) -- un poco más ancha que .mapa-terminal
+   para que quepan cantidad + flecha sin apretar el texto. Cada fila es un
+   BOTÓN real (pedido explícito: "que funcionen como botones") -- swatch más
+   grande que el resto de badges del canvas (20px, no 16px) a propósito,
+   pedido explícito: "un poco más distinguible, legible o que se vea más". */
+.mapa-leyenda { width: 300px; }
+.mapa-leyenda__fila {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 4px; border: none; background: none; cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,.06); text-align: left; font-family: inherit;
+  transition: background .15s var(--ease-ios);
+}
+.mapa-leyenda__fila:last-child { border-bottom: none; }
+.mapa-leyenda__fila:hover:not(:disabled) { background: rgba(255,255,255,.07); }
+.mapa-leyenda__fila:disabled { cursor: default; opacity: .5; }
+.mapa-leyenda__color { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; border: 1px solid rgba(255,255,255,.15); }
+.mapa-leyenda__texto { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.mapa-leyenda__texto strong { color: #F2EDE4; font-size: 12.5px; }
+.mapa-leyenda__texto span { color: #B9B3A8; font-size: 11px; }
+.mapa-leyenda__cantidad { color: #F2EDE4; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.mapa-leyenda__fila i.ti-chevron-right { color: #5F5E5A; font-size: 13px; flex-shrink: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .mapa-leyenda__fila { transition: none; }
+}
+
 /* Movebar -- guía el flujo de mover artículo/cuerpo (ver BarraMovimiento.jsx). Fija abajo-centro, mismo criterio que .movebar del mapa legacy. */
 .mapa-movebar {
   position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 25;

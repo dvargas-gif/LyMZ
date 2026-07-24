@@ -6,6 +6,7 @@ import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
 import TerminalCambios from './TerminalCambios.jsx';
 import PanelBufferGlobal from './PanelBufferGlobal.jsx';
 import ReportePanel from '../../reportes/ReportePanel.jsx';
+import LeyendaClases from './LeyendaClases.jsx';
 
 /**
  * Barra de herramientas del canvas -- reemplaza al toolbar HTML del mapa
@@ -30,11 +31,13 @@ export default function MapaToolbar({
   vistaContenido, onCambiarVista, mostrarToggleVista = false,
   cambiosMigracion = [], bufferGlobal = [], mostrarBuffer = false, onDevolverBuffer, alertasDestinoListo = [],
   mostrarReporte = false,
+  articulosPorClase,
 }) {
   const [buscarEnfocado, setBuscarEnfocado] = useState(false);
   const [terminalAbierta, setTerminalAbierta] = useState(false);
   const [bufferAbierto, setBufferAbierto] = useState(false);
   const [reporteAbierto, setReporteAbierto] = useState(false);
+  const [leyendaAbierta, setLeyendaAbierta] = useState(false);
   const cantidadCambios = cambios.length; // SOLO lo deshacible -- el badge de Deshacer no debe contar eventos de migración
 
   // La Terminal muestra movimientos normales Y de migración juntos, en orden
@@ -75,6 +78,14 @@ export default function MapaToolbar({
             onBlur={() => setBuscarEnfocado(false)}
           />
         </div>
+
+        <div className="mapa-toolbar__separador" />
+        <BotonToolbar
+          icono="ti-palette"
+          titulo={leyendaAbierta ? 'Ocultar qué significa cada color' : 'Ver qué significa cada color'}
+          onClick={() => setLeyendaAbierta(v => !v)}
+          activo={leyendaAbierta}
+        />
 
         {!soloLectura && (
           <>
@@ -156,6 +167,8 @@ export default function MapaToolbar({
       {reporteAbierto && mostrarReporte && (
         <ReportePanel onCerrar={() => setReporteAbierto(false)} />
       )}
+
+      {leyendaAbierta && <LeyendaClases articulosPorClase={articulosPorClase} onCerrar={() => setLeyendaAbierta(false)} />}
     </div>
   );
 }

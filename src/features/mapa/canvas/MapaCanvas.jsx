@@ -196,6 +196,32 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   /** Qué Map de racks se MUESTRA -- las mutaciones (mover/bloquear/buffer) siempre operan sobre `racks` (el real), nunca sobre esta vista derivada. */
   const racksVisibles = (!escenarioId && vistaContenido === 'rcl') ? vistaRclRacks : racks;
 
+  /**
+   * Todos los artículos del mapa agrupados por clase -- para la leyenda de
+   * colores (LeyendaClases.jsx, pedido explícito 2026-07-24: mostrar
+   * cantidad por clase + poder ver la lista completa de cada una). Mismo
+   * origen en memoria que ya usan exportarExcel()/vaciarPosiciones() más
+   * abajo -- ninguna consulta nueva a Supabase.
+   */
+  const articulosPorClase = useMemo(() => {
+    const porClase = new Map();
+    if (!racksVisibles) return porClase; // todavía cargando (racks arranca en null, ver más arriba)
+    for (const rack of racksVisibles.values()) {
+      for (const nivel in rack.niveles) {
+        for (const a of rack.niveles[nivel]) {
+          const clave = a.tipo === 'CUERPO' ? 'CUERPO' : a.clase;
+          if (!clave || clave === '-') continue; // '-' = vista RCL (vistaRcl.js), no es una clase real
+          if (!porClase.has(clave)) porClase.set(clave, []);
+          porClase.get(clave).push({
+            articulo: a.articulo, descripcion: descripcionDe(a.articulo),
+            pasillo: rack.pasillo, columna: rack.columna, nivel,
+          });
+        }
+      }
+    }
+    return porClase;
+  }, [racksVisibles, descripcionDe]);
+
   /** Código(s) RCL únicos asignados a una posición MZ (una fila por nivel en identidad_legacy, normalmente todas del mismo rack RCL) -- pedido explícito del usuario: mientras dure la migración quiere leer la ficha/pestaña en nomenclatura RCL, no MZ, en la vista RCL. Nunca inventa un código si la posición no tiene ninguno asignado todavía (pendiente_asignar/sin_rcl). */
   const rclPorPosicion = useMemo(() => {
     const mapa = new Map();
@@ -1162,6 +1188,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           mostrarBuffer={!escenarioId}
           onDevolverBuffer={item => devolverDelBuffer(item.slotOrigenId, item.id, item.articulo, item.origenNivel)}
           alertasDestinoListo={alertasDestinoListo}
+          articulosPorClase={articulosPorClase}
           mostrarReporte={mostrarReporte}
         />
       )}
