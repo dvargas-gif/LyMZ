@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularLayoutEsquematico, calcularEtiquetas, calcularCortesPasillo, COLUMNAS_POR_PASILLO, PASILLOS_VERTICALES } from './posicionesEsquematicas.js';
+import { calcularLayoutEsquematico, calcularEtiquetas, calcularCortesPasillo, calcularMarcadoresAscensor, ASCENSORES, COLUMNAS_POR_PASILLO, PASILLOS_VERTICALES } from './posicionesEsquematicas.js';
 
 describe('calcularLayoutEsquematico', () => {
   it('genera una celda por columna real de cada uno de los 12 pasillos', () => {
@@ -77,5 +77,31 @@ describe('calcularCortesPasillo', () => {
       const seSuperpone = celdasDelPasillo.some(c => c.x < corte.x + corte.ancho && c.x + c.ancho > corte.x);
       expect(seSuperpone).toBe(false);
     }
+  });
+});
+
+describe('calcularMarcadoresAscensor', () => {
+  it('devuelve un marcador por cada ascensor definido', () => {
+    const marcadores = calcularMarcadoresAscensor();
+    expect(marcadores).toHaveLength(ASCENSORES.length);
+    expect(marcadores.map(m => m.id)).toEqual(ASCENSORES.map(a => a.id));
+  });
+
+  it('el X de cada marcador cae en el hueco real entre sus dos columnas -- nunca superpuesto a ninguna celda', () => {
+    const celdas = calcularLayoutEsquematico();
+    const marcadores = calcularMarcadoresAscensor();
+    for (const m of marcadores) {
+      const celdasMz02 = celdas.filter(c => c.pasillo === 'MZ02');
+      const seSuperpone = celdasMz02.some(c => c.x < m.x && c.x + c.ancho > m.x);
+      expect(seSuperpone).toBe(false);
+    }
+  });
+
+  it('el ascensor 2 (C026-C027) cae en el mismo X que ya usa el corte real de "PASILLO" de MZ02', () => {
+    const cortesMz02 = calcularCortesPasillo().filter(c => c.pasillo === 'MZ02');
+    const ascensor2 = calcularMarcadoresAscensor().find(m => m.id === 'ascensor-2');
+    // El corte cubre un rango [x, x+ancho] -- el ascensor debe caer DENTRO de ese mismo hueco físico.
+    const corteQueLoContiene = cortesMz02.find(c => ascensor2.x >= c.x && ascensor2.x <= c.x + c.ancho);
+    expect(corteQueLoContiene).toBeDefined();
   });
 });

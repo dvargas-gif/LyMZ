@@ -23,6 +23,44 @@ function numeroPositivo(valor) {
 }
 
 /**
+ * Bug real encontrado 2026-07-24 (el equipo de piso dudaba de los números
+ * de volumen/capacidad) -- antes esto buscaba CUALQUIER columna que
+ * empezara con "Cantidad" -- si el archivo tenía, además de "Cantidad
+ * Máxima", otra columna tipo "Cantidad Reposición"/"Cantidad Mínima"
+ * (conceptos de negocio DISTINTOS, ver el comentario de
+ * 2026-07-21_articulo_dimensiones.sql), se quedaba con la que apareciera
+ * primero en el archivo, sin ninguna garantía de que fuera la correcta --
+ * multiplicaba el volumen por el número equivocado, en silencio.
+ *
+ * Ahora prioriza una columna específica "Cantidad Max..." (Máxima/Maxima/
+ * Max). Si hay más de una que matchee eso, o ninguna, y en su lugar hay
+ * más de una columna genérica "Cantidad ..." sin poder distinguir cuál es
+ * la máxima, se devuelve `undefined` a propósito -- mejor rechazar la fila
+ * con un motivo claro que adivinar cuál cantidad usar.
+ */
+// Sin tilde -- "Máxima" (bien escrito, tilde real) y "MAXIMA" (como ya
+// apareció una vez en la práctica, ver el comentario de arriba) tienen que
+// matchear igual. NFD + sacar los diacríticos combinantes es la forma
+// estándar de comparar sin depender de cómo alguien haya tildado el Excel.
+function sinTildes(texto) {
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function valorCantidadMaxima(raw) {
+  const clavesMax = Object.keys(raw).filter(k => sinTildes(k.trim().toUpperCase()).startsWith('CANTIDAD MAX'));
+  if (clavesMax.length === 1) return { valor: raw[clavesMax[0]], ambiguo: false };
+  if (clavesMax.length > 1) return { valor: undefined, ambiguo: true };
+
+  // Compatibilidad hacia atrás: archivos viejos con la columna llamada
+  // simplemente "Cantidad" (sin "Máxima") -- válido SOLO si es la ÚNICA
+  // columna del archivo que empieza con "Cantidad" (si hay otra, no hay
+  // forma de saber cuál es la máxima real).
+  const clavesCantidad = Object.keys(raw).filter(k => k.trim().toUpperCase().startsWith('CANTIDAD'));
+  if (clavesCantidad.length === 1) return { valor: raw[clavesCantidad[0]], ambiguo: false };
+  return { valor: undefined, ambiguo: clavesCantidad.length > 1 };
+}
+
+/**
  * @param {number} fila -- número de fila tal como lo vería el usuario en Excel (fila 2 = primera fila de datos).
  * @param {object} raw -- fila cruda del sheet.
  */
@@ -37,8 +75,13 @@ export function parsearFilaDimensiones(fila, raw) {
   const largo = numeroPositivo(valorPorPrefijo(raw, 'Largo'));
   const ancho = numeroPositivo(valorPorPrefijo(raw, 'Ancho'));
   const alto = numeroPositivo(valorPorPrefijo(raw, 'Alto'));
-  const cantidadMaxima = numeroPositivo(valorPorPrefijo(raw, 'Cantidad'));
+  const { valor: valorCantidad, ambiguo: cantidadAmbigua } = valorCantidadMaxima(raw);
+  const cantidadMaxima = numeroPositivo(valorCantidad);
   const peso = Number(valorPorPrefijo(raw, 'Peso'));
+
+  if (cantidadAmbigua) {
+    return { ...base, valido: false, motivo: 'Hay más de una columna "Cantidad ..." y no está claro cuál es la Cantidad Máxima -- renombrá esa columna en el archivo para que empiece exactamente con "Cantidad Max".' };
+  }
 
   const faltantes = [];
   if (!largo) faltantes.push('Largo');

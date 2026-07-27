@@ -206,6 +206,43 @@ export function xInicioFilas() {
   return limitesBloqueVertical() + ETIQUETA_ANCHO;
 }
 
+/**
+ * Los dos ascensores físicos reales del mezanine (pedido explícito
+ * 2026-07-27, ubicados a mano por el usuario sobre el mapa real -- nunca
+ * quedaron representados antes de esto). Sirven como referencia de
+ * cercanía para dónde conviene ubicar artículos de alta/baja rotación --
+ * por ahora es SOLO la marca visual en el mapa; el cálculo de distancia
+ * que los va a usar todavía no existe (queda para una vuelta aparte).
+ *
+ * Ascensor 1 -- MZ02, entre C001 y C002: el más cercano a lo que hoy es
+ * baja rotación. Ascensor 2 -- MZ02, entre C026 y C027 (coincide con el
+ * corte real de "PASILLO" que ya existe ahí, ver cortesDe/CORTE_AFTER_DEFAULT):
+ * el de la tarea más compleja.
+ */
+export const ASCENSORES = [
+  { id: 'ascensor-1', etiqueta: 'Ascensor 1', pasillo: 'MZ02', columnaAntes: 1, columnaDespues: 2 },
+  { id: 'ascensor-2', etiqueta: 'Ascensor 2', pasillo: 'MZ02', columnaAntes: 26, columnaDespues: 27 },
+];
+
+/**
+ * {id, etiqueta, x, y, alto} por cada ASCENSORES -- x es el punto medio
+ * entre las dos columnas que lo bordean, para dibujar un marcador sutil
+ * ahí (ver MapaCanvas.jsx). Reusa calcularLayoutEsquematico() en vez de
+ * recalcular X a mano -- una sola fuente real de la geometría del layout.
+ */
+export function calcularMarcadoresAscensor() {
+  const celdas = calcularLayoutEsquematico();
+  const buscar = (pasillo, columna) => celdas.find(c => c.pasillo === pasillo && c.columna === columna);
+
+  return ASCENSORES.map(({ id, etiqueta, pasillo, columnaAntes, columnaDespues }) => {
+    const antes = buscar(pasillo, columnaAntes);
+    const despues = buscar(pasillo, columnaDespues);
+    if (!antes || !despues) return null;
+    const xBorde = antes.x + antes.ancho + (despues.x - (antes.x + antes.ancho)) / 2;
+    return { id, etiqueta, x: xBorde, y: antes.y, alto: antes.alto };
+  }).filter(Boolean);
+}
+
 /** Y del punto medio de cada separación entre grupos de pasillos -- para dibujar una línea divisoria sutil ahí (refuerzo visual de "estos son grupos distintos"). */
 export function calcularDivisoresGrupo() {
   const FILA_ALTO = CELDA_ALTO + GAP;

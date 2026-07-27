@@ -17,6 +17,27 @@ describe('parsearFilasDimensiones', () => {
     expect(f.cantidadMaxima).toBe(5);
   });
 
+  // Bug real 2026-07-24 (el equipo de piso dudaba del volumen/capacidad):
+  // con "Cantidad Reposición" en el mismo archivo, antes se podía agarrar
+  // esa en vez de "Cantidad Máxima" -- silencioso, sin ningún error.
+  it('con "Cantidad Máxima" Y otra columna "Cantidad ..." en el archivo, usa la Máxima (nunca la otra)', () => {
+    const [f] = parsearFilasDimensiones([{
+      'Código Articulo': '1', Largo: 1, Ancho: 1, Alto: 1,
+      'Cantidad Reposición': 999, 'Cantidad Máxima': 20,
+    }]);
+    expect(f.valido).toBe(true);
+    expect(f.cantidadMaxima).toBe(20);
+  });
+
+  it('rechaza (no adivina) si hay más de una columna "Cantidad ..." y ninguna es "Cantidad Max"', () => {
+    const [f] = parsearFilasDimensiones([{
+      'Código Articulo': '1', Largo: 1, Ancho: 1, Alto: 1,
+      'Cantidad Reposición': 999, 'Cantidad Empaque': 12,
+    }]);
+    expect(f.valido).toBe(false);
+    expect(f.motivo).toMatch(/más de una columna/);
+  });
+
   it('rechaza fila sin código de artículo', () => {
     const [f] = parsearFilasDimensiones([{ Largo: 1, Ancho: 1, Alto: 1, 'Cantidad MAXIMA ': 1 }]);
     expect(f.valido).toBe(false);

@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { obtenerWarehouseModel } from '../../../domain/crearWarehouseModel.js';
 import { nArts, consumoTotal, llenura, colorLlenura } from '../../../domain/formulasOcupacion.js';
 import { colorDeClase } from '../../../shared/constants/coloresArticulo.js';
-import { calcularLayoutEsquematico, calcularEtiquetas, calcularDivisoresGrupo, calcularCortesPasillo, PASILLOS_VERTICALES, xInicioFilas } from './posicionesEsquematicas.js';
+import { calcularLayoutEsquematico, calcularEtiquetas, calcularDivisoresGrupo, calcularCortesPasillo, calcularMarcadoresAscensor, PASILLOS_VERTICALES, xInicioFilas } from './posicionesEsquematicas.js';
 import { calcularVistaAjustada, calcularVistaCentradaEnCelda, interpolarVista, DURACION_ANIMACION_MS, DURACION_ZOOM_BOTON_MS } from './vistaMapa.js';
 import { aplicarMovimientosLocales, invertirLote, quitarArticuloLocal } from './movimientosLocales.js';
 import { NEGRO_GRAFITO, NEGRO_GRAFITO_CLARO, GRIS_MAPA, GRIS_MAPA_CLARO, VERDE_ESTRUCTURA_CLARO, CAFE_CENIZA, CAFE_CENIZA_CLARO, BLANCO_CALIDO, BLANCO_CALIDO_TENUE, ESTADOS, MIGRACION_ORIGEN } from './paleta.js';
@@ -123,6 +123,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const etiquetas = useMemo(() => calcularEtiquetas(), []);
   const divisores = useMemo(() => calcularDivisoresGrupo(), []);
   const cortes = useMemo(() => calcularCortesPasillo(), []);
+  const marcadoresAscensor = useMemo(() => calcularMarcadoresAscensor(), []);
 
   const limites = useMemo(() => {
     const maxX = Math.max(...celdas.map(c => c.x + c.ancho));
@@ -1111,6 +1112,9 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
             {cortes.map((c, i) => (
               <CorteVisual key={`${c.pasillo}-${i}`} corte={c} />
             ))}
+            {marcadoresAscensor.map(m => (
+              <MarcadorAscensor key={m.id} marcador={m} />
+            ))}
             <Banda celdas={celdas} anchoTotal={limites.ancho} />
           </Layer>
           <Layer>
@@ -1290,6 +1294,33 @@ function CorteVisual({ corte }) {
         text="PASILLO" fontSize={7} fontStyle="700" fill={BLANCO_CALIDO_TENUE} letterSpacing={0.5}
       />
     </>
+  );
+}
+
+/**
+ * Marca sutil de un ascensor real (2026-07-27, pedido explícito) -- una
+ * línea vertical fina punteada en el borde entre las dos columnas que lo
+ * bordean, más un punto pequeño arriba con la etiqueta ("Ascensor N") en
+ * vertical, mismo criterio tipográfico que CorteVisual (arriba) pero con
+ * su propio tono para no confundirse con los colores de clase A/B/C/D
+ * (azul/teal/ámbar/púrpura, ver coloresArticulo.js) -- esto es
+ * infraestructura física, no una clasificación de artículo.
+ */
+function MarcadorAscensor({ marcador }) {
+  return (
+    <Group listening={false}>
+      <Line
+        points={[marcador.x, marcador.y - 6, marcador.x, marcador.y + marcador.alto]}
+        stroke={BLANCO_CALIDO} strokeWidth={1.5} dash={[3, 3]} opacity={0.55}
+      />
+      <Circle x={marcador.x} y={marcador.y - 6} radius={3} fill={BLANCO_CALIDO} opacity={0.7} />
+      <Text
+        x={marcador.x} y={marcador.y - 10}
+        width={marcador.alto} offsetX={marcador.alto / 2}
+        align="center" verticalAlign="middle" rotation={-90}
+        text={marcador.etiqueta.toUpperCase()} fontSize={7} fontStyle="700" fill={BLANCO_CALIDO} letterSpacing={0.5} opacity={0.8}
+      />
+    </Group>
   );
 }
 

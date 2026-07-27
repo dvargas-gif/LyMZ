@@ -9,6 +9,9 @@ import { migracionSlotsService } from '../../shared/services/migracionSlots.serv
 import { usuariosService } from '../usuarios/usuarios.service.js';
 import { posicionesEliminadasService } from '../../shared/services/posicionesEliminadas.service.js';
 import { generarMovimientosMigracion } from './generarMovimientos.js';
+import { despachoService } from '../../shared/services/despacho.service.js';
+import { articuloDimensionesService } from '../../shared/services/articuloDimensiones.service.js';
+import { detectarCuerposParaAjustarNiveles } from '../../domain/reglasAsignacionCuerpo.js';
 import ModalBase from '../../shared/components/ModalBase.jsx';
 
 const ESTADOS_ACTIVOS = new Set(['vaciando', 'recolectando']);
@@ -90,6 +93,8 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [resultado, setResultado] = useState(null);
   const [exiliadosEnAcomodo, setExiliadosEnAcomodo] = useState(null); // [{articulo, pasillo, columna, nivel, eliminadoEn, motivo}] | null
   const [revisandoExiliados, setRevisandoExiliados] = useState(false);
+  const [cuerposParaAjustar, setCuerposParaAjustar] = useState(null); // [{pasillo, columna, articulo, volumenArticulo, porcentaje, nivelesRecomendados}] | null
+  const [revisandoNiveles, setRevisandoNiveles] = useState(false);
 
   // -- Equipos + resumen --
   const [slots, setSlots] = useState(null); // null = cargando
@@ -177,8 +182,47 @@ export default function PanelMigracion({ sesion, onCerrar }) {
     }
   }
 
+  /**
+   * Cuerpos (5 niveles) dedicados a UN SOLO artículo que, según su volumen,
+   * convendría pasar a menos niveles (2026-07-24, pedido explícito, tabla
+   * confirmada con el usuario) -- ver src/domain/reglasAsignacionCuerpo.js
+   * para la regla completa. Mismo espíritu que revisarExiliadosEnAcomodo():
+   * SOLO informa, nunca cambia nada de inventario_slotting.
+   */
+  async function revisarCuerposParaAjustar() {
+    setRevisandoNiveles(true);
+    setError('');
+    try {
+      const [slotting, dimensiones] = await Promise.all([
+        inventarioService.listar(),
+        articuloDimensionesService.listar(),
+      ]);
+      setCuerposParaAjustar(detectarCuerposParaAjustarNiveles(slotting, dimensiones));
+    } catch (err) {
+      setError(`No se pudo revisar los cuerpos: ${err.message || err}`);
+    } finally {
+      setRevisandoNiveles(false);
+    }
+  }
+
+  /**
+   * Candado real (2026-07-24, pedido explícito) -- "Aplicar" reemplaza
+   * TODOS los migracion_movimientos pendientes, sin importar si alguno ya
+   * está enganchado a una tarea de despacho_tareas todavía sin confirmar.
+   * Con una Orden de Ejecución activa, eso arriesga romper sus tareas
+   * "recolectar" (movimiento_id apunta a una fila que este reemplazo puede
+   * borrar) -- en el mejor caso, la base lo rechaza por la foreign key; en
+   * el peor, deja tareas huérfanas. Antes esto solo se lo avisaba al
+   * usuario por chat -- ahora lo frena el código mismo, no la memoria de
+   * nadie.
+   */
   async function confirmarAplicar() {
     if (!previa || previa.movimientos.length === 0) return;
+    const loteActivo = await despachoService.obtenerLoteActivo();
+    if (loteActivo) {
+      setError(`No se puede aplicar el plan mientras la Orden de Ejecución #${loteActivo.id} sigue abierta -- reemplazar los movimientos pendientes arriesga romper sus tareas de recolección todavía sin confirmar. Cerrala, cancelala o deshacela primero desde Órdenes de Ejecución.`);
+      return;
+    }
     if (!confirm(`Vas a reemplazar el plan de recolección PENDIENTE con ${previa.movimientos.length} movimiento(s) nuevo(s). Lo que ya esté marcado "recolectado" no se toca. ¿Confirmás?`)) return;
     setAplicando(true);
     setError('');
@@ -408,6 +452,49 @@ export default function PanelMigracion({ sesion, onCerrar }) {
                           <td style={{ padding: '8px', fontFamily: 'monospace' }}>{e.articulo}</td>
                           <td style={{ padding: '8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{e.pasillo}-C{String(e.columna).padStart(3, '0')}{e.nivel ? `-${e.nivel}` : ''}</td>
                           <td style={{ padding: '8px', color: 'var(--texto-tenue)' }}>{e.motivo} -- {new Date(e.eliminado_en).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={revisandoNiveles} onClick={revisarCuerposParaAjustar} style={{ fontSize: 12 }}>
+              {revisandoNiveles ? 'Revisando…' : 'Revisar cuerpos para ajustar niveles'}
+            </button>
+            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0 0' }}>
+              Solo informa -- nunca cambia nada de <code>inventario_slotting</code>. Un cuerpo entero (5 niveles) dedicado a un solo artículo: menos del 30% de volumen ya está bien con 5 niveles; 30-40% conviene 3; 40-50% conviene 2; 50% o más conviene 1 solo.
+            </p>
+
+            {cuerposParaAjustar && (
+              cuerposParaAjustar.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: 'var(--green)', margin: '10px 0 0' }}>✓ Ningún cuerpo de un solo artículo necesita ajustar su cantidad de niveles.</p>
+              ) : (
+                <div style={{ marginTop: 10, overflowX: 'auto', maxWidth: '100%' }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ambar, #8A6412)', margin: '0 0 8px' }}>
+                    ⚠ {cuerposParaAjustar.length} cuerpo(s) de un solo artículo convendría pasarlos a menos niveles:
+                  </p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'var(--texto-tenue)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.3px' }}>
+                        <th style={{ padding: '6px 8px' }}>Rack</th>
+                        <th style={{ padding: '6px 8px' }}>Artículo</th>
+                        <th style={{ padding: '6px 8px' }}>Volumen artículo</th>
+                        <th style={{ padding: '6px 8px' }}>% del cuerpo</th>
+                        <th style={{ padding: '6px 8px' }}>Niveles recomendados</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cuerposParaAjustar.map((c, i) => (
+                        <tr key={`${c.pasillo}-${c.columna}-${i}`} style={{ borderTop: '1px solid var(--borde-claro)' }}>
+                          <td style={{ padding: '8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{c.pasillo}-C{String(c.columna).padStart(3, '0')}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace' }}>{c.articulo}</td>
+                          <td style={{ padding: '8px' }}>{c.volumenArticulo.toFixed(3)} m³</td>
+                          <td style={{ padding: '8px' }}>{(c.porcentaje * 100).toFixed(1)}%</td>
+                          <td style={{ padding: '8px', color: 'var(--red)', fontWeight: 700 }}>{c.nivelesRecomendados}</td>
                         </tr>
                       ))}
                     </tbody>
