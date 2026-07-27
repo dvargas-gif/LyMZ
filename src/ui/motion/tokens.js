@@ -17,6 +17,7 @@ export const DURACION = {
   trazadoRuta: 1.5,        // trazo de rutas/badges flotantes (mapa en Fase 3, ilustraciones del Login hoy)
   pausaOnda: 2.6,          // pausa de descanso entre barridos/apariciones de un efecto en loop (ej. los badges flotantes del Login)
   pausaCorta: 1,           // pausa breve para loops que deben sentirse SIEMPRE vivos (ej. partícula/caja de la escena del Login) -- pausaOnda ahí se sentía "lento" (feedback real del usuario)
+  arranque: 1.6,            // splash de arranque (PantallaCarga) -- cada una de sus dos fases (logo, rack) dura esto -- +1s pedido explícito, "que sea más fluido"
 };
 
 export const EASING = {

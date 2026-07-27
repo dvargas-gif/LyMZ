@@ -211,7 +211,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion }) {
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                <button className="btn-primary" disabled={aplicando || totalSeleccionado === 0} onClick={confirmarEliminacion}>
+                <button className="btn-danger" disabled={aplicando || totalSeleccionado === 0} onClick={confirmarEliminacion}>
                   {aplicando ? 'Aplicando…' : `Exiliar ${totalSeleccionado} de ${totalCandidatos} seleccionado(s)`}
                 </button>
                 <button className="btn-secondary" disabled={aplicando} onClick={reiniciar}>Cancelar</button>

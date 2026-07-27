@@ -46,7 +46,7 @@ export default function ListaSalas({ salas, cargando, onCrear, onAbrir, onElimin
           onChange={e => setNombreNuevo(e.target.value)}
           style={{ minWidth: 320 }}
         />
-        <button className="btn-primary" disabled={creando || !nombreNuevo.trim()}>
+        <button className="btn-success" disabled={creando || !nombreNuevo.trim()}>
           <i className="ti ti-plus" /> {creando ? 'Creando copia del acomodo actual…' : 'Crear nuevo escenario'}
         </button>
       </form>
@@ -69,7 +69,7 @@ export default function ListaSalas({ salas, cargando, onCrear, onAbrir, onElimin
               <td className="muted">{s.actualizado_en ? new Date(s.actualizado_en).toLocaleString() : '—'}</td>
               <td style={{ display: 'flex', gap: 8 }}>
                 <button className="btn-primary" onClick={() => onAbrir(s)}>Abrir</button>
-                <button className="btn-icon" onClick={() => onEliminar(s)} title="Borrar sala">
+                <button className="btn-icon btn-icon--danger" onClick={() => onEliminar(s)} title="Borrar sala">
                   <i className="ti ti-trash" />
                 </button>
               </td>

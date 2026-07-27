@@ -27,6 +27,10 @@ export default function Logo({ size = 32, suave = false }) {
         </defs>
       )}
       <rect width="40" height="40" rx={suave ? 14 : 10} fill={suave ? `url(#${idGradiente})` : 'var(--accent)'} />
+      {/* Amarillo/dorado (#E8B04B, pedido explícito) -- mismo tono que ya
+          usa .login-visual__marca-inicial para las mismas 3 letras cuando
+          se escriben "Overseas Logistics Operations" en el panel de Login,
+          así el isotipo y el nombre completo hablan el mismo acento. */}
       <text
         x="20"
         y="26"
@@ -35,7 +39,7 @@ export default function Logo({ size = 32, suave = false }) {
         fontSize="13"
         fontWeight="700"
         letterSpacing="0.5"
-        fill="var(--card)"
+        fill="#E8B04B"
       >
         OLO
       </text>

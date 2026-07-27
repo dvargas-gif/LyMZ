@@ -4,12 +4,14 @@ import { useCierreSesionPorInactividad } from './useCierreSesionPorInactividad.j
 import { suscribirPresenciaGlobal } from '../../shared/services/presencia.service.js';
 import { permisosRolService } from './permisosRol.service.js';
 import { establecerPermisosPersonalizados } from './roles.js';
+import PantallaCarga from '../../shared/components/PantallaCarga.jsx';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [sesion, setSesion] = useState(null);
   const [listo, setListo] = useState(false);
+  const [mostrarApp, setMostrarApp] = useState(false);
   const [conectados, setConectados] = useState(new Map()); // Map<usuarioId, {nombre, apodo, rol}> -- ver presencia.service.js
   // Bumped cada vez que se recarga la matriz de permisos por rol (ver
   // roles.js/permisosRol.service.js) -- `puede()` es síncrona y lee una
@@ -20,7 +22,18 @@ export function AuthProvider({ children }) {
   const [permisosVersion, setPermisosVersion] = useState(0);
 
   useEffect(() => {
-    authService.getSesion().then(s => { setSesion(s); setListo(true); });
+    authService.getSesion().then(s => {
+      setSesion(s); setListo(true);
+      // Precarga del chunk pesado de Three.js (536kB) del rack 3D del Login
+      // -- ANTES de que Login.jsx siquiera se monte. Sin esto, el usuario ve
+      // brevemente el fallback 2D (EscenaAlmacen, "el diseño antiguo")
+      // mientras ese chunk recién empieza a bajar por red justo cuando entra
+      // a /login -- reportado en vivo como "parece un bug". Mismo import()
+      // que usa el lazy() de Login.jsx -- Vite cachea por URL de chunk, así
+      // que ese lazy() resuelve al toque en vez de esperar la red. Solo
+      // tiene sentido sin sesión (a Shell nunca se le muestra el rack).
+      if (!s) import('./rack3d/Rack3DEscena.jsx').catch(() => {});
+    });
     const { data: sub } = authService.onAuthStateChange(setSesion);
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -57,7 +70,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { if (sesion) refrescarPermisos(); }, [sesion?.usuarioId]); // eslint-disable-line
 
-  if (!listo) return null; // evita parpadeo mientras se resuelve la sesión de Supabase
+  // Splash de arranque (ver PantallaCarga.jsx): se muestra SIEMPRE, no solo
+  // mientras `!listo` -- se revela recién cuando la sesión está resuelta Y
+  // la animación propia terminó, para que el intro se vea completo cada vez
+  // que se abre la página en vez de cortarse si Supabase responde rápido.
+  if (!mostrarApp) return <PantallaCarga listo={listo} onFin={() => setMostrarApp(true)} />;
 
   return (
     <AuthContext.Provider value={{ sesion, login, logout, conectados, permisosVersion, refrescarPermisos }}>

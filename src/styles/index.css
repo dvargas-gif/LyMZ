@@ -9,6 +9,7 @@
   --accent: #15454A;
   --accent-rgb: 21, 69, 74; /* mismo valor que --accent, en RGB -- para overlays translúcidos (rgba), ver hover "vidrio" del sidebar */
   --green: #1D9E75;
+  --green-rgb: 29, 158, 117; /* ídem --green, para el borde/hover translúcido de .btn-success */
   --amber: #D08A1E;
   --red: #C0392B;
   --red-rgb: 192, 57, 43; /* ídem --red, para el hover translúcido de las acciones peligrosas */
@@ -56,6 +57,7 @@
   --accent: #3FA7AC;
   --accent-rgb: 63, 167, 172;
   --green: #2FBE8D;
+  --green-rgb: 47, 190, 141;
   --amber: #E0A83D;
   --red: #E0655A;
   --red-rgb: 224, 101, 90;
@@ -83,7 +85,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="claro"]) {
     --bg: #16262A; --card: #1E3236; --ink: #E7EEEC; --muted: #8FA3A0; --line: #2A4145;
-    --accent: #3FA7AC; --accent-rgb: 63, 167, 172; --green: #2FBE8D; --amber: #E0A83D;
+    --accent: #3FA7AC; --accent-rgb: 63, 167, 172; --green: #2FBE8D; --green-rgb: 47, 190, 141; --amber: #E0A83D;
     --red: #E0655A; --red-rgb: 224, 101, 90; --overlay: rgba(6, 14, 13, .65);
     --texto-tenue: #9FB0AC; --texto-placeholder: #6E8280; --borde-input: #35494C;
     --borde-sutil: #23393C; --borde-medio: #3E5A5C; --borde-claro: #2E4548;
@@ -148,6 +150,23 @@ body {
   .skeleton-shimmer::after { animation: none; }
   .kpi-valor { transition: none; }
 }
+
+/* Splash de arranque (PantallaCarga.jsx) -- #0C2C2F es el mismo "oscuro de
+   marca" que --sb-base (Sidebar) y el stop más oscuro del degradé de
+   Login.jsx, no un tercer oscuro inventado aparte. */
+.pantalla-carga {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  /* Mismo degradé esmeralda que .login-visual (radial, centrado acá en vez
+     de a 75% porque esto es pantalla completa, no un panel lateral) --
+     pedido explícito: que la pantalla de carga se vea "de este mismo
+     color", en vez del plano #0C2C2F (tono del Sidebar) que tenía antes. */
+  background: radial-gradient(ellipse 90% 70% at 50% 50%, #0F3A32 0%, #082420 50%, #04120F 100%);
+}
+/* Tamaño fijo -- el logo y el cajón isométrico se superponen ACÁ (position:
+   absolute) para que el crossfade entre los dos no salte de layout. */
+.pantalla-carga__figura { position: relative; width: 88px; height: 88px; }
+.pantalla-carga__capa { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 
 /* ---- Sidebar (navegación + herramientas administrativas — reemplaza a
    <Tabs> y al menú flotante) ----
@@ -403,16 +422,49 @@ body {
    entre sí en vez de que cada uno "pese" distinto según qué tan oscuros
    eran sus colores de marca. La opacidad bajísima es la que hace que lea
    como fondo y no como una barra de auspiciantes. */
+/* Barra superior (2026-07-27, ubicación final pedida explícitamente): la
+   marca OLO se sube acá desde abajo (antes vivía junto al resto del
+   contenido) y comparte franja con los logos de clientes -- antes flotaban
+   solos, ahora los dos vestigios de "quién es quién" quedan juntos arriba
+   del todo. pointer-events:none, nada acá es interactivo. */
+.login-barra-superior {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: none;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: clamp(16px, 3vw, 40px);
+  padding: clamp(14px, 3vh, 28px) clamp(28px, 6vw, 72px);
+}
+.login-visual__marca--barra { flex-shrink: 0; }
 .login-logos-clientes {
-  position: absolute; top: clamp(20px, 4vh, 48px); left: 0; right: 0; z-index: 0; pointer-events: none;
+  flex: 1; min-width: 0;
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
-  gap: clamp(28px, 4vw, 56px); padding: 0 clamp(28px, 6vw, 72px);
+  gap: clamp(20px, 3vw, 48px);
 }
 .login-logos-clientes img {
   height: clamp(20px, 2.8vh, 28px); width: auto;
-  filter: grayscale(1) brightness(0) invert(1);
-  opacity: .15;
+  /* Mismo truco que antes (grayscale+brightness(0)+invert fuerza CUALQUIER
+     logo a una silueta blanca pareja) + sepia/hue-rotate/saturate DESPUÉS
+     del invert (sepia sobre negro puro no hace nada -- son matrices
+     lineales, se necesita blanco de base) para teñir esa silueta de
+     amarillo-dorado en vez de dejarla blanca -- pedido explícito, más sutil
+     que el amarillo del isotipo OLO (opacity más baja). */
+  filter: grayscale(1) brightness(0) invert(1) sepia(1) hue-rotate(-40deg) saturate(9) brightness(0.95);
+  opacity: .22;
 }
+
+/* Teaser de futuras actualizaciones (2026-07-27, pedido explícito) --
+   franja fija abajo, independiente del bloque de contenido centrado (ver
+   login-visual__contenido--overlay) para que no se la lleve puesta al
+   centro. Degradé propio (no reusa login-escena-scrim) porque tiene que
+   funcionar también cuando el scrim de abajo todavía no se desvaneció del
+   todo con el resto del contenido. */
+.login-footer-teaser {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: clamp(10px, 2vh, 16px) clamp(28px, 6vw, 72px);
+  font-size: 12.5px; color: rgba(255, 255, 255, .55);
+  background: linear-gradient(to top, rgba(4, 18, 15, .55), transparent);
+}
+.login-footer-teaser i { color: #4FE0D1; font-size: 14px; }
 
 /* Sin max-width acá a propósito: antes título/subtítulo quedaban topeados
    a ~460-480px mientras el panel llega a 1000px -- ESE era el hueco vacío
@@ -506,14 +558,15 @@ body {
    de compartir el flujo normal con él -- pointer-events:none acá, para que
    arrastrar/zoom/clickear el rack funcione en cualquier punto sin texto
    encima; se reactiva puntualmente en .login-visual__hint (el único
-   elemento realmente interactivo de este overlay). justify-content:flex-end
-   -- pedido explícito: "que las letras estuvieran hacia abajo para que no
-   me interfiera con el despliegue del rack" -- todo el texto (antes
-   dividido en un bloque arriba y otro abajo) ahora se apila al fondo,
-   dejando el resto del panel completamente libre para el rack. */
+   elemento realmente interactivo de este overlay).
+   justify-content:center -- 2026-07-27, pedido explícito, reemplaza el
+   flex-end de antes ("que las letras estuvieran hacia abajo"): con la marca
+   OLO ahora en la barra superior (ver login-barra-superior) y el nuevo
+   teaser fijo abajo (ver login-footer-teaser), el contenido central "sube
+   al medio" en vez de apilarse contra el fondo. */
 .login-visual__contenido--overlay {
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  display: flex; flex-direction: column; justify-content: flex-end;
+  display: flex; flex-direction: column; justify-content: center;
   gap: clamp(10px, 2.2vh, 18px);
   padding: clamp(14px, 3vh, 40px) clamp(28px, 6vw, 72px);
 }
@@ -837,24 +890,10 @@ body {
    junto al badge del nivel clickeado y dispara zoom de cámara, en vez de un
    panel fijo desconectado del rack. */
 
-/* Badge de evento tipo "toast" (ícono + título + check + detalle) --
-   mismo formato que la imagen de referencia del usuario, en vez del pill
-   de una sola línea de la iteración anterior. */
-.login-badge-evento {
-  position: absolute; transform: translate(-50%, -50%); z-index: 2; pointer-events: none;
-  display: flex; align-items: center; gap: 8px; padding: 7px 11px 7px 7px; border-radius: 10px;
-  background: rgba(18, 32, 38, .92); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(79, 224, 209, .3); box-shadow: 0 8px 20px -8px rgba(0, 0, 0, .5); white-space: nowrap;
-}
-.login-badge-evento__icono {
-  flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px;
-  background: rgba(79, 224, 209, .16); color: #4FE0D1;
-  display: flex; align-items: center; justify-content: center; font-size: 13px;
-}
-.login-badge-evento__texto { display: flex; flex-direction: column; gap: 1px; }
-.login-badge-evento__texto strong { display: flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; color: #fff; }
-.login-badge-evento__texto strong i { color: #3FBF7F; font-size: 11px; }
-.login-badge-evento__texto span { font-size: 9.5px; color: rgba(255, 255, 255, .55); }
+/* Los badges de evento tipo "toast" (Producto recibido/Ubicación óptima/...)
+   se sacaron (2026-07-27, pedido explícito: "no quiero nada [flotando],
+   quiero que se vea limpio") -- ver Login.jsx, ya no se renderiza nada con
+   esta clase. */
 
 /* ---- Franja de confianza (Seguro / En tiempo real / Confiable) -- SIEMPRE
    visible, no ligada al hover (a diferencia de las tarjetas de arriba). ---- */
@@ -1016,6 +1055,32 @@ body {
 }
 .btn-icon:hover { background: var(--fondo-sutil-hover); transform: scale(1.08); }
 .btn-icon:active { transform: scale(.92); }
+
+/* Variantes de intención (2026-07-27, pedido explícito) -- antes CUALQUIER
+   acción destructiva o de confirmación secundaria era un .btn-secondary
+   con el texto en rojo pegado por style inline: mismo fondo blanco, mismo
+   borde gris que un botón neutro, no se distinguía a simple vista. Estas
+   se paran sobre el mismo sistema (mismo alto/radio/tipografía de
+   .btn-primary/.btn-secondary) pero con fondo+borde+texto tintados según
+   la acción, y pasan a sólido en hover -- mismo criterio que ya usa
+   .estado-badge--ok/--warn (reusa los mismos tokens --verde-tenue/--green
+   y --rojo-tenue/--red, no son colores nuevos inventados). */
+.btn-danger {
+  background: var(--rojo-tenue); color: var(--red); border: 1px solid rgba(var(--red-rgb), .35);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--red); color: #fff; border-color: var(--red);
+  box-shadow: 0 6px 16px rgba(var(--red-rgb), .28);
+}
+.btn-success {
+  background: var(--verde-tenue); color: var(--green); border: 1px solid rgba(var(--green-rgb), .35);
+}
+.btn-success:hover:not(:disabled) {
+  background: var(--green); color: #fff; border-color: var(--green);
+  box-shadow: 0 6px 16px rgba(var(--green-rgb), .28);
+}
+.btn-icon--danger { background: var(--rojo-tenue); color: var(--red); }
+.btn-icon--danger:hover { background: var(--red); color: #fff; }
 .tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tabla th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .tabla td { padding: 9px 10px; border-bottom: 1px solid var(--line); }

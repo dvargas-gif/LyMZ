@@ -55,7 +55,7 @@ export default function ChecklistTrabajador({ trabajador, puedeCancelar, procesa
               <span style={{ flex: 1, textDecoration: tarea.estado === 'cancelada' ? 'line-through' : 'none' }}>{descripcion(tarea)}</span>
               {tarea.estado === 'pendiente' && (
                 <button
-                  className="btn-primary"
+                  className="btn-success"
                   style={{ fontSize: 11, padding: '3px 10px' }}
                   disabled={!esElTurno || procesando === tarea.id}
                   title={esElTurno ? undefined : 'Primero hay que confirmar la tarea anterior de este trabajador'}
@@ -66,8 +66,8 @@ export default function ChecklistTrabajador({ trabajador, puedeCancelar, procesa
               )}
               {tarea.estado === 'pendiente' && puedeCancelar && (
                 <button
-                  className="btn-secondary"
-                  style={{ fontSize: 11, padding: '3px 8px', color: 'var(--red)' }}
+                  className="btn-danger"
+                  style={{ fontSize: 11, padding: '3px 8px' }}
                   disabled={procesando === tarea.id}
                   onClick={() => onCancelar(tarea.id)}
                 >

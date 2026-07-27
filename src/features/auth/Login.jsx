@@ -5,7 +5,7 @@ import { authService } from './auth.service.js';
 import { useAuth } from './AuthContext.jsx';
 import Logo from '../../shared/components/Logo.jsx';
 import { useReducedMotion } from '../../ui/motion/prefersReducedMotion.js';
-import { entradaConStagger, entradaProtagonista, apareceFlotante } from '../../ui/motion/variants.js';
+import { entradaConStagger, entradaProtagonista } from '../../ui/motion/variants.js';
 import EscenaAlmacen, { ANCLAS_HUD, ESCENA_ANCHO, ESCENA_ALTO } from './loginEscenaAlmacen.jsx';
 import { DURACION } from '../../ui/motion/tokens.js';
 import { detectarWebGL2 } from '../../shared/utils/webgl.js';
@@ -75,33 +75,6 @@ const DESCRIPCIONES_HUD = {
 // una vez al montar.
 const PUNTOS_INFO_RACK = PUNTOS_HUD.map(({ id, icono, etiqueta }) => ({ id, icono, etiqueta, descripcion: DESCRIPCIONES_HUD[id] }));
 
-// 5 eventos flotantes tipo "toast" repartidos sobre la escena (coordenadas
-// del mismo viewBox 400x260) -- posiciones fijas, lejos de los 3 anclajes
-// HUD para no superponerse. apareceFlotante() ya escalona la fase por
-// índice (ver más abajo) para que nunca se vean los 5 a la vez.
-const BADGES_EVENTO = [
-  { titulo: 'Producto recibido', detalle: '32 unidades', x: 58, y: 232 },
-  { titulo: 'Ubicación óptima', detalle: 'A-12-04', x: 140, y: 58 },
-  { titulo: 'Picking completado', detalle: 'Orden #8452', x: 210, y: 178 },
-  { titulo: 'Movimiento registrado', detalle: 'Hace 2 min', x: 108, y: 40 },
-  { titulo: 'Inventario sincronizado', detalle: 'Hace 1 min', x: 300, y: 158 },
-];
-
-// Mismo contenido que BADGES_EVENTO (título/detalle), pero reposicionado
-// para el fondo 3D full-bleed -- las coordenadas de arriba están afinadas
-// para cair sobre elementos concretos de la ilustración SVG (la cinta
-// transportadora, el forklift) y no aplican acá. En 3D solo hace falta
-// esquivar dos zonas: título/subtítulo (arriba-izquierda) y franja de
-// confianza + botón (abajo) -- estas 5 posiciones viven en la franja
-// central-derecha que queda libre entre ambas.
-const POSICIONES_BADGE_3D = [
-  { x: 260, y: 78 },
-  { x: 300, y: 150 },
-  { x: 320, y: 108 },
-  { x: 230, y: 190 },
-  { x: 310, y: 172 },
-];
-
 const FRANJA_CONFIANZA = [
   { icono: 'ti-shield-check', titulo: 'Seguro', desc: 'Tus datos protegidos con los más altos estándares.' },
   { icono: 'ti-clock', titulo: 'En tiempo real', desc: 'Información actualizada al instante.' },
@@ -116,10 +89,6 @@ const FRANJA_CONFIANZA = [
 // index.css), así que ahí la franja de confianza hereda el índice 3 en vez
 // de esperar el turno de una escena que ya no compite por stagger.
 const INDICE_ESCENA = 3;
-// Los 5 badges de evento se reparten en fase a lo largo de un ciclo
-// completo (duración + pausa de apareceFlotante) -- así nunca coinciden
-// más de uno o dos a la vez sobre la escena.
-const CICLO_BADGE = DURACION.trazadoRuta + DURACION.pausaOnda;
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -144,10 +113,6 @@ export default function Login() {
   // aunque el mouse se mueva a otro lado, hasta que se cierre.
   const [legendaAbierta, setLegendaAbierta] = useState(null);
   const resaltado = legendaAbierta ?? hoverActivo;
-  // Mientras el rack 3D tiene un zoom activo (punto o nivel), los toasts
-  // ambientales se ocultan -- pedido explícito: "el rack está muy céntrico,
-  // cuando voy a los niveles se estorban [con los toasts]".
-  const [focoRackActivo, setFocoRackActivo] = useState(false);
 
   function manejarClickHud(id, e) {
     // Antes de revelar, un click en CUALQUIER parte del panel (incluido un
@@ -168,6 +133,13 @@ export default function Login() {
   // detectarWebGL2() no cambia entre renders, un solo cálculo alcanza.
   const mostrar3D = useMemo(() => detectarWebGL2(), []) && !reducido;
   const indiceConfianza = mostrar3D ? INDICE_ESCENA : INDICE_ESCENA + 1;
+  // Intro cinemática del rack (pedido explícito, 2026-07-27): gira y se aleja,
+  // se acerca y abre una caja, vuelve a la posición default -- recién ahí se
+  // revela el contenido de texto (título/franja de confianza/botón), "sin que
+  // se vea el contenido estorbando" mientras tanto. Solo aplica al rack 3D --
+  // el fallback 2D (sin WebGL2, o movimiento reducido) revela de inmediato,
+  // como siempre.
+  const [introRackTerminada, setIntroRackTerminada] = useState(!mostrar3D);
 
   function revelar() { setRevelado(true); }
 
@@ -212,12 +184,27 @@ export default function Login() {
         <div className="login-fondo-linea login-fondo-linea--1" aria-hidden="true" />
         <div className="login-fondo-linea login-fondo-linea--2" aria-hidden="true" />
 
-        {/* Clientes de confianza -- solo en la escena 3D (pedido explícito),
-            arriba del todo: es la única franja que el texto (anclado abajo,
-            ver .login-visual__contenido--overlay) deja completamente libre. */}
+        {/* Barra superior (pedido explícito, ubicación final): la marca OLO
+            se sube acá (antes vivía abajo, junto al resto del contenido) y
+            los logos de clientes de confianza -- solo en la escena 3D --
+            quedan en la misma franja. La marca se revela recién cuando
+            termina la intro del rack (mismo criterio que el resto del
+            contenido); los logos son ambiente, siempre visibles. */}
         {mostrar3D && (
-          <div className="login-logos-clientes" aria-hidden="true">
-            {LOGOS_CLIENTES.map(l => <img key={l.alt} src={l.src} alt="" />)}
+          <div className="login-barra-superior">
+            {introRackTerminada && (
+              <motion.div className="login-visual__marca login-visual__marca--barra" {...entradaConStagger(0, reducido)}>
+                <Logo size={36} suave />
+                <span className="login-visual__marca-nombre">
+                  <span className="login-visual__marca-inicial">O</span>verseas{' '}
+                  <span className="login-visual__marca-inicial">L</span>ogistics{' '}
+                  <span className="login-visual__marca-inicial">O</span>perations
+                </span>
+              </motion.div>
+            )}
+            <div className="login-logos-clientes" aria-hidden="true">
+              {LOGOS_CLIENTES.map(l => <img key={l.alt} src={l.src} alt="" />)}
+            </div>
           </div>
         )}
 
@@ -230,7 +217,11 @@ export default function Login() {
         {mostrar3D && (
           <div className="login-escena-fondo">
             <Suspense fallback={<EscenaAlmacen reducido={reducido} resaltado={resaltado} pausar={!!legendaAbierta} />}>
-              <Rack3DEscena puntosInfo={PUNTOS_INFO_RACK} onEnfoqueCambio={setFocoRackActivo} />
+              <Rack3DEscena
+                puntosInfo={PUNTOS_INFO_RACK}
+                intro={!introRackTerminada}
+                onIntroFin={() => setIntroRackTerminada(true)}
+              />
             </Suspense>
           </div>
         )}
@@ -246,17 +237,12 @@ export default function Login() {
           // reactivado puntualmente en el único elemento realmente
           // interactivo (el botón de abajo) para que arrastrar/zoom/clickear
           // el rack siga funcionando en cualquier otro punto del panel.
+          // Gateado por introRackTerminada -- pedido explícito: nada de este
+          // contenido se ve hasta que la intro del rack (giro+alejar+
+          // acercar+abrir caja) termina del todo.
+          introRackTerminada && (
           <div className="login-visual__contenido login-visual__contenido--overlay">
             <div className="login-visual__bloque-superior">
-              <motion.div className="login-visual__marca" {...entradaConStagger(0, reducido)}>
-                <Logo size={52} suave />
-                <span className="login-visual__marca-nombre">
-                  <span className="login-visual__marca-inicial">O</span>verseas{' '}
-                  <span className="login-visual__marca-inicial">L</span>ogistics{' '}
-                  <span className="login-visual__marca-inicial">O</span>perations
-                </span>
-              </motion.div>
-
               <motion.h2 className="login-visual__titulo" {...entradaConStagger(1, reducido)}>
                 Control total.<br />
                 <span className="login-visual__titulo-acento">Trazabilidad en cada movimiento.</span>
@@ -265,21 +251,6 @@ export default function Login() {
                 Plataforma integral de slotting, trazabilidad y gestión de inventario en tiempo real.
               </motion.p>
             </div>
-
-            {!reducido && !focoRackActivo && BADGES_EVENTO.map((b, i) => (
-              <motion.div
-                key={b.titulo}
-                className="login-badge-evento"
-                style={pct(POSICIONES_BADGE_3D[i])}
-                {...apareceFlotante(reducido, (i * CICLO_BADGE) / BADGES_EVENTO.length)}
-              >
-                <div className="login-badge-evento__icono"><i className="ti ti-box" /></div>
-                <div className="login-badge-evento__texto">
-                  <strong>{b.titulo} <i className="ti ti-circle-check" /></strong>
-                  <span>{b.detalle}</span>
-                </div>
-              </motion.div>
-            ))}
 
             <div className="login-visual__bloque-inferior">
               <motion.ul className="login-confianza" {...entradaConStagger(indiceConfianza, reducido)}>
@@ -299,6 +270,7 @@ export default function Login() {
               )}
             </div>
           </div>
+          )
         ) : (
           <div className="login-visual__contenido">
             <motion.div className="login-visual__marca" {...entradaConStagger(0, reducido)}>
@@ -388,21 +360,6 @@ export default function Login() {
                   )}
                 </div>
               ))}
-
-              {!reducido && !legendaAbierta && BADGES_EVENTO.map((b, i) => (
-                <motion.div
-                  key={b.titulo}
-                  className="login-badge-evento"
-                  style={pct(b)}
-                  {...apareceFlotante(reducido, (i * CICLO_BADGE) / BADGES_EVENTO.length)}
-                >
-                  <div className="login-badge-evento__icono"><i className="ti ti-box" /></div>
-                  <div className="login-badge-evento__texto">
-                    <strong>{b.titulo} <i className="ti ti-circle-check" /></strong>
-                    <span>{b.detalle}</span>
-                  </div>
-                </motion.div>
-              ))}
             </div>
             </motion.div>
 
@@ -425,6 +382,20 @@ export default function Login() {
                 <i className="ti ti-arrow-right" />
               </button>
             )}
+          </div>
+        )}
+
+        {/* Teaser de futuras actualizaciones (pedido explícito, ubicación
+            final) -- franja fija abajo, INDEPENDIENTE del contenido
+            centrado de arriba (ver login-visual__contenido--overlay, ahora
+            centrado en vez de anclado abajo) para que no se la lleve puesta
+            al centro. Un solo mensaje fijo y quieto -- pedido explícito:
+            "no quiero nada [flotando], quiero que se vea limpio" (2026-07-27,
+            tras sacar los badges de evento espontáneos que había antes). */}
+        {mostrar3D && introRackTerminada && (
+          <div className="login-footer-teaser">
+            <i className="ti ti-sparkles" />
+            Próximamente: agentes de IA para ayudarte a gestionar tu slot.
           </div>
         )}
       </motion.div>

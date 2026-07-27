@@ -110,7 +110,7 @@ export default function AddRackModal({ sesion, onCerrar }) {
           {exito && <p style={{ color: 'var(--green)', fontSize: 12.5, marginTop: 10 }}>{exito}</p>}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-            <button type="submit" className="btn-primary" disabled={alTope || guardando || !hasta}>
+            <button type="submit" className="btn-success" disabled={alTope || guardando || !hasta}>
               {guardando ? 'Extendiendo…' : `Extender ${pasillo}`}
             </button>
             <button type="button" className="btn-secondary" onClick={onCerrar}>Cerrar</button>

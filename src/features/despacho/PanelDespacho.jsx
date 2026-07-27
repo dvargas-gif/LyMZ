@@ -279,7 +279,7 @@ export default function PanelDespacho({ sesion }) {
                   {s.iniciadoEn && ` -- iniciado ${new Date(s.iniciadoEn).toLocaleString()}`}
                 </span>
                 <button
-                  className="btn-secondary" style={{ fontSize: 11, color: 'var(--red)' }}
+                  className="btn-danger" style={{ fontSize: 11 }}
                   disabled={eliminandoSlotId === s.id}
                   onClick={() => eliminarSlotActivo(s)}
                 >
@@ -333,7 +333,7 @@ export default function PanelDespacho({ sesion }) {
             )}
             {puedeCerrarOCancelar && (
               <button
-                className="btn-secondary" style={{ color: 'var(--red)' }} disabled={cancelandoLote} onClick={cancelarLoteCompleto}
+                className="btn-danger" disabled={cancelandoLote} onClick={cancelarLoteCompleto}
                 title="Cancela todo lo pendiente y cierra la orden -- lo ya confirmado no se toca"
               >
                 {cancelandoLote ? 'Cancelando…' : 'Cancelar orden completa'}
@@ -341,7 +341,7 @@ export default function PanelDespacho({ sesion }) {
             )}
             {puedeCerrarOCancelar && (
               <button
-                className="btn-secondary" style={{ color: 'var(--red)' }} disabled={deshaciendoLote} onClick={deshacerLoteCompleto}
+                className="btn-danger" disabled={deshaciendoLote} onClick={deshacerLoteCompleto}
                 title="Para pruebas: revierte TODO -- incluso lo ya confirmado -- y borra la orden entera"
               >
                 {deshaciendoLote ? 'Deshaciendo…' : '↺ Deshacer orden (prueba)'}
@@ -387,7 +387,7 @@ export default function PanelDespacho({ sesion }) {
                         Orden #{h.id} -- {h.cantidadOperadores} operador(es) -- cerrada {new Date(h.cerradoEn).toLocaleString()}
                       </span>
                       <button
-                        className="btn-secondary" style={{ fontSize: 11, color: 'var(--red)' }}
+                        className="btn-danger" style={{ fontSize: 11 }}
                         disabled={deshaciendoHistorialId === h.id}
                         onClick={() => deshacerDesdeHistorial(h)}
                       >

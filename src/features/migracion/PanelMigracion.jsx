@@ -505,7 +505,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
           </div>
 
           <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
-            <button className="btn-secondary" disabled={deshaciendo} onClick={reiniciarDesdeCero} style={{ fontSize: 12, color: 'var(--red)' }}>
+            <button className="btn-danger" disabled={deshaciendo} onClick={reiniciarDesdeCero} style={{ fontSize: 12 }}>
               {deshaciendo ? 'Reiniciando…' : '⚠ Reiniciar migración desde cero'}
             </button>
             <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0' }}>
@@ -530,7 +530,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
                     key={s.id}
                     titulo={`${rackDe(s)} -- ${s.estado === 'vaciando' ? 'Vaciando' : 'Recolectando'}`}
                     subtitulo={`Iniciado por ${nombreDe(usuarios, s.iniciadoPor)}, ${new Date(s.iniciadoEn).toLocaleString()}`}
-                    acciones={<button className="btn-secondary" disabled={procesando === s.id} onClick={() => eliminar(s)} style={{ fontSize: 12, color: 'var(--red)' }}>Eliminar</button>}
+                    acciones={<button className="btn-danger" disabled={procesando === s.id} onClick={() => eliminar(s)} style={{ fontSize: 12 }}>Eliminar</button>}
                   />
                 )}
               />
@@ -547,8 +547,8 @@ export default function PanelMigracion({ sesion, onCerrar }) {
                     titulo={rackDe(s)}
                     subtitulo={`Solicitado por ${nombreDe(usuarios, s.iniciadoPor)}, ${new Date(s.iniciadoEn).toLocaleString()}`}
                     acciones={<>
-                      <button className="btn-primary" disabled={procesando === s.id} onClick={() => aprobar(s.id)} style={{ fontSize: 12 }}>Aprobar</button>
-                      <button className="btn-secondary" disabled={procesando === s.id} onClick={() => rechazar(s.id)} style={{ fontSize: 12, color: 'var(--red)' }}>Rechazar</button>
+                      <button className="btn-success" disabled={procesando === s.id} onClick={() => aprobar(s.id)} style={{ fontSize: 12 }}>Aprobar</button>
+                      <button className="btn-danger" disabled={procesando === s.id} onClick={() => rechazar(s.id)} style={{ fontSize: 12 }}>Rechazar</button>
                     </>}
                   />
                 )}

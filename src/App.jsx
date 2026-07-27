@@ -94,7 +94,13 @@ function Shell() {
 export default function App() {
   return (
     <ErrorBoundary mensaje="La aplicación no pudo cargar. Recargá la página.">
-      <Suspense fallback={null}>
+      {/* fallback reusa .pantalla-carga (mismo verde oscuro de PantallaCarga,
+          ver AuthContext.jsx) -- pedido explícito: "que siga en verde, que no
+          cambie a blanco" -- sin esto, mientras se descarga el chunk lazy de
+          Login.jsx no se renderiza nada acá y se ve el --bg claro de body por
+          debajo durante ese instante, un flash blanco entre dos pantallas
+          oscuras que "hasta parece un bug". */}
+      <Suspense fallback={<div className="pantalla-carga" />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><Shell /></ProtectedRoute>} />

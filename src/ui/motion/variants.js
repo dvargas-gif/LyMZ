@@ -65,19 +65,6 @@ export function entradaProtagonista(reducido = false) {
   };
 }
 
-/** Aparece flotando, se mantiene y se desvanece, en loop con pausa -- para badges/mensajes decorativos que "flotan" cerca de un elemento vivo (ej. las tarjetas del panel de marca del Login). `times` controla el ritmo del ciclo (entra rápido, se sostiene, sale) dentro de un solo `duration`. `demora` desfasa cada badge para que no aparezcan todos a la vez. */
-export function apareceFlotante(reducido = false, demora = 0) {
-  if (reducido) return { animate: { opacity: 0 }, transition: { duration: 0 } };
-  return {
-    initial: { opacity: 0, y: 6 },
-    animate: { opacity: [0, 1, 1, 0], y: [6, 0, 0, -4] },
-    transition: {
-      duration: DURACION.trazadoRuta, times: [0, 0.15, 0.7, 1],
-      repeat: Infinity, repeatDelay: DURACION.pausaOnda, ease: EASING.cambio, delay: demora,
-    },
-  };
-}
-
 /** Fade + slide horizontal corto (para usar con AnimatePresence) -- texto que aparece/desaparece junto a un ícono fijo, ej. el nombre del sistema al expandir el sidebar. */
 export function revelarHorizontal(reducido = false) {
   if (reducido) {

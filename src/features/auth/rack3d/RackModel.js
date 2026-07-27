@@ -19,8 +19,11 @@ const MARGEN_SUPERIOR = 0.15;
 
 export const DIMENSIONES = { ANCHO, PROFUNDIDAD, ALTO };
 
-// Gris perla casi blanco (pedido explícito: "NO gris oscuro industrial").
-const COLOR_ESTRUCTURA = 0xe9e8e3;
+// 2026-07-27, ajustado tras feedback en vivo: "que se vea metálico y
+// grisáceo, cuidado que no se vea blanco" -- el gris perla casi blanco de
+// antes (0xe9e8e3, pedido en su momento como "NO gris oscuro industrial")
+// se corrió a un gris acero medio, ni blanco ni industrial oscuro.
+const COLOR_ESTRUCTURA = 0xb8bbbd;
 const COLOR_AGUJERO = 0x2b2b28;
 // Tonos kraft para las cajas de cartón (pedido explícito, referencia visual:
 // caja real con cinta + etiqueta, no bloques de color liso).
@@ -33,11 +36,16 @@ export function obtenerAlturaNivel(nivel) {
 }
 
 function crearMaterialEstructura() {
-  // roughness/metalness del rango pedido: "acero pintado, leve
-  // especularidad, sin ser espejo".
+  // roughness/metalness -- 2026-07-27 subido de 0.15 a 0.45 de metalness
+  // (antes leía más "acero pintado mate" que metal real) y bajado de 0.6 a
+  // 0.45 de roughness (marca más el brillo especular de las luces
+  // direccionales) -- SIN environment map/PMREM: eso ya se probó dos veces
+  // en la sesión y las dos veces "lavó" el gris hacia blanco (ver historial
+  // más abajo), el rig de luces solo alcanza para el volumen metálico que
+  // hace falta sin ese riesgo.
   // fog:false -- la niebla de la escena (ver Rack3DEscena.jsx) es para que
   // el piso se desvanezca en el horizonte, no para apagar el rack en sí.
-  return new THREE.MeshStandardMaterial({ color: COLOR_ESTRUCTURA, roughness: 0.6, metalness: 0.15, fog: false });
+  return new THREE.MeshStandardMaterial({ color: COLOR_ESTRUCTURA, roughness: 0.45, metalness: 0.45, fog: false });
 }
 
 function crearPerfiles(grupo, material) {

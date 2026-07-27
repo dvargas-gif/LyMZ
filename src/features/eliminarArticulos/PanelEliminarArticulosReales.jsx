@@ -159,7 +159,7 @@ export default function PanelEliminarArticulosReales({ sesion }) {
           <input value={motivo} onChange={e => setMotivo(e.target.value)} style={{ ...selectStyle, marginBottom: 14 }} />
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            <button className="btn-primary" disabled={aplicando || previa.encontrados.length === 0} onClick={confirmarEliminacion}>
+            <button className="btn-danger" disabled={aplicando || previa.encontrados.length === 0} onClick={confirmarEliminacion}>
               {aplicando ? 'Aplicando…' : `Eliminar ${previa.encontrados.length} artículo(s)`}
             </button>
             <button className="btn-secondary" disabled={aplicando} onClick={reiniciar}>Cancelar</button>

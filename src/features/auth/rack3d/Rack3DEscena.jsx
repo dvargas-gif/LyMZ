@@ -46,6 +46,31 @@ const CAMARA_MIRA_DEFECTO = new THREE.Vector3(-1.5, 2.05, 0);
 const DESPLAZAMIENTO_ZOOM = new THREE.Vector3(0, 0.15, 1.8); // "cámara" cerca del punto al hacer zoom
 const DURACION_ZOOM_MS = 700;
 
+// Intro cinemática (2026-07-27, pedido explícito): al montar, el rack gira
+// solo mientras la cámara se aleja, y después se acerca SUAVE de vuelta a la
+// posición default (vista normal, ni más cerca ni con ningún zoom especial)
+// antes de avisar que terminó (`onIntroFin`) -- recién ahí Login.jsx revela
+// el contenido de texto. Nada de esto toca el comportamiento normal
+// post-intro: mismo ángulo 3/4 fijo e interactivo de siempre (ver
+// ROTACION_INICIAL más abajo, "dejar de rotar, que solo sea interactivo").
+//
+// 2026-07-27, dos ajustes en vivo sobre la primera versión:
+// (a) "reduzcamos la animación a solo 3 segundos" -- las fases suman
+//     exactamente 3000ms; la velocidad de giro sube para que, en menos
+//     tiempo, siga leyéndose como una vuelta real y no un tirón corto.
+// (b) "quitemos el zoom del final que se acerca mucho a la caja... un
+//     acercamiento suave del rack, pero a una vista normal no tan cerca" --
+//     la primera versión acercaba la cámara a un nivel y abría una caja
+//     (mismo mecanismo que el zoom interactivo); se sacó por completo, la
+//     fase 2 ahora solo vuelve a CAMARA_POS_DEFECTO/CAMARA_MIRA_DEFECTO.
+const VELOCIDAD_INTRO_RAD_S = 3.2;
+// Mismo punto de mira, cámara 50% más lejos -- un "alejar" puro, sin
+// cambiar el ángulo de encuadre.
+const CAMARA_POS_INTRO_ALEJADA = CAMARA_POS_DEFECTO.clone().sub(CAMARA_MIRA_DEFECTO).multiplyScalar(1.5).add(CAMARA_MIRA_DEFECTO);
+const INTRO_FASE1_GIRO_MS = 1500; // gira + se aleja -- "esa vuelta rápida de inicio me gusta", sin tocar
+const INTRO_VOLVER_MS = 1200; // acercamiento suave de vuelta a la vista normal
+const INTRO_ESPERA_FINAL_MS = 300;
+
 // Transferencia RCL -> MZ (pedido explícito: "inventame algo genial ahí") --
 // una caja viaja periódicamente desde afuera del rack (RCL) hasta un
 // estante vacío (MZ), se queda un momento y se desvanece. Fases en ms sobre
@@ -142,7 +167,7 @@ function crearTexturaPisoConcretoColor() {
  * transferencia se dispara con un setInterval (sin costo mientras espera),
  * no con el rAF.
  */
-export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio }) {
+export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro = false, onIntroFin }) {
   const contenedorRef = useRef(null);
   const marcadoresRef = useRef([]);
   const badgesRef = useRef([]);
@@ -165,6 +190,8 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio }) {
   // mientras hayEnfoque, para que el zoom no compita con ellos.
   const onEnfoqueCambioRef = useRef(onEnfoqueCambio);
   onEnfoqueCambioRef.current = onEnfoqueCambio;
+  const onIntroFinRef = useRef(onIntroFin);
+  onIntroFinRef.current = onIntroFin;
 
   useEffect(() => {
     const contenedor = contenedorRef.current;
@@ -337,7 +364,8 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio }) {
     // de vista y la transferencia -- todas mutan el mismo `grupoRack`/
     // `camara`, un solo requestAnimationFrame para todo. --
     let velocidadInercia = 0;
-    const animacionCamara = { activo: false, desdePos: new THREE.Vector3(), hastaPos: new THREE.Vector3(), desdeMira: new THREE.Vector3(), hastaMira: new THREE.Vector3(), inicio: 0 };
+    let girandoIntro = false; // gira solo durante la fase 1 de la intro -- bypassea inercia/fricción, corte limpio al terminar
+    const animacionCamara = { activo: false, desdePos: new THREE.Vector3(), hastaPos: new THREE.Vector3(), desdeMira: new THREE.Vector3(), hastaMira: new THREE.Vector3(), inicio: 0, duracionMs: DURACION_ZOOM_MS };
     const animacionTransferencia = { activo: false, inicio: 0 };
     let destelloDisparado = false;
     const destelloEstante = { activo: false, inicio: 0, material: materialDestello };
@@ -371,13 +399,15 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio }) {
       ultimoTiempoBucle = ahora;
       let necesitaOtroFrame = false;
 
-      if (velocidadInercia !== 0) {
+      if (girandoIntro) {
+        grupoRack.rotation.y += VELOCIDAD_INTRO_RAD_S * dt;
+      } else if (velocidadInercia !== 0) {
         grupoRack.rotation.y += velocidadInercia * dt;
         velocidadInercia *= Math.pow(FRICCION_INERCIA, dt);
         if (Math.abs(velocidadInercia) < 0.01) velocidadInercia = 0;
       }
 
-      const inactivoAhora = !arrastrando && !animacionCamara.activo
+      const inactivoAhora = !arrastrando && !animacionCamara.activo && !girandoIntro
         && puntoEnfocadoActual === null && nivelEnfocadoActual === null && velocidadInercia === 0;
       if (inactivoAhora && !inactivoAnterior) {
         anguloReposo = grupoRack.rotation.y;
@@ -390,7 +420,7 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio }) {
       inactivoAnterior = inactivoAhora;
 
       if (animacionCamara.activo) {
-        const t = Math.min((ahora - animacionCamara.inicio) / DURACION_ZOOM_MS, 1);
+        const t = Math.min((ahora - animacionCamara.inicio) / animacionCamara.duracionMs, 1);
         const suavizado = easeInOutCubic(t);
         camara.position.lerpVectors(animacionCamara.desdePos, animacionCamara.hastaPos, suavizado);
         miraActual.lerpVectors(animacionCamara.desdeMira, animacionCamara.hastaMira, suavizado);
@@ -464,13 +494,14 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio }) {
       asegurarBucle();
     }
 
-    function animarCamaraHacia(posObjetivo, miraObjetivo) {
+    function animarCamaraHacia(posObjetivo, miraObjetivo, duracionMs = DURACION_ZOOM_MS) {
       velocidadInercia = 0;
       animacionCamara.desdePos.copy(camara.position);
       animacionCamara.hastaPos.copy(posObjetivo);
       animacionCamara.desdeMira.copy(miraActual);
       animacionCamara.hastaMira.copy(miraObjetivo);
       animacionCamara.inicio = performance.now();
+      animacionCamara.duracionMs = duracionMs;
       animacionCamara.activo = true;
       asegurarBucle();
     }
@@ -531,8 +562,31 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio }) {
       animacionTransferencia.activo = true;
       asegurarBucle();
     }
-    const idPrimeraTransferencia = setTimeout(iniciarTransferencia, 2500);
+    // Duración total de la intro (si está activa) -- la primera transferencia
+    // RCL->MZ ambiental se corre para después de que termine, para no competir
+    // por atención con la coreografía (pedido explícito: "sin que se vea el
+    // contenido estorbando").
+    const duracionIntroMs = INTRO_FASE1_GIRO_MS + INTRO_VOLVER_MS + INTRO_ESPERA_FINAL_MS;
+    const idPrimeraTransferencia = setTimeout(iniciarTransferencia, intro ? duracionIntroMs + 800 : 2500);
     const idIntervaloTransferencia = setInterval(iniciarTransferencia, INTERVALO_TRANSFERENCIA_MS);
+
+    // Intro cinemática (ver constantes arriba) -- reusa animarCamaraHacia ya
+    // definida, mismo patrón que iniciarTransferencia arriba (funciones +
+    // setTimeout sobre el mismo closure de montaje único).
+    const idsIntro = [];
+    if (intro) {
+      girandoIntro = true;
+      animarCamaraHacia(CAMARA_POS_INTRO_ALEJADA, CAMARA_MIRA_DEFECTO, INTRO_FASE1_GIRO_MS - 200);
+
+      idsIntro.push(setTimeout(() => {
+        girandoIntro = false;
+        animarCamaraHacia(CAMARA_POS_DEFECTO, CAMARA_MIRA_DEFECTO, INTRO_VOLVER_MS);
+      }, INTRO_FASE1_GIRO_MS));
+
+      idsIntro.push(setTimeout(() => {
+        onIntroFinRef.current?.();
+      }, duracionIntroMs));
+    }
 
     let arrastrando = false;
     let seArrastro = false;
@@ -635,6 +689,7 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio }) {
       if (bucleId !== null) cancelAnimationFrame(bucleId);
       clearTimeout(idPrimeraTransferencia);
       clearInterval(idIntervaloTransferencia);
+      idsIntro.forEach(clearTimeout);
       resizeObserver.disconnect();
       contenedor.removeEventListener('pointerdown', alPunteroBajar);
       window.removeEventListener('pointermove', alPunteroMover);
