@@ -236,9 +236,3 @@ export function obtenerWarehouseModel(escenarioId = null) {
   }
   return instancias.get(clave);
 }
-
-/** Solo para tests: libera las instancias compartidas entre casos. */
-export function _reiniciarInstanciasParaTests() {
-  for (const modelo of instancias.values()) modelo.destruir();
-  instancias.clear();
-}

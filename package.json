@@ -12,9 +12,6 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@babel/core": "^8.0.1",
-    "@babel/preset-env": "^8.0.2",
-    "@babel/preset-react": "^8.0.1",
     "@supabase/supabase-js": "^2.110.0",
     "framer-motion": "^12.42.2",
     "konva": "^10.3.0",

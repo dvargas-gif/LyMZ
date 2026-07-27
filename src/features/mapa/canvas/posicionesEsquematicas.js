@@ -140,7 +140,26 @@ export function calcularLayoutEsquematico() {
     const cortes = cortesDe(pasillo);
     const offsetX = offsetXDe(pasillo);
     let corteAcumulado = 0;
+
+    // El ascensor 2 (ver ASCENSORES más abajo) cae justo donde MZ01 YA
+    // tiene cajones reales -- hay que insertarle el hueco a mitad de fila y
+    // correr lo que sigue. Se resuelve acá mismo (no en un cálculo aparte)
+    // porque necesita las celdas de MZ02 ya calculadas -- por eso MZ01 va
+    // último en ORDEN_HORIZONTAL -- y porque el corrimiento tiene que sumarse
+    // al MISMO acumulador que ya usan los cortes reales de "PASILLO", para
+    // que ambos convivan sin pisarse.
+    const anchorAscensor2 = pasillo === 'MZ01'
+      ? anchorXAscensor(celdas.filter(c => c.pasillo === 'MZ02'), 26, 27)
+      : null;
+    let ascensor2Insertado = false;
+
     for (let c = 1; c <= columnas; c++) {
+      const xSinAscensor = xInicioHorizontal + offsetX + (c - 1) * COL_ANCHO + corteAcumulado;
+      if (anchorAscensor2 !== null && !ascensor2Insertado && xSinAscensor + CELDA_ANCHO > anchorAscensor2) {
+        const xNuevoInicio = anchorAscensor2 + ANCHO_ASCENSOR + GAP_ASCENSOR;
+        corteAcumulado += xNuevoInicio - xSinAscensor;
+        ascensor2Insertado = true;
+      }
       celdas.push({
         pasillo, columna: c,
         x: xInicioHorizontal + offsetX + (c - 1) * COL_ANCHO + corteAcumulado,
@@ -209,38 +228,69 @@ export function xInicioFilas() {
 /**
  * Los dos ascensores físicos reales del mezanine (pedido explícito
  * 2026-07-27, ubicados a mano por el usuario sobre el mapa real -- nunca
- * quedaron representados antes de esto). Sirven como referencia de
- * cercanía para dónde conviene ubicar artículos de alta/baja rotación --
- * por ahora es SOLO la marca visual en el mapa; el cálculo de distancia
- * que los va a usar todavía no existe (queda para una vuelta aparte).
+ * quedaron representados antes de esto).
  *
- * Ascensor 1 -- MZ02, entre C001 y C002: el más cercano a lo que hoy es
- * baja rotación. Ascensor 2 -- MZ02, entre C026 y C027 (coincide con el
- * corte real de "PASILLO" que ya existe ahí, ver cortesDe/CORTE_AFTER_DEFAULT):
- * el de la tarea más compleja.
+ * Corrección 2026-07-27: van FRENTE a columnas puntuales de MZ02 -- el
+ * usuario aclaró explícitamente que NUNCA dijo "entre" pasillos. Físicamente
+ * quedan pegados a la fila MZ01, como si fueran un cajón más de esa fila
+ * (mismo trato visual que un rack, ver CajonAscensor en MapaCanvas.jsx),
+ * aunque no son un slot real de inventario -- por eso su ancho es un poco
+ * mayor al de un cajón normal (ANCHO_ASCENSOR), para que se note la
+ * diferencia y entre el texto "ASCENSOR".
+ *
+ * Ascensor 1 -- frente a MZ02-C001/C002: cae exactamente en el margen que
+ * YA existe al inicio de la fila MZ01 (ver OFFSET_X_PASILLO, pensado para
+ * alinear MZ01-C001 contra MZ02-C003) -- no hace falta correr ningún cajón
+ * real de MZ01, ese hueco ya estaba libre.
+ *
+ * Ascensor 2 -- frente a MZ02-C026/C027 (coincide con el corte real de
+ * "PASILLO" que ya existe ahí, ver cortesDe/CORTE_AFTER_DEFAULT): a
+ * diferencia del 1, esa franja de MZ01 SÍ tiene cajones reales -- sus
+ * últimas 3 columnas (C025-C027) se corren hacia adelante para dejarle
+ * lugar (pedido explícito del usuario; la inserción real vive dentro del
+ * loop de MZ01 en calcularLayoutEsquematico(), ver comentario ahí).
  */
+export const ANCHO_ASCENSOR = 2 * CELDA_ANCHO + GAP; // más ancho que un cajón normal (44) -- para que se note y entre el texto
+const GAP_ASCENSOR = GAP * 2; // aire a cada lado del cajón del ascensor 2 antes de retomar el espaciado normal de columnas
+
 export const ASCENSORES = [
-  { id: 'ascensor-1', etiqueta: 'Ascensor 1', pasillo: 'MZ02', columnaAntes: 1, columnaDespues: 2 },
-  { id: 'ascensor-2', etiqueta: 'Ascensor 2', pasillo: 'MZ02', columnaAntes: 26, columnaDespues: 27 },
+  { id: 'ascensor-1', etiqueta: 'Ascensor 1', columnaAntes: 1, columnaDespues: 2 },
+  { id: 'ascensor-2', etiqueta: 'Ascensor 2', columnaAntes: 26, columnaDespues: 27 },
 ];
 
-/**
- * {id, etiqueta, x, y, alto} por cada ASCENSORES -- x es el punto medio
- * entre las dos columnas que lo bordean, para dibujar un marcador sutil
- * ahí (ver MapaCanvas.jsx). Reusa calcularLayoutEsquematico() en vez de
- * recalcular X a mano -- una sola fuente real de la geometría del layout.
- */
-export function calcularMarcadoresAscensor() {
-  const celdas = calcularLayoutEsquematico();
-  const buscar = (pasillo, columna) => celdas.find(c => c.pasillo === pasillo && c.columna === columna);
+/** Punto medio del hueco real entre dos columnas de MZ02 -- la referencia "frente a" de un ascensor. */
+function anchorXAscensor(celdasMz02, columnaAntes, columnaDespues) {
+  const antes = celdasMz02.find(c => c.columna === columnaAntes);
+  const despues = celdasMz02.find(c => c.columna === columnaDespues);
+  const finAntes = antes.x + antes.ancho;
+  return finAntes + (despues.x - finAntes) / 2;
+}
 
-  return ASCENSORES.map(({ id, etiqueta, pasillo, columnaAntes, columnaDespues }) => {
-    const antes = buscar(pasillo, columnaAntes);
-    const despues = buscar(pasillo, columnaDespues);
-    if (!antes || !despues) return null;
-    const xBorde = antes.x + antes.ancho + (despues.x - (antes.x + antes.ancho)) / 2;
-    return { id, etiqueta, x: xBorde, y: antes.y, alto: antes.alto };
-  }).filter(Boolean);
+/**
+ * {id, etiqueta, x, y, ancho, alto} por cada ascensor -- listo para
+ * dibujarse como un cajón más (mismo trato que CeldaRack). Reusa
+ * calcularLayoutEsquematico() como única fuente real de la geometría --
+ * así el ascensor 2 queda automáticamente donde el layout ya le insertó su
+ * hueco, sin recalcular nada por separado ni arriesgar que se desalineen.
+ *
+ * Ascensor 1 se dibuja CENTRADO en el punto de referencia -- cae entero
+ * dentro del margen libre, no hace falta alinear un borde contra nada.
+ * Ascensor 2 se dibuja con el borde IZQUIERDO en el punto de referencia --
+ * es el mismo borde que calcularLayoutEsquematico() usó para decidir desde
+ * dónde correr las columnas reales, así el cajón no les pisa el nuevo lugar.
+ */
+export function calcularCajonesAscensor() {
+  const celdas = calcularLayoutEsquematico();
+  const celdasMz02 = celdas.filter(c => c.pasillo === 'MZ02');
+  const yMz01 = celdas.find(c => c.pasillo === 'MZ01').y;
+
+  const anchor1 = anchorXAscensor(celdasMz02, 1, 2);
+  const anchor2 = anchorXAscensor(celdasMz02, 26, 27);
+
+  return [
+    { id: 'ascensor-1', etiqueta: 'Ascensor 1', x: anchor1 - ANCHO_ASCENSOR / 2, y: yMz01, ancho: ANCHO_ASCENSOR, alto: CELDA_ALTO },
+    { id: 'ascensor-2', etiqueta: 'Ascensor 2', x: anchor2, y: yMz01, ancho: ANCHO_ASCENSOR, alto: CELDA_ALTO },
+  ];
 }
 
 /** Y del punto medio de cada separación entre grupos de pasillos -- para dibujar una línea divisoria sutil ahí (refuerzo visual de "estos son grupos distintos"). */

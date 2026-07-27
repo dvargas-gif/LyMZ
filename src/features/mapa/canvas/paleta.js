@@ -27,17 +27,16 @@ export const CAFE_CENIZA_CLARO = '#6B5F54'; // bordes/divisores, más visible qu
 export const GRIS_MAPA = '#2E3234';
 export const GRIS_MAPA_CLARO = '#3A3E40'; // celdas vacías -- un escalón más claro que el fondo, mismo criterio que tenía NEGRO_GRAFITO_CLARO antes
 
-/** Panel de detalle (PanelDetalle/BarraPestanas) -- "blanco hueso" pedido explícito del usuario para reemplazar el tema oscuro verde/café que tenía. Estos SOLO se usan ahí, el resto de la UI del canvas (toolbar, tooltip, movebar) sigue oscura. */
-export const BLANCO_HUESO = '#F7F3EA';
+/** Panel de detalle (PanelDetalle/BarraPestanas) -- "blanco hueso" pedido explícito del usuario para reemplazar el tema oscuro verde/café que tenía. Se usa SOLO ahí, el resto de la UI del canvas (toolbar, tooltip, movebar) sigue oscura. */
 export const BLANCO_HUESO_TARJETA = '#EFEAE0'; // tarjetas/barra de pestañas -- un escalón más oscuro que el fondo del panel
 export const GRIS_TEXTO = '#3B3733'; // texto principal sobre el panel claro
 export const GRIS_TEXTO_TENUE = '#6B655C'; // texto secundario sobre el panel claro
 // ADR de legibilidad operativa (2026-07-08): #D9D2C4 original medía 1.25:1
 // contra BLANCO_HUESO_TARJETA -- muy por debajo del mínimo WCAG 1.4.11 (3:1)
 // para bordes funcionales. Oscurecido manteniendo el mismo tono cálido:
-// 3.65:1 contra BLANCO_HUESO, 3.37:1 contra BLANCO_HUESO_TARJETA (calculado,
-// no a ojo). Es la única variable que cambia -- todo lo que usa BORDE_CLARO
-// se pone más nítido de una sola vez, no se creó un token paralelo.
+// 3.37:1 contra BLANCO_HUESO_TARJETA (calculado, no a ojo). Es la única
+// variable que cambia -- todo lo que usa BORDE_CLARO se pone más nítido de
+// una sola vez, no se creó un token paralelo.
 export const BORDE_CLARO = '#827E76'; // bordes sobre el panel claro
 
 /** Estado de llenado (comparte semántica con colorLlenura() del dominio, no la reemplaza -- ver formulasOcupacion.js). */

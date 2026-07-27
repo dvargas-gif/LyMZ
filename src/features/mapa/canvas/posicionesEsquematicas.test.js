@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularLayoutEsquematico, calcularEtiquetas, calcularCortesPasillo, calcularMarcadoresAscensor, ASCENSORES, COLUMNAS_POR_PASILLO, PASILLOS_VERTICALES } from './posicionesEsquematicas.js';
+import { calcularLayoutEsquematico, calcularEtiquetas, calcularCortesPasillo, calcularCajonesAscensor, ASCENSORES, ANCHO_ASCENSOR, COLUMNAS_POR_PASILLO, PASILLOS_VERTICALES } from './posicionesEsquematicas.js';
 
 describe('calcularLayoutEsquematico', () => {
   it('genera una celda por columna real de cada uno de los 12 pasillos', () => {
@@ -80,27 +80,60 @@ describe('calcularCortesPasillo', () => {
   });
 });
 
-describe('calcularMarcadoresAscensor', () => {
-  it('devuelve un marcador por cada ascensor definido', () => {
-    const marcadores = calcularMarcadoresAscensor();
-    expect(marcadores).toHaveLength(ASCENSORES.length);
-    expect(marcadores.map(m => m.id)).toEqual(ASCENSORES.map(a => a.id));
+describe('calcularCajonesAscensor', () => {
+  it('devuelve un cajón por cada ascensor definido, un poco más ancho que un cajón normal de rack', () => {
+    const cajones = calcularCajonesAscensor();
+    expect(cajones).toHaveLength(ASCENSORES.length);
+    expect(cajones.map(c => c.id)).toEqual(ASCENSORES.map(a => a.id));
+    for (const cajon of cajones) {
+      expect(cajon.ancho).toBe(ANCHO_ASCENSOR);
+      expect(cajon.ancho).toBeGreaterThan(44); // más ancho que un cajón normal de rack (CELDA_ANCHO), a propósito
+    }
   });
 
-  it('el X de cada marcador cae en el hueco real entre sus dos columnas -- nunca superpuesto a ninguna celda', () => {
+  it('los dos cajones quedan pegados a la fila MZ01 (misma Y que sus cajones reales)', () => {
     const celdas = calcularLayoutEsquematico();
-    const marcadores = calcularMarcadoresAscensor();
-    for (const m of marcadores) {
-      const celdasMz02 = celdas.filter(c => c.pasillo === 'MZ02');
-      const seSuperpone = celdasMz02.some(c => c.x < m.x && c.x + c.ancho > m.x);
+    const yMz01 = celdas.find(c => c.pasillo === 'MZ01').y;
+    for (const cajon of calcularCajonesAscensor()) {
+      expect(cajon.y).toBe(yMz01);
+    }
+  });
+
+  it('ningún cajón de ascensor se superpone a ningún cajón real de MZ01', () => {
+    const celdasMz01 = calcularLayoutEsquematico().filter(c => c.pasillo === 'MZ01');
+    for (const cajon of calcularCajonesAscensor()) {
+      const seSuperpone = celdasMz01.some(c => c.x < cajon.x + cajon.ancho && c.x + c.ancho > cajon.x);
       expect(seSuperpone).toBe(false);
     }
   });
 
-  it('el ascensor 2 (C026-C027) cae en el mismo X que ya usa el corte real de "PASILLO" de MZ02', () => {
+  it('ascensor 1 (frente a MZ02-C001/C002) no requiere correr ningún cajón real -- MZ01-C001 se mantiene alineada contra MZ02-C003', () => {
+    const celdas = calcularLayoutEsquematico();
+    const mz01C001 = celdas.find(c => c.pasillo === 'MZ01' && c.columna === 1);
+    const mz02C003 = celdas.find(c => c.pasillo === 'MZ02' && c.columna === 3);
+    expect(mz01C001.x).toBe(mz02C003.x);
+  });
+
+  it('ascensor 2 (frente a MZ02-C026/C027) corre exactamente las últimas 3 columnas de MZ01 (C025-C027) hacia adelante, ninguna otra', () => {
+    const celdasMz01 = calcularLayoutEsquematico().filter(c => c.pasillo === 'MZ01').sort((a, b) => a.columna - b.columna);
+    const espaciado = (c1, c2) => celdasMz01.find(c => c.columna === c2).x - celdasMz01.find(c => c.columna === c1).x;
+    const PASO_NORMAL = 48; // CELDA_ANCHO + GAP
+
+    // Todo el resto de la fila (hasta C024) mantiene el paso normal de columna.
+    for (let c = 1; c < 24; c++) {
+      if ([7, 22].includes(c)) continue; // los cortes reales de "PASILLO" ya insertan su propio hueco, no es esto lo que se está probando acá
+      expect(espaciado(c, c + 1)).toBe(PASO_NORMAL);
+    }
+    // El hueco del ascensor 2 se inserta justo antes de C025 -- paso mucho mayor al normal.
+    expect(espaciado(24, 25)).toBeGreaterThan(PASO_NORMAL * 2);
+    // De ahí en adelante (las 3 columnas corridas), el paso entre ELLAS vuelve a ser el normal -- se movieron juntas, no se desarmó su propio espaciado interno.
+    expect(espaciado(25, 26)).toBe(PASO_NORMAL);
+    expect(espaciado(26, 27)).toBe(PASO_NORMAL);
+  });
+
+  it('ascensor 2 cae en el mismo X que ya usa el corte real de "PASILLO" de MZ02 (frente a C026/C027)', () => {
     const cortesMz02 = calcularCortesPasillo().filter(c => c.pasillo === 'MZ02');
-    const ascensor2 = calcularMarcadoresAscensor().find(m => m.id === 'ascensor-2');
-    // El corte cubre un rango [x, x+ancho] -- el ascensor debe caer DENTRO de ese mismo hueco físico.
+    const ascensor2 = calcularCajonesAscensor().find(c => c.id === 'ascensor-2');
     const corteQueLoContiene = cortesMz02.find(c => ascensor2.x >= c.x && ascensor2.x <= c.x + c.ancho);
     expect(corteQueLoContiene).toBeDefined();
   });

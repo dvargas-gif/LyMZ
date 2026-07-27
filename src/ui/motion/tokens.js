@@ -26,6 +26,3 @@ export const EASING = {
 
 /** Milisegundos de stagger entre elementos de una lista que entra en cascada. */
 export const STAGGER_MS = 40;
-
-/** Físicas del "muelle" para interacciones que siguen al puntero (parallax/tilt) -- a diferencia de arriba, no son duration+easing sino rigidez+amortiguación de un spring. Un solo lugar con los valores, igual que DURACION/EASING. */
-export const MUELLE = { rigidez: 120, amortiguacion: 14 };

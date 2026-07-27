@@ -172,6 +172,8 @@ body {
   --sb-acento-rgb: 52, 195, 182;
   --sb-critico: #E0786C;
   --sb-critico-rgb: 224, 120, 108;
+  --sb-hover: #FFD24D; /* amarillo -- hover Y seleccionado de sidebar__item, pedido explícito (2026-07-27) */
+  --sb-hover-rgb: 255, 210, 77;
 
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 999;
   width: 60px; background: var(--sb-base); color: var(--sb-texto);
@@ -242,7 +244,7 @@ body {
 .sidebar__item {
   transition: background .15s cubic-bezier(.16, 1, .3, 1), color .15s cubic-bezier(.16, 1, .3, 1), border-color .15s cubic-bezier(.16, 1, .3, 1);
 }
-.sidebar__item:hover { background: rgba(var(--sb-acento-rgb), .12); color: #fff; }
+.sidebar__item:hover { background: rgba(var(--sb-hover-rgb), .22); color: #fff; }
 .sidebar__item:focus-visible { outline: 2px solid var(--sb-acento); outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) {
   .sidebar__item { transition: none; }
@@ -251,10 +253,10 @@ body {
    sólido (ver diagnóstico: un fondo sólido de pared a pared le pisaba el
    protagonismo a la barra y competía con el propio hover "vidrio"). */
 .sidebar__item--activo {
-  background: rgba(var(--sb-acento-rgb), .16); border-left-color: var(--sb-acento);
+  background: rgba(var(--sb-hover-rgb), .26); border-left-color: var(--sb-hover);
   color: #fff; font-weight: 600;
 }
-.sidebar__item--activo:hover { background: rgba(var(--sb-acento-rgb), .22); }
+.sidebar__item--activo:hover { background: rgba(var(--sb-hover-rgb), .32); }
 /* Acciones que sacan/eliminan algo (Eliminar artículos, Limpiar sin stock
    real) -- pedido explícito del usuario: distinguirlas de un vistazo,
    integradas al mismo sistema de acento en vez de un rojo suelto. */

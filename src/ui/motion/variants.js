@@ -1,4 +1,4 @@
-import { DURACION, EASING, MUELLE, STAGGER_MS } from './tokens.js';
+import { DURACION, EASING, STAGGER_MS } from './tokens.js';
 
 /**
  * Variantes de Framer Motion (props {initial,animate,transition}) --
@@ -76,12 +76,6 @@ export function apareceFlotante(reducido = false, demora = 0) {
       repeat: Infinity, repeatDelay: DURACION.pausaOnda, ease: EASING.cambio, delay: demora,
     },
   };
-}
-
-/** Física de spring para interacciones que siguen al puntero (ver useTiltParallax.js) -- mismo MUELLE en cualquier componente que haga tilt/parallax, nunca rigidez/amortiguación sueltas por archivo. */
-export function muelleSeguimiento(reducido = false) {
-  if (reducido) return { type: 'tween', duration: 0 };
-  return { type: 'spring', stiffness: MUELLE.rigidez, damping: MUELLE.amortiguacion };
 }
 
 /** Fade + slide horizontal corto (para usar con AnimatePresence) -- texto que aparece/desaparece junto a un ícono fijo, ej. el nombre del sistema al expandir el sidebar. */
