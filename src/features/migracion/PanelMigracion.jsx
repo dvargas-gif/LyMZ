@@ -12,6 +12,8 @@ import { generarMovimientosMigracion } from './generarMovimientos.js';
 import { despachoService } from '../../shared/services/despacho.service.js';
 import { articuloDimensionesService } from '../../shared/services/articuloDimensiones.service.js';
 import { detectarCuerposParaAjustarNiveles } from '../../domain/reglasAsignacionCuerpo.js';
+import { detectarSobrecarga } from '../../domain/detectarSobrecargaRacks.js';
+import { detectarDestinosDesactualizados } from '../../domain/detectarDestinosDesactualizados.js';
 import ModalBase from '../../shared/components/ModalBase.jsx';
 
 const ESTADOS_ACTIVOS = new Set(['vaciando', 'recolectando']);
@@ -95,6 +97,10 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [revisandoExiliados, setRevisandoExiliados] = useState(false);
   const [cuerposParaAjustar, setCuerposParaAjustar] = useState(null); // [{pasillo, columna, articulo, volumenArticulo, porcentaje, nivelesRecomendados}] | null
   const [revisandoNiveles, setRevisandoNiveles] = useState(false);
+  const [sobrecargas, setSobrecargas] = useState(null); // [{pasillo, columna, nivel, articulos, volumenTotal, capacidad, porcentaje}] | null
+  const [revisandoSobrecarga, setRevisandoSobrecarga] = useState(false);
+  const [destinosDesactualizados, setDestinosDesactualizados] = useState(null); // [{articulo, rclCodigo, rclNivel, rclSubnivel, destinoImportado, destinoReal}] | null
+  const [revisandoDestinos, setRevisandoDestinos] = useState(false);
 
   // -- Equipos + resumen --
   const [slots, setSlots] = useState(null); // null = cargando
@@ -202,6 +208,53 @@ export default function PanelMigracion({ sesion, onCerrar }) {
       setError(`No se pudo revisar los cuerpos: ${err.message || err}`);
     } finally {
       setRevisandoNiveles(false);
+    }
+  }
+
+  /**
+   * Fase 1 de verificación de espacios (2026-07-27, pedido explícito) --
+   * contraparte de revisarCuerposParaAjustar(): en vez de subutilización,
+   * detecta huecos (un cuerpo entero o un nivel individual) donde el
+   * volumen de TODO lo asignado ahí supera la capacidad física real -- ver
+   * src/domain/detectarSobrecargaRacks.js. Mismo espíritu: SOLO informa.
+   */
+  async function revisarSobrecarga() {
+    setRevisandoSobrecarga(true);
+    setError('');
+    try {
+      const [slotting, dimensiones] = await Promise.all([
+        inventarioService.listar(),
+        articuloDimensionesService.listar(),
+      ]);
+      setSobrecargas(detectarSobrecarga(slotting, dimensiones));
+    } catch (err) {
+      setError(`No se pudo revisar la sobrecarga: ${err.message || err}`);
+    } finally {
+      setRevisandoSobrecarga(false);
+    }
+  }
+
+  /**
+   * Auditoría de Vista RCL (2026-07-28, pedido explícito tras un caso real
+   * en piso): identidad_legacy es un import de una sola vez que nunca se
+   * vuelve a tocar -- puede quedar apuntando a una posición MZ que ya no es
+   * donde el artículo realmente vive según inventario_slotting (el plan
+   * real). Ver src/domain/detectarDestinosDesactualizados.js.
+   */
+  async function revisarDestinosDesactualizados() {
+    setRevisandoDestinos(true);
+    setError('');
+    try {
+      const [identidad, inventarioRcl, slotting] = await Promise.all([
+        identidadLegacyService.listar(),
+        inventarioRclService.listar(),
+        inventarioService.listar(),
+      ]);
+      setDestinosDesactualizados(detectarDestinosDesactualizados(identidad, inventarioRcl, slotting));
+    } catch (err) {
+      setError(`No se pudo revisar los destinos: ${err.message || err}`);
+    } finally {
+      setRevisandoDestinos(false);
     }
   }
 
@@ -495,6 +548,94 @@ export default function PanelMigracion({ sesion, onCerrar }) {
                           <td style={{ padding: '8px' }}>{c.volumenArticulo.toFixed(3)} m³</td>
                           <td style={{ padding: '8px' }}>{(c.porcentaje * 100).toFixed(1)}%</td>
                           <td style={{ padding: '8px', color: 'var(--red)', fontWeight: 700 }}>{c.nivelesRecomendados}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={revisandoSobrecarga} onClick={revisarSobrecarga} style={{ fontSize: 12 }}>
+              {revisandoSobrecarga ? 'Revisando…' : 'Revisar espacios sobrecargados'}
+            </button>
+            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0 0' }}>
+              Solo informa -- nunca cambia nada de <code>inventario_slotting</code>. Detecta cuerpos o niveles individuales donde el volumen de TODO lo asignado ahí (uno o varios artículos) supera la capacidad física real (0,432 m³ por nivel, 2,16 m³ por cuerpo entero).
+            </p>
+
+            {sobrecargas && (
+              sobrecargas.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: 'var(--green)', margin: '10px 0 0' }}>✓ Ningún rack tiene más volumen asignado del que entra físicamente.</p>
+              ) : (
+                <div style={{ marginTop: 10, overflowX: 'auto', maxWidth: '100%' }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red)', margin: '0 0 8px' }}>
+                    ⚠ {sobrecargas.length} hueco(s) con más volumen asignado del que entra:
+                  </p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'var(--texto-tenue)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.3px' }}>
+                        <th style={{ padding: '6px 8px' }}>Rack</th>
+                        <th style={{ padding: '6px 8px' }}>Nivel</th>
+                        <th style={{ padding: '6px 8px' }}>Artículo(s)</th>
+                        <th style={{ padding: '6px 8px' }}>Volumen asignado</th>
+                        <th style={{ padding: '6px 8px' }}>Capacidad</th>
+                        <th style={{ padding: '6px 8px' }}>% sobre capacidad</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sobrecargas.map((s, i) => (
+                        <tr key={`${s.pasillo}-${s.columna}-${s.nivel}-${i}`} style={{ borderTop: '1px solid var(--borde-claro)' }}>
+                          <td style={{ padding: '8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{s.pasillo}-C{String(s.columna).padStart(3, '0')}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace' }}>{s.nivel}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace' }}>{s.articulos.join(', ')}</td>
+                          <td style={{ padding: '8px' }}>{s.volumenTotal.toFixed(3)} m³</td>
+                          <td style={{ padding: '8px' }}>{s.capacidad.toFixed(3)} m³</td>
+                          <td style={{ padding: '8px', color: 'var(--red)', fontWeight: 700 }}>{(s.porcentaje * 100).toFixed(0)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={revisandoDestinos} onClick={revisarDestinosDesactualizados} style={{ fontSize: 12 }}>
+              {revisandoDestinos ? 'Revisando…' : 'Revisar destinos desactualizados (Vista RCL)'}
+            </button>
+            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0 0' }}>
+              Solo informa -- nunca cambia nada. Compara el destino MZ que quedó importado en <code>identidad_legacy</code> (Vista RCL, se carga una sola vez y nunca se actualiza) contra el destino real de cada artículo en <code>inventario_slotting</code> (el plan que usa el resto de la app). Si no coinciden, la Vista RCL está mostrando una ubicación vieja.
+            </p>
+
+            {destinosDesactualizados && (
+              destinosDesactualizados.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: 'var(--green)', margin: '10px 0 0' }}>✓ Todos los destinos de Vista RCL coinciden con el plan real.</p>
+              ) : (
+                <div style={{ marginTop: 10, overflowX: 'auto', maxWidth: '100%' }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--red)', margin: '0 0 8px' }}>
+                    ⚠ {destinosDesactualizados.length} artículo(s) con destino desactualizado en Vista RCL:
+                  </p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'var(--texto-tenue)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.3px' }}>
+                        <th style={{ padding: '6px 8px' }}>Artículo</th>
+                        <th style={{ padding: '6px 8px' }}>Origen RCL</th>
+                        <th style={{ padding: '6px 8px' }}>Vista RCL dice</th>
+                        <th style={{ padding: '6px 8px' }}>Destino real</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {destinosDesactualizados.map((d, i) => (
+                        <tr key={`${d.rclCodigo}-${d.rclSubnivel}-${d.articulo}-${i}`} style={{ borderTop: '1px solid var(--borde-claro)' }}>
+                          <td style={{ padding: '8px', fontFamily: 'monospace' }}>{d.articulo}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{d.rclCodigo}-C{String(d.rclSubnivel).padStart(3, '0')}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{d.destinoImportado.pasillo}-C{String(d.destinoImportado.columna).padStart(3, '0')}-{d.destinoImportado.nivel}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace', whiteSpace: 'nowrap', color: d.destinoReal ? 'var(--ink)' : 'var(--red)', fontWeight: d.destinoReal ? 400 : 700 }}>
+                            {d.destinoReal ? `${d.destinoReal.pasillo}-C${String(d.destinoReal.columna).padStart(3, '0')}-${d.destinoReal.nivel}` : 'sin lugar reservado'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
