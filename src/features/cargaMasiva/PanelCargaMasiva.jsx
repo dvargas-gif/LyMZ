@@ -121,7 +121,7 @@ export default function PanelCargaMasiva({ sesion }) {
 
       <div style={{ marginBottom: 16 }}>
         <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-oscuro)', display: 'block', marginBottom: 6 }}>¿Dónde se aplica?</label>
-        <select value={destino} onChange={e => { setDestino(e.target.value); setPrevia(null); setResultado(null); }} style={selectStyle}>
+        <select className="select-elegante" value={destino} onChange={e => { setDestino(e.target.value); setPrevia(null); setResultado(null); }} style={{ width: '100%', maxWidth: 380 }}>
           <option value="real">Mapa real (⚠ afecta la operación real)</option>
           {salas.map(s => <option key={s.id} value={s.id}>🧪 Sala: {s.nombre}</option>)}
         </select>
@@ -140,7 +140,7 @@ export default function PanelCargaMasiva({ sesion }) {
 
       {!previa && !resultado && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
-          <label style={dropStyle}>
+          <label className="zona-carga" style={{ width: 180 }}>
             <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: 'var(--accent)' }} />
             <span>Subir Excel / CSV</span>
             <input type="file" accept=".xlsx,.xls,.csv" onChange={manejarArchivo} style={{ display: 'none' }} />
@@ -212,8 +212,6 @@ function TablaPreviaCarga({ filas }) {
   );
 }
 
-const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 180, minHeight: 74, border: '2px dashed var(--borde-medio)', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: 'var(--texto-tenue)' };
-const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', width: '100%', maxWidth: 380 };
 const theadRow = { textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' };
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid var(--line)' };
 const tdStyle = { padding: '7px 8px' };

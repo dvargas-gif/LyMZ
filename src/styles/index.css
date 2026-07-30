@@ -1012,36 +1012,91 @@ body {
 .slotting-frame__iframe { flex: 1; width: 100%; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 
 /* ---- Panels / tables ---- */
-.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+/* Sombra sutil de reposo (2026-07-28, pedido explícito) -- contra los
+   botones-píldora y los chips ya pulidos, el fondo plano de antes se sentía
+   chato. Mismo criterio tonal que la sombra de .btn-primary (oscura, muy
+   baja opacidad), no un color de marca -- es estructura, no acento. */
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .05); }
 .panel__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .panel h2 { font-size: 17px; font-weight: 600; letter-spacing: -.2px; }
 /* Sub-título dentro de un .panel (ej. "Ranking de usuarios" bajo el h2 del
    panel, antes de una tabla) -- un escalón entre .panel h2 (17px) y .dc h3
    (14px) en vez de heredar el tamaño default del navegador. */
 .panel > h3 { font-size: 15px; font-weight: 600; }
+
+/* Texto informativo (2026-07-28, pedido explícito: "que se vea más como de
+   Apple, separación y animación") -- antes .muted (color: var(--muted), sin
+   más) servía tanto para esto como para textos sueltos en tablas/badges;
+   acá se afina específicamente la bajada de un panel (el subtítulo
+   descriptivo bajo el h2) y las explicaciones cortas bajo un botón --
+   más interlineado, ancho de línea acotado (más fácil de leer de un
+   vistazo) y una entrada suave en vez de aparecer en seco. Reduced-motion
+   la desactiva del todo, como el resto del sistema de animaciones. */
+.panel > p.muted, .info-secundaria {
+  line-height: 1.6; letter-spacing: -.1px; max-width: 62ch;
+  animation: panel-texto-entrada .45s cubic-bezier(.16, 1, .3, 1) both;
+}
+.panel > p.muted { margin: 6px 0 20px; }
+.info-secundaria { font-size: 12px; color: var(--texto-tenue); margin: 6px 0 0; }
+@keyframes panel-texto-entrada {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel > p.muted, .info-secundaria { animation: none; }
+}
+
 .filtros-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
 .filtros-bar input, .filtros-bar select { font-size: 13px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; font-family: inherit; }
+
+/* Select elegante (2026-07-28, pedido explícito) -- el <select> nativo del
+   navegador (flechita cuadrada por defecto, sin radio) desentonaba contra
+   todo lo demás ya pulido. `appearance:none` + una flecha propia en SVG
+   (mismo tono que --muted) reemplazan el look nativo del CAJÓN cerrado --
+   OJO: la LISTA desplegada en sí (el fondo blanco/azul de las opciones) es
+   chrome del sistema operativo, ningún CSS puede tocarla sin reemplazar
+   <select> entero por un componente propio -- fuera de alcance acá. */
+.filtros-bar select, .select-elegante {
+  appearance: none; -webkit-appearance: none;
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; background-size: 14px;
+  padding-right: 30px; border-radius: 999px; cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.select-elegante { font-size: 12.5px; padding: 6px 30px 6px 14px; border: 1px solid var(--borde-input); font-family: inherit; color: var(--ink); }
+.filtros-bar select:hover, .select-elegante:hover { border-color: var(--borde-hover); }
+.filtros-bar select:focus-visible, .select-elegante:focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .15);
+}
 
 /* ---- Sistema de botones (un solo tamaño, dos pesos) ----
    .btn-primary = la UNA acción destacada de la pantalla (fondo sólido).
    .btn-secondary = el resto de las acciones (borde, fondo claro) — así una
    barra con 6-7 botones se lee como una sola herramienta, no como controles
    sueltos de HTML por defecto. Mismo alto/radio/tipografía en ambas. */
-.btn-primary, .btn-secondary {
+/* Píldora (2026-07-28, pedido explícito) -- reemplaza el radio de 10px
+   "cuadrado" de antes, para que el sistema de botones hable el mismo
+   idioma sofisticado que ya tiene el Login/Sidebar. .btn-danger/.btn-success
+   (ver más abajo) se agregan a este selector base -- antes quedaban AFUERA
+   (bug real: no heredaban alto/padding/tipografía/hover, solo su color). */
+.btn-primary, .btn-secondary, .btn-danger, .btn-success {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  height: 36px; padding: 0 16px; border-radius: 10px; font-family: inherit;
+  height: 36px; padding: 0 18px; border-radius: 999px; font-family: inherit;
   font-size: 13px; font-weight: 600; letter-spacing: -.1px; white-space: nowrap;
   cursor: pointer;
   transition: background .15s ease, border-color .15s ease, opacity .15s ease,
               transform .12s cubic-bezier(.2, .8, .2, 1), box-shadow .15s ease, filter .15s ease;
 }
-.btn-primary:hover:not(:disabled), .btn-secondary:hover:not(:disabled) { transform: translateY(-1px); }
-.btn-primary:active:not(:disabled), .btn-secondary:active:not(:disabled) { transform: translateY(0) scale(.97); box-shadow: none; }
-.btn-primary:disabled, .btn-secondary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn-primary:hover:not(:disabled), .btn-secondary:hover:not(:disabled),
+.btn-danger:hover:not(:disabled), .btn-success:hover:not(:disabled) { transform: translateY(-1px); }
+.btn-primary:active:not(:disabled), .btn-secondary:active:not(:disabled),
+.btn-danger:active:not(:disabled), .btn-success:active:not(:disabled) { transform: translateY(0) scale(.97); box-shadow: none; }
+.btn-primary:disabled, .btn-secondary:disabled, .btn-danger:disabled, .btn-success:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 .btn-primary {
-  background: var(--accent); color: #fff; border: none; box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
+  background: var(--accent); color: #fff; border: none; box-shadow: 0 2px 8px rgba(var(--accent-rgb), .25);
 }
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); box-shadow: 0 6px 16px rgba(var(--accent-rgb), .28); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); box-shadow: 0 6px 16px rgba(var(--accent-rgb), .32); }
 .btn-secondary {
   background: var(--card); color: var(--ink); border: 1px solid var(--line);
 }
@@ -1049,7 +1104,7 @@ body {
 .btn-secondary.activo { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-icon {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 8px; border: none;
+  width: 30px; height: 30px; border-radius: 50%; border: none;
   background: var(--fondo-sutil); color: var(--muted); cursor: pointer;
   transition: background .15s ease, transform .12s cubic-bezier(.2, .8, .2, 1);
 }
@@ -1067,6 +1122,7 @@ body {
    y --rojo-tenue/--red, no son colores nuevos inventados). */
 .btn-danger {
   background: var(--rojo-tenue); color: var(--red); border: 1px solid rgba(var(--red-rgb), .35);
+  box-shadow: 0 2px 8px rgba(var(--red-rgb), .14);
 }
 .btn-danger:hover:not(:disabled) {
   background: var(--red); color: #fff; border-color: var(--red);
@@ -1074,6 +1130,7 @@ body {
 }
 .btn-success {
   background: var(--verde-tenue); color: var(--green); border: 1px solid rgba(var(--green-rgb), .35);
+  box-shadow: 0 2px 8px rgba(var(--green-rgb), .14);
 }
 .btn-success:hover:not(:disabled) {
   background: var(--green); color: #fff; border-color: var(--green);
@@ -1081,12 +1138,29 @@ body {
 }
 .btn-icon--danger { background: var(--rojo-tenue); color: var(--red); }
 .btn-icon--danger:hover { background: var(--red); color: #fff; }
+
+/* Zona de carga de archivo ("Subir Excel / CSV") -- antes 6 copias
+   idénticas del mismo objeto de estilo inline, cada una con su propio
+   border-radius:10px "cuadrado" (2026-07-28, mismo pedido de pulir la
+   estética de todo lo que "es para realizar una acción"). Un solo lugar
+   ahora; cada pantalla solo pasa su propio `width` inline. */
+.zona-carga {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 74px; border: 2px dashed var(--borde-medio); border-radius: 16px;
+  cursor: pointer; font-size: 12.5px; color: var(--texto-tenue);
+  transition: border-color .15s ease, background .15s ease, transform .12s cubic-bezier(.2, .8, .2, 1);
+}
+.zona-carga:hover { border-color: var(--accent); background: var(--fondo-sutil); transform: translateY(-1px); }
+/* Zebra muy sutil + hover más marcado (2026-07-28, pedido explícito) -- antes
+   todas las filas eran idénticas hasta pasar el mouse, costaba seguir una
+   fila larga a simple vista en listas de Auditoría/Ranking. */
 .tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tabla th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .tabla td { padding: 9px 10px; border-bottom: 1px solid var(--line); }
 .tabla tbody tr { transition: background .12s ease; }
-.tabla tbody tr:hover { background: var(--bg); }
-.estado-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 6px; }
+.tabla tbody tr:nth-child(even) { background: var(--fondo-sutil); }
+.tabla tbody tr:hover { background: rgba(var(--accent-rgb), .07); }
+.estado-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
 .estado-badge--ok { background: var(--verde-tenue); color: var(--green); }
 .estado-badge--warn { background: var(--rojo-tenue); color: var(--red); }
 
@@ -1096,7 +1170,22 @@ body {
 .timeline__dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
 .timeline__dot--ok { background: var(--green); }
 .timeline__dot--warn { background: var(--red); }
-.timeline__meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+/* Chips (2026-07-28, pedido explícito: "que todos estos textos estén en su
+   propia píldora") -- cada dato de una fila de timeline (usuario, acción,
+   artículo, rack origen->destino, fecha/hora, estado) pasa de una oración
+   separada por "·" a su propia burbuja, mismo lenguaje visual que ya
+   estrenaron los botones (píldora, ver .btn-primary). */
+.timeline__chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px; background: var(--fondo-sutil); color: var(--ink);
+  white-space: nowrap;
+}
+.chip--fuerte { background: rgba(var(--accent-rgb), .12); color: var(--accent); }
+.chip--codigo { font-family: monospace; }
+.chip--tenue { background: transparent; color: var(--muted); font-weight: 500; padding: 3px 0; }
+.chip--ok { background: var(--verde-tenue); color: var(--green); }
+.chip--warn { background: var(--rojo-tenue); color: var(--red); }
 
 /* ---- Dashboard ---- */
 .dash-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -1227,15 +1316,29 @@ body {
    siendo interactuable mientras el panel está abierto. z-index por encima
    del Sidebar expandido (999) y de cualquier modal (2000/3000) a propósito
    -- es la única pieza que tiene sentido que quede siempre alcanzable. */
+/* Más grande, más brillante, y "viva" (2026-07-28, pedido explícito): un
+   flote sutil + un ciclo de color amarillo -> verde esmeralda oscuro, los
+   mismos dos acentos que ya "hablan" en el resto de la app (el amarillo del
+   hover del Sidebar, el verde esmeralda del degradé del Login) -- no son
+   colores nuevos, es la misma paleta de marca en un tercer lugar. Se
+   desactiva por completo (`animation: none`) mientras se arrastra/clickea,
+   para que el feedback de agarre (`scale`) no compita con el flote. */
 .burbuja-mensajes {
-  position: fixed; z-index: 3100; width: 52px; height: 52px; border-radius: 50%;
-  background: var(--accent); color: #fff; border: none; cursor: grab;
-  display: flex; align-items: center; justify-content: center; font-size: 22px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+  position: fixed; z-index: 3100; width: 60px; height: 60px; border-radius: 50%;
+  color: #fff; border: none; cursor: grab;
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
   transition: box-shadow .15s ease, transform .12s cubic-bezier(.2, .8, .2, 1);
+  animation: burbuja-mensajes-viva 7s ease-in-out infinite;
 }
-.burbuja-mensajes:hover { box-shadow: 0 8px 26px rgba(0, 0, 0, .38); }
-.burbuja-mensajes:active, .burbuja-mensajes--arrastrando { cursor: grabbing; transform: scale(.96); }
+@keyframes burbuja-mensajes-viva {
+  0%, 100% { background: #F0C34D; box-shadow: 0 6px 22px rgba(240, 195, 77, .5); transform: translateY(0); }
+  50% { background: #0F3A32; box-shadow: 0 6px 22px rgba(15, 58, 50, .55); transform: translateY(-6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .burbuja-mensajes { animation: none; background: var(--accent); box-shadow: 0 6px 20px rgba(0, 0, 0, .3); }
+}
+.burbuja-mensajes:hover { box-shadow: 0 8px 28px rgba(0, 0, 0, .4); }
+.burbuja-mensajes:active, .burbuja-mensajes--arrastrando { cursor: grabbing; animation: none; transform: scale(.96); }
 /* Aviso de mensaje nuevo con la burbuja cerrada -- pedido explícito
    2026-07-22: "que se aprecie... como una especie de notificación", no
    solo el numerito del badge. Se apaga solo (ver DURACION_AVISO_MS en

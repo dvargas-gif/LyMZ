@@ -140,7 +140,7 @@ export default function PanelEliminarArticulosReales({ sesion }) {
 
       {paso === 'subir' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={dropStyle}>
+          <label className="zona-carga" style={{ width: 220 }}>
             <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: 'var(--accent)' }} />
             <span>{cargando ? 'Cruzando contra el mapa real…' : 'Subir Excel / CSV'}</span>
             <input type="file" accept=".xlsx,.xls,.csv" onChange={manejarArchivo} disabled={cargando} style={{ display: 'none' }} />
@@ -205,7 +205,6 @@ function TablaPrevia({ titulo, filas, columnas }) {
   );
 }
 
-const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 220, minHeight: 74, border: '2px dashed var(--borde-medio)', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: 'var(--texto-tenue)' };
 const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', width: '100%' };
 const theadRow = { textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' };
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid var(--line)' };

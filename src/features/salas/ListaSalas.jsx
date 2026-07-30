@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Skeleton from '../../ui/motion/Skeleton.jsx';
 
 /**
  * Tabla de salas + formulario para crear una nueva. `salas`/`cargando`
@@ -57,7 +58,9 @@ export default function ListaSalas({ salas, cargando, onCrear, onAbrir, onElimin
           <tr><th>Nombre</th><th>Creada por</th><th>Fecha</th><th>Última actualización</th><th></th></tr>
         </thead>
         <tbody>
-          {cargando && <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 20 }}>Cargando…</td></tr>}
+          {cargando && [70, 55, 40].map((ancho, i) => (
+            <tr key={`skeleton-${i}`}><td colSpan={5} style={{ padding: '10px' }}><Skeleton indice={i} alto={14} ancho={`${ancho}%`} /></td></tr>
+          ))}
           {!cargando && salas.length === 0 && (
             <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 20 }}>Todavía no hay salas creadas.</td></tr>
           )}

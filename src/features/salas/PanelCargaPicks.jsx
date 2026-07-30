@@ -6,6 +6,7 @@ import { normalizarFilasPicks, parsearTextoPegado, calcularAnalisis } from './an
 import ModalBase from '../../shared/components/ModalBase.jsx';
 import BadgeClase from '../../shared/components/BadgeClase.jsx';
 import { formatearPosicion } from '../../shared/utils/formatearPosicion.js';
+import PanelCargando from '../../shared/components/PanelCargando.jsx';
 
 const COLOR_ROTACION = { Alta: 'var(--green)', Media: 'var(--amber)', Baja: 'var(--texto-placeholder)' };
 
@@ -107,7 +108,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
 
       {!previa && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
-          <label style={dropStyle}>
+          <label className="zona-carga" style={{ width: 180 }}>
             <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: 'var(--accent)' }} />
             <span>Subir Excel / CSV</span>
             <input type="file" accept=".xlsx,.xls,.csv" onChange={manejarArchivo} style={{ display: 'none' }} />
@@ -151,7 +152,7 @@ export default function PanelCargaPicks({ escenario, sesion, onCerrar }) {
       )}
 
       {cargando ? (
-        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
+        <PanelCargando />
       ) : !analisis ? (
         <p className="muted" style={{ padding: 12 }}>Todavía no cargaste picks en esta sala.</p>
       ) : (
@@ -225,7 +226,6 @@ function TablaAnalisis({ filas }) {
   );
 }
 
-const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 180, minHeight: 74, border: '2px dashed var(--borde-medio)', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: 'var(--texto-tenue)' };
 const theadRow = { textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' };
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid var(--line)' };
 const tdStyle = { padding: '7px 8px' };

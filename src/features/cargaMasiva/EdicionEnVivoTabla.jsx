@@ -7,6 +7,7 @@ import { auditService } from '../auditoria/audit.service.js';
 import { ACCIONES } from '../auditoria/audit.schema.js';
 import BadgeClase from '../../shared/components/BadgeClase.jsx';
 import { formatearPosicion } from '../../shared/utils/formatearPosicion.js';
+import PanelCargando from '../../shared/components/PanelCargando.jsx';
 
 /**
  * Tabla editable en vivo: cada fila (artículo) tiene su pasillo/columna/nivel
@@ -106,7 +107,7 @@ export default function EdicionEnVivoTabla({ escenarioId, sesion }) {
         style={{ fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', marginBottom: 10 }}
       />
       {cargando ? (
-        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
+        <PanelCargando />
       ) : (
         <div style={{ overflowY: 'auto', flex: 1 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>

@@ -34,16 +34,18 @@ export default function PanelImportMigracion({ sesion }) {
       <h2>Cargas e importaciones</h2>
       <p className="muted">Subir/editar datos en lote -- migración RCL→MZ y posiciones del mapa real.</p>
 
-      <div style={{ display: 'flex', gap: 6, margin: '16px 0', borderBottom: '1px solid var(--borde-claro)', flexWrap: 'wrap' }}>
+      {/* Pestañas como píldoras del sistema de botones (2026-07-28, pedido
+          explícito: "todo esto es para realizar una acción, en formato de
+          botones") -- antes era un subrayado con estilos inline sueltos,
+          afuera del sistema .btn-*. Reusa .btn-secondary/.activo tal cual
+          (mismo patrón que ya usa el filtro "activo" en otras pantallas). */}
+      <div style={{ display: 'flex', gap: 8, margin: '16px 0', flexWrap: 'wrap' }}>
         {PESTANAS.map(p => (
           <button
             key={p.id}
+            className={`btn-secondary ${pestana === p.id ? 'activo' : ''}`}
             onClick={() => setPestana(p.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', fontSize: 12.5, fontWeight: 600,
-              border: 'none', borderBottom: `2px solid ${pestana === p.id ? 'var(--accent)' : 'transparent'}`,
-              background: 'transparent', color: pestana === p.id ? 'var(--accent)' : 'var(--texto-tenue)', cursor: 'pointer',
-            }}
+            style={{ fontSize: 12.5 }}
           >
             <i className={`ti ${p.icon}`} />
             {p.label}

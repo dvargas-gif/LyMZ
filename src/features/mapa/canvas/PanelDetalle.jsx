@@ -236,12 +236,21 @@ function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupaci
               <span>{nivel}</span>
             </span>
           </div>
-          <div style={{ color: GRIS_TEXTO_TENUE, fontSize: 10.5, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
-            consumo{' '}
-            <span style={{ fontWeight: 700, color: configuracionOcupacion ? colorArticulo(a.consumo ?? 0, configuracionOcupacion) : GRIS_TEXTO_TENUE }}>
-              {(a.consumo ?? 0).toFixed(2)}
+          {/* Estilo inline (no la clase .chip compartida) a propósito -- este
+              panel es una "isla" siempre clara, ajena al toggle claro/oscuro
+              del resto de la app (mismo criterio que Login/Sidebar, pero
+              invertido). .chip usa tokens de tema (--fondo-sutil/--ink) que
+              en modo oscuro se irían a un gris oscuro sobre esta tarjeta
+              siempre clara -- se ve roto. Acá los colores fijos de paleta.js
+              (ya importados arriba) mantienen la misma forma de píldora. */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 10.5, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: 'rgba(0,0,0,.05)', color: GRIS_TEXTO_TENUE, fontVariantNumeric: 'tabular-nums' }}>
+              consumo{' '}
+              <span style={{ color: configuracionOcupacion ? colorArticulo(a.consumo ?? 0, configuracionOcupacion) : GRIS_TEXTO, fontWeight: 700, marginLeft: 4 }}>
+                {(a.consumo ?? 0).toFixed(2)}
+              </span>
             </span>
-            {' '}· {a.picks ?? 0} picks
+            <span style={{ fontSize: 10.5, color: GRIS_TEXTO_TENUE, padding: '3px 0', fontVariantNumeric: 'tabular-nums' }}>{a.picks ?? 0} picks</span>
           </div>
         </div>
       ))}

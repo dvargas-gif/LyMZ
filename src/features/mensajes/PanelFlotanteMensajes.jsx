@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mensajesService } from '../../shared/services/mensajes.service.js';
 import { iniciales } from '../../shared/utils/iniciales.js';
+import PanelCargando from '../../shared/components/PanelCargando.jsx';
 
 function formatearHora(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -214,7 +215,7 @@ export default function PanelFlotanteMensajes({ sesion, conectados, posicion, re
 
       {vista === 'contactos' && (
         <div className="panel-flotante-mensajes__lista">
-          {contactos === null && !error && <p className="muted" style={{ textAlign: 'center', padding: 20, fontSize: 12.5 }}>Cargando…</p>}
+          {contactos === null && !error && <div style={{ padding: '16px 14px' }}><PanelCargando lineas={3} /></div>}
           {contactos === null && error && <p style={{ color: 'var(--red)', fontSize: 12, padding: '16px 14px', margin: 0 }}>{error}</p>}
           {contactos?.length === 0 && <p className="muted" style={{ textAlign: 'center', padding: 20, fontSize: 12.5 }}>No hay otros usuarios todavía.</p>}
           {contactos?.length > 0 && contactosOrdenados.length === 0 && (

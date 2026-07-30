@@ -3,6 +3,7 @@ import { pasillosConfigService } from '../../shared/services/pasillosConfig.serv
 import { auditService } from '../auditoria/audit.service.js';
 import { ACCIONES } from '../auditoria/audit.schema.js';
 import ModalBase from '../../shared/components/ModalBase.jsx';
+import PanelCargando from '../../shared/components/PanelCargando.jsx';
 
 // Mismo listado que PAS_LR en el mapa legacy — los pasillos son fijos (8),
 // "Añadir rack" extiende uno existente, no crea pasillos nuevos.
@@ -78,11 +79,11 @@ export default function AddRackModal({ sesion, onCerrar }) {
       </p>
 
       {cargando ? (
-        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
+        <PanelCargando />
       ) : (
         <form onSubmit={confirmar}>
           <label style={labelStyle}>Pasillo</label>
-          <select value={pasillo} onChange={e => { setPasillo(e.target.value); setHasta(''); setError(''); setExito(''); }} style={selectStyle}>
+          <select className="select-elegante" value={pasillo} onChange={e => { setPasillo(e.target.value); setHasta(''); setError(''); setExito(''); }} style={{ width: '100%' }}>
             {PASILLOS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
 
@@ -122,5 +123,4 @@ export default function AddRackModal({ sesion, onCerrar }) {
 }
 
 const labelStyle = { fontSize: 12, fontWeight: 700, color: 'var(--ink-oscuro)', display: 'block', marginBottom: 6 };
-const selectStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', width: '100%' };
 const inputStyle = { fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--borde-input)', fontFamily: 'inherit', width: '100%' };

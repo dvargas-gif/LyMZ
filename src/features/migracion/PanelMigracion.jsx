@@ -14,7 +14,10 @@ import { articuloDimensionesService } from '../../shared/services/articuloDimens
 import { detectarCuerposParaAjustarNiveles } from '../../domain/reglasAsignacionCuerpo.js';
 import { detectarSobrecarga } from '../../domain/detectarSobrecargaRacks.js';
 import { detectarDestinosDesactualizados } from '../../domain/detectarDestinosDesactualizados.js';
+import { detectarPosicionesLibresDeIdentidad, agruparPosicionesLibresPorCuerpo } from '../../domain/detectarPosicionesLibres.js';
+import { exportarExcel } from '../../shared/utils/exportExcel.js';
 import ModalBase from '../../shared/components/ModalBase.jsx';
+import PanelCargando from '../../shared/components/PanelCargando.jsx';
 
 const ESTADOS_ACTIVOS = new Set(['vaciando', 'recolectando']);
 // Mismo prefijo fijo que ya usa PanelLimpiarAgotadosRcl.jsx (PREFIJO_MOTIVO) -- no se
@@ -54,7 +57,7 @@ function Fila({ titulo, subtitulo, acciones }) {
 }
 
 function Lista({ items, vacio, render }) {
-  if (items === null) return <p style={{ fontSize: 12.5, color: 'var(--texto-tenue)' }}>Cargando…</p>;
+  if (items === null) return <PanelCargando lineas={2} />;
   if (items.length === 0) return <p style={{ fontSize: 12.5, color: 'var(--texto-tenue)' }}>{vacio}</p>;
   return <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>{items.map(render)}</ul>;
 }
@@ -101,6 +104,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [revisandoSobrecarga, setRevisandoSobrecarga] = useState(false);
   const [destinosDesactualizados, setDestinosDesactualizados] = useState(null); // [{articulo, rclCodigo, rclNivel, rclSubnivel, destinoImportado, destinoReal}] | null
   const [revisandoDestinos, setRevisandoDestinos] = useState(false);
+  const [exportandoLibres, setExportandoLibres] = useState(false);
 
   // -- Equipos + resumen --
   const [slots, setSlots] = useState(null); // null = cargando
@@ -255,6 +259,31 @@ export default function PanelMigracion({ sesion, onCerrar }) {
       setError(`No se pudo revisar los destinos: ${err.message || err}`);
     } finally {
       setRevisandoDestinos(false);
+    }
+  }
+
+  /**
+   * "Exportar racks vacíos" (2026-07-30, corregido en vivo por tercera vez,
+   * pedido explícito: "no importa que sea mercadería real") -- la
+   * mercadería real en inventario_slotting NO descarta una posición. El
+   * ÚNICO criterio es identidad_legacy: libre = sin RCL asignado ahí. Ver
+   * detectarPosicionesLibresDeIdentidad() en
+   * src/domain/detectarPosicionesLibres.js. (detectarPosicionesRealmenteLibres()
+   * y detectarPosicionesLibres() quedan en el dominio, con test, por si hace
+   * falta el criterio de mercadería real para otra cosa a futuro -- no se
+   * usan en este botón.)
+   */
+  async function exportarPosicionesLibres() {
+    setExportandoLibres(true);
+    setError('');
+    try {
+      const identidad = await identidadLegacyService.listar();
+      const libres = agruparPosicionesLibresPorCuerpo(detectarPosicionesLibresDeIdentidad(identidad));
+      exportarExcel(libres, `MZ_libres_${new Date().toISOString().slice(0, 10)}.xlsx`, 'MZ libres');
+    } catch (err) {
+      setError(`No se pudo exportar las posiciones libres: ${err.message || err}`);
+    } finally {
+      setExportandoLibres(false);
     }
   }
 
@@ -479,7 +508,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             <button className="btn-secondary" disabled={revisandoExiliados} onClick={revisarExiliadosEnAcomodo} style={{ fontSize: 12 }}>
               {revisandoExiliados ? 'Revisando…' : 'Revisar artículos exiliados en el acomodo MZ'}
             </button>
-            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0 0' }}>
+            <p className="info-secundaria">
               Solo informa -- nunca borra nada de <code>inventario_slotting</code>. Un artículo exiliado puede ser un quiebre temporal, no necesariamente descontinuado para siempre.
             </p>
 
@@ -518,7 +547,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             <button className="btn-secondary" disabled={revisandoNiveles} onClick={revisarCuerposParaAjustar} style={{ fontSize: 12 }}>
               {revisandoNiveles ? 'Revisando…' : 'Revisar cuerpos para ajustar niveles'}
             </button>
-            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0 0' }}>
+            <p className="info-secundaria">
               Solo informa -- nunca cambia nada de <code>inventario_slotting</code>. Un cuerpo entero (5 niveles) dedicado a un solo artículo: menos del 30% de volumen ya está bien con 5 niveles; 30-40% conviene 3; 40-50% conviene 2; 50% o más conviene 1 solo.
             </p>
 
@@ -561,7 +590,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             <button className="btn-secondary" disabled={revisandoSobrecarga} onClick={revisarSobrecarga} style={{ fontSize: 12 }}>
               {revisandoSobrecarga ? 'Revisando…' : 'Revisar espacios sobrecargados'}
             </button>
-            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0 0' }}>
+            <p className="info-secundaria">
               Solo informa -- nunca cambia nada de <code>inventario_slotting</code>. Detecta cuerpos o niveles individuales donde el volumen de TODO lo asignado ahí (uno o varios artículos) supera la capacidad física real (0,432 m³ por nivel, 2,16 m³ por cuerpo entero).
             </p>
 
@@ -606,7 +635,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             <button className="btn-secondary" disabled={revisandoDestinos} onClick={revisarDestinosDesactualizados} style={{ fontSize: 12 }}>
               {revisandoDestinos ? 'Revisando…' : 'Revisar destinos desactualizados (Vista RCL)'}
             </button>
-            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0 0' }}>
+            <p className="info-secundaria">
               Solo informa -- nunca cambia nada. Compara el destino MZ que quedó importado en <code>identidad_legacy</code> (Vista RCL, se carga una sola vez y nunca se actualiza) contra el destino real de cada artículo en <code>inventario_slotting</code> (el plan que usa el resto de la app). Si no coinciden, la Vista RCL está mostrando una ubicación vieja.
             </p>
 
@@ -646,10 +675,19 @@ export default function PanelMigracion({ sesion, onCerrar }) {
           </div>
 
           <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={exportandoLibres} onClick={exportarPosicionesLibres} style={{ fontSize: 12 }}>
+              <i className="ti ti-file-export" /> {exportandoLibres ? 'Exportando…' : 'Exportar MZ libres'}
+            </button>
+            <p className="info-secundaria">
+              Descarga un Excel con todos los cuerpos MZ01-MZ08 que tienen algún nivel SIN un RCL asignado en <code>identidad_legacy</code> (no importa si hay mercadería real puesta ahí en <code>inventario_slotting</code>) -- una fila por cuerpo, con las nomenclaturas de sus 5 niveles (N01-N05) en columnas separadas, vacío el nivel que no está libre.
+            </p>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
             <button className="btn-danger" disabled={deshaciendo} onClick={reiniciarDesdeCero} style={{ fontSize: 12 }}>
               {deshaciendo ? 'Reiniciando…' : '⚠ Reiniciar migración desde cero'}
             </button>
-            <p style={{ fontSize: 11, color: 'var(--texto-tenue)', margin: '6px 0 0' }}>
+            <p className="info-secundaria">
               Borra TODO el plan de recolección actual -- se rechaza solo si ya hay algún equipo trabajando, algo en el buffer o algo recolectado (nunca a costa de perder trabajo real).
             </p>
           </div>

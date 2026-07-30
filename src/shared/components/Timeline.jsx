@@ -25,13 +25,13 @@ export default function Timeline({ limite = 15 }) {
       {items.map(it => (
         <li key={it.id} className="timeline__item">
           <span className={`timeline__dot timeline__dot--${it.estado === 'Correcto' ? 'ok' : 'warn'}`} />
-          <div>
-            <div className="timeline__linea">
-              <strong>{it.usuarioNombre || 'Sistema'}</strong> · {it.accion}
-              {it.articulo ? <> · art. <code>{it.articulo}</code></> : null}
-              {it.rackOrigen ? <> · {it.rackOrigen} → {it.rackDestino}</> : null}
-            </div>
-            <div className="timeline__meta">{it.fecha} {it.hora} · {it.estado}</div>
+          <div className="timeline__chips">
+            <span className="chip chip--fuerte">{it.usuarioNombre || 'Sistema'}</span>
+            <span className="chip">{it.accion}</span>
+            {it.articulo ? <span className="chip chip--codigo">{it.articulo}</span> : null}
+            {it.rackOrigen ? <span className="chip">{it.rackOrigen} → {it.rackDestino}</span> : null}
+            <span className="chip chip--tenue">{it.fecha} {it.hora}</span>
+            <span className={`chip chip--${it.estado === 'Correcto' ? 'ok' : 'warn'}`}>{it.estado}</span>
           </div>
         </li>
       ))}

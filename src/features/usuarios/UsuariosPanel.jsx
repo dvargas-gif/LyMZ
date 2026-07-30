@@ -4,6 +4,7 @@ import { miPerfilService } from './miPerfil.service.js';
 import { permisosRolService } from '../auth/permisosRol.service.js';
 import { ROLES, TODAS_LAS_ACCIONES, ETIQUETAS_ACCIONES, puede } from '../auth/roles.js';
 import { useAuth } from '../auth/AuthContext.jsx';
+import PanelCargando from '../../shared/components/PanelCargando.jsx';
 
 const TODOS_LOS_ROLES = Object.values(ROLES);
 
@@ -69,7 +70,7 @@ function TablaUsuarios({ sesion }) {
     setGuardandoId(null);
   }
 
-  if (cargando) return <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>;
+  if (cargando) return <PanelCargando />;
 
   return (
     <table className="tabla">
@@ -136,7 +137,7 @@ function TablaUsuarios({ sesion }) {
               )}
             </td>
             <td>
-              <select value={u.rol} onChange={e => handleRol(u, e.target.value)} disabled={guardandoId === u.id} style={selectStyle}>
+              <select className="select-elegante" value={u.rol} onChange={e => handleRol(u, e.target.value)} disabled={guardandoId === u.id}>
                 {TODOS_LOS_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </td>
@@ -246,6 +247,5 @@ export default function UsuariosPanel({ sesion }) {
   );
 }
 
-const selectStyle = { fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--borde-input)', fontFamily: 'inherit' };
 const nombreInputStyle = { fontSize: 13, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--accent)', fontFamily: 'inherit', width: '100%' };
 const toggleBtnStyle = { border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' };

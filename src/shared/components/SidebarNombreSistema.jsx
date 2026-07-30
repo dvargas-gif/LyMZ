@@ -12,7 +12,7 @@ export default function SidebarNombreSistema({ visible }) {
   const reducido = useReducedMotion();
   return (
     <AnimatePresence>
-      {visible && <motion.span {...revelarHorizontal(reducido)}>Slotting Mezanine</motion.span>}
+      {visible && <motion.span {...revelarHorizontal(reducido)}>Slotting Manager</motion.span>}
     </AnimatePresence>
   );
 }

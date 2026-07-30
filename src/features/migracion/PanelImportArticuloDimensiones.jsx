@@ -77,7 +77,7 @@ export default function PanelImportArticuloDimensiones({ sesion }) {
       </p>
 
       {!previa && !resultado && (
-        <label style={dropStyle}>
+        <label className="zona-carga" style={{ width: 200 }}>
           <i className="ti ti-file-spreadsheet" style={{ fontSize: 22, color: 'var(--accent)' }} />
           <span>Subir Excel / CSV</span>
           <input type="file" accept=".xlsx,.xls,.csv" onChange={manejarArchivo} style={{ display: 'none' }} />
@@ -151,7 +151,6 @@ function TablaRechazadas({ filas }) {
   );
 }
 
-const dropStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, width: 200, minHeight: 74, border: '2px dashed var(--borde-medio)', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, color: 'var(--texto-tenue)' };
 const theadRow = { textAlign: 'left', color: 'var(--texto-placeholder)', fontSize: 11, textTransform: 'uppercase' };
 const thStyle = { padding: '6px 8px', borderBottom: '1px solid var(--line)' };
 const tdStyle = { padding: '7px 8px' };

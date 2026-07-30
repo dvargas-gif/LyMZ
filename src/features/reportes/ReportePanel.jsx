@@ -4,6 +4,7 @@ import BadgeClase from '../../shared/components/BadgeClase.jsx';
 import ModalBase from '../../shared/components/ModalBase.jsx';
 import ControlesPaginacion from '../../shared/components/ControlesPaginacion.jsx';
 import { formatearPosicion } from '../../shared/utils/formatearPosicion.js';
+import PanelCargando from '../../shared/components/PanelCargando.jsx';
 
 // Paginado en el CLIENTE (a diferencia de Historial/Auditoría) -- la fuente
 // acá es reporteService.obtener(), un merge de dominio (base + overrides +
@@ -82,7 +83,7 @@ export default function ReportePanel({ onCerrar, escenario = null }) {
       />
 
       {cargando ? (
-        <p style={{ textAlign: 'center', color: 'var(--texto-placeholder)', padding: 24 }}>Cargando…</p>
+        <PanelCargando />
       ) : (
         <div style={{ overflowY: 'auto', maxHeight: '55vh' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>

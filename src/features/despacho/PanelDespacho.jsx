@@ -4,6 +4,7 @@ import { migracionSlotsService } from '../../shared/services/migracionSlots.serv
 import { migracionBufferService } from '../../shared/services/migracionBuffer.service.js';
 import { migracionAuditoriaService } from '../../shared/services/migracionAuditoria.service.js';
 import { puede } from '../auth/roles.js';
+import PanelCargando from '../../shared/components/PanelCargando.jsx';
 import ChecklistTrabajador from './ChecklistTrabajador.jsx';
 import HojaTrabajo from './HojaTrabajo.jsx';
 import HojaVerificacionCabecilla from './HojaVerificacionCabecilla.jsx';
@@ -238,7 +239,7 @@ export default function PanelDespacho({ sesion }) {
     }
   }
 
-  if (cargando) return <p className="muted" style={{ textAlign: 'center', padding: 40 }}>Cargando…</p>;
+  if (cargando) return <PanelCargando />;
 
   const totalTareas = lote?.trabajadores.reduce((acc, t) => acc + t.tareas.length, 0) ?? 0;
   const totalResueltas = lote?.trabajadores.reduce((acc, t) => acc + t.tareas.filter(x => x.estado !== 'pendiente').length, 0) ?? 0;

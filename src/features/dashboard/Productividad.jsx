@@ -80,8 +80,11 @@ export default function Productividad() {
           {porUsuario.length === 0 && <tr><td colSpan={8} className="muted" style={{ textAlign: 'center', padding: 20 }}>Sin datos aún</td></tr>}
           {porUsuario.map((u, i) => (
             <tr key={u.usuario}>
-              <td>{i + 1}</td><td>{u.usuario}</td><td><KpiValor valor={u.movimientos} /></td><td>{u.tiempoPromedio}</td>
-              <td>{u.errores}</td><td>{u.deshechos}</td>
+              <td>{i + 1}</td><td>{u.usuario}</td>
+              <td><span className="chip"><KpiValor valor={u.movimientos} /></span></td>
+              <td><span className="chip chip--tenue">{u.tiempoPromedio}</span></td>
+              <td><span className={`chip ${u.errores > 0 ? 'chip--warn' : ''}`}>{u.errores}</span></td>
+              <td><span className={`chip ${u.deshechos > 0 ? 'chip--warn' : ''}`}>{u.deshechos}</span></td>
               <td><span className="estado-badge estado-badge--ok"><KpiValor valor={u.productividad} formatear={v => `${Math.round(v)}%`} /></span></td>
               <td>{u.ultimaActividad ? new Date(u.ultimaActividad).toLocaleString() : '—'}</td>
             </tr>
