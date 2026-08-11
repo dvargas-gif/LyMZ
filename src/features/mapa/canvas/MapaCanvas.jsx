@@ -192,8 +192,29 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     return () => { activo = false; };
   }, [escenarioId]);
 
-  /** Vista RCL (F4) -- misma forma que racks(), pero con el inventario actual por RCL en vez del acomodo MZ. Se recalcula solo si cambia la data cruda (identidad_legacy/inventario_rcl_actual), no en cada render. */
-  const vistaRclRacks = useMemo(() => construirVistaRcl(identidadLegacy, inventarioRcl), [identidadLegacy, inventarioRcl]);
+  /**
+   * Corrección de fondo (2026-08-11, ver vistaRcl.js): el destino MZ de la
+   * Vista RCL ya no sale de `identidad_legacy` (foto congelada del import,
+   * desactualizada en el 88% de los casos según auditoría real) -- sale en
+   * vivo de `racks`, el mismo plan MZ vigente que ya usa el resto del mapa.
+   * Aplanado a la forma {articulo,pasillo,columna,nivel} que espera
+   * construirVistaRcl(), derivando pasillo/columna de la CLAVE del Map
+   * (mismo criterio que PanelDetalle.jsx), no de un campo redundante del rack.
+   */
+  const inventarioSlottingPlano = useMemo(() => {
+    if (!racks) return [];
+    const filas = [];
+    for (const [clave, rack] of racks) {
+      const [pasillo, columna] = clave.split('|');
+      for (const nivel in rack.niveles) {
+        for (const a of rack.niveles[nivel]) filas.push({ articulo: a.articulo, pasillo, columna: Number(columna), nivel });
+      }
+    }
+    return filas;
+  }, [racks]);
+
+  /** Vista RCL (F4) -- misma forma que racks(), pero con el inventario actual por RCL en vez del acomodo MZ. Se recalcula solo si cambia la data cruda (identidad_legacy/inventario_rcl_actual/racks). */
+  const vistaRclRacks = useMemo(() => construirVistaRcl(identidadLegacy, inventarioRcl, inventarioSlottingPlano), [identidadLegacy, inventarioRcl, inventarioSlottingPlano]);
   /** Qué Map de racks se MUESTRA -- las mutaciones (mover/bloquear/buffer) siempre operan sobre `racks` (el real), nunca sobre esta vista derivada. */
   const racksVisibles = (!escenarioId && vistaContenido === 'rcl') ? vistaRclRacks : racks;
 

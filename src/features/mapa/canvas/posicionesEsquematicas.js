@@ -18,15 +18,30 @@ export const GAP = 4;
  * Cantidad real de columnas por pasillo (ver ADR-010/011/012 -- mismos
  * números que public/legacy/js/03-configuracion.js más los 4 nuevos).
  *
- * MZ08=41 y MZ10=6 corregidos (ver ADR nuevo): las etiquetas REALES del DXF
+ * MZ08=41 y MZ10=6 corregidos (ver ADR-014): las etiquetas REALES del DXF
  * confirman `MZ08-C041` (último cuerpo real) y `MZ10-C006` (no hay ninguna
  * etiqueta MZ10-C007 en adelante) -- la extracción anterior había asignado
  * por proximidad geométrica 4 cuerpos sin etiqueta a MZ10, al otro lado del
  * hueco físico de 76 unidades que ocupa la banda transportadora.
+ *
+ * MZ11=7/MZ12=5 corregidos (2026-08-11, hallazgo de ADR-014 nunca resuelto
+ * hasta ahora): el DXF tiene etiquetas reales `MZ11-C001` a `C007` (7) y
+ * `MZ12-C001` a `C005` (5) -- estaban invertidos (antes MZ11:5, MZ12:7).
+ * Confirmado con sentido físico: son dos franjas verticales paralelas y
+ * adyacentes (X≈303 con 5 puntos, X≈301 con 7, mismo rango de Y) -- un
+ * intercambio de nombres, no una re-extracción de coordenadas nuevas.
+ *
+ * MZ08=41 -- CERRADO (2026-08-11), no es un pendiente: confirmado con el
+ * usuario que las columnas 40-41 existen a nivel de sistema/conteo de
+ * negocio, pero NO tienen cuerpo físico dibujado en el plano real -- por
+ * eso `geometriaMezanine.data.json` correctamente tiene solo 39 ubicaciones
+ * con coordenada real para MZ08, mientras este conteo esquemático (41) sigue
+ * siendo el correcto para el Canvas (que solo necesita el número). No
+ * buscar más coordenadas para esas 2 -- nunca existieron en el plano.
  */
 export const COLUMNAS_POR_PASILLO = {
   MZ01: 27, MZ02: 36, MZ03: 36, MZ04: 36, MZ05: 36, MZ06: 36, MZ07: 36, MZ08: 41,
-  MZ09: 4, MZ10: 6, MZ11: 5, MZ12: 7,
+  MZ09: 4, MZ10: 6, MZ11: 7, MZ12: 5,
 };
 
 /** MZ11/MZ12 son perpendiculares en la realidad -- se dibujan en su propia franja, no en la pila horizontal. */

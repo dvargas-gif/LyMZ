@@ -20,10 +20,10 @@ describe('geometriaMezanine.data.json', () => {
     expect(nombres).toEqual(['MZ01','MZ02','MZ03','MZ04','MZ05','MZ06','MZ07','MZ08','MZ09','MZ10','MZ11','MZ12']);
   });
 
-  it('MZ11 tiene 5 cuerpos reales construidos (ver ADR-012 -- antes 0, corregido tras aclaración del usuario)', () => {
+  it('MZ11 tiene 7 cuerpos reales, MZ12 tiene 5 (ver ADR-014 -- nombres estaban invertidos, corregido 2026-08-11 con las etiquetas reales del DXF)', () => {
     const g = validarGeometria(datosCrudos);
-    const mz11 = g.pasillos.find(p => p.pasillo === 'MZ11');
-    expect(mz11.ubicaciones).toHaveLength(5);
+    expect(g.pasillos.find(p => p.pasillo === 'MZ11').ubicaciones).toHaveLength(7);
+    expect(g.pasillos.find(p => p.pasillo === 'MZ12').ubicaciones).toHaveLength(5);
   });
 
   it('MZ11 y MZ12 son verticales -- los demás, horizontales', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { inventarioService } from '../../shared/services/inventario.service.js';
 import { inventarioRclService } from '../../shared/services/inventarioRcl.service.js';
 import { migracionMovimientosService } from '../../shared/services/migracionMovimientos.service.js';
@@ -18,6 +18,7 @@ import { detectarPosicionesLibresDeIdentidad, agruparPosicionesLibresPorCuerpo }
 import { exportarExcel } from '../../shared/utils/exportExcel.js';
 import ModalBase from '../../shared/components/ModalBase.jsx';
 import PanelCargando from '../../shared/components/PanelCargando.jsx';
+const ReporteMzImprimible = lazy(() => import('../mapa/ReporteMzImprimible.jsx'));
 
 const ESTADOS_ACTIVOS = new Set(['vaciando', 'recolectando']);
 // Mismo prefijo fijo que ya usa PanelLimpiarAgotadosRcl.jsx (PREFIJO_MOTIVO) -- no se
@@ -105,6 +106,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [destinosDesactualizados, setDestinosDesactualizados] = useState(null); // [{articulo, rclCodigo, rclNivel, rclSubnivel, destinoImportado, destinoReal}] | null
   const [revisandoDestinos, setRevisandoDestinos] = useState(false);
   const [exportandoLibres, setExportandoLibres] = useState(false);
+  const [mostrarReporteImprimible, setMostrarReporteImprimible] = useState(false);
 
   // -- Equipos + resumen --
   const [slots, setSlots] = useState(null); // null = cargando
@@ -430,6 +432,11 @@ export default function PanelMigracion({ sesion, onCerrar }) {
 
   return (
     <ModalBase titulo="🧭 Panel de Migración (RCL → MZ)" onCerrar={onCerrar} maxWidth={960} maxHeight="88vh" scrollContenido>
+      {mostrarReporteImprimible && (
+        <Suspense fallback={null}>
+          <ReporteMzImprimible onCerrar={() => setMostrarReporteImprimible(false)} />
+        </Suspense>
+      )}
       {/* minWidth:0 -- ver nota de la vez pasada: sin esto, la tabla del simulador empuja todo el modal hacia afuera en vez de scrollear puertas adentro (ModalBase con scrollContenido deja el card en flex-column SIN overflow propio). */}
       <div style={{ overflowY: 'auto', overflowX: 'hidden', minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
         {error && <p style={{ color: 'var(--red)', fontSize: 12.5, margin: 0 }}>{error}</p>}
@@ -680,6 +687,15 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             </button>
             <p className="info-secundaria">
               Descarga un Excel con todos los cuerpos MZ01-MZ08 que tienen algún nivel SIN un RCL asignado en <code>identidad_legacy</code> (no importa si hay mercadería real puesta ahí en <code>inventario_slotting</code>) -- una fila por cuerpo, con las nomenclaturas de sus 5 niveles (N01-N05) en columnas separadas, vacío el nivel que no está libre.
+            </p>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" onClick={() => setMostrarReporteImprimible(true)} style={{ fontSize: 12 }}>
+              <i className="ti ti-printer" /> Imprimir croquis MZ
+            </button>
+            <p className="info-secundaria">
+              Abre un croquis de MZ01-MZ08 (una hoja por pasillo) con los códigos de artículo reales que hoy viven en cada posición, listo para mandar a impresión desde el navegador.
             </p>
           </div>
 

@@ -1,0 +1,102 @@
+/* Croquis imprimible del mapa MZ -- ver ReporteMzImprimible.jsx.
+   Un solo color neutro para "ocupado" (pedido explícito: nada del arcoíris
+   por clase que usa el Mapa en pantalla -- "estas cacofonías no me gustan").
+   Vacío = sin relleno, solo el borde, para conservar la forma del rack. */
+
+.reporte-imprimible-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg, #fff);
+  z-index: 2100; /* por encima de ModalBase (2000) -- este panel abre ARRIBA del modal de Migración */
+  overflow: auto;
+}
+
+.reporte-imprimible-barra {
+  position: sticky;
+  top: 0;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  background: var(--panel, #fff);
+  border-bottom: 1px solid var(--borde-claro, #e2e2e2);
+  z-index: 1;
+}
+
+.reporte-imprimible__pasillo {
+  padding: 20px 16px;
+  break-after: page;
+}
+.reporte-imprimible__pasillo:last-child { break-after: auto; }
+
+.reporte-imprimible__pasillo h2 {
+  font-family: monospace;
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+
+.reporte-imprimible__grid {
+  display: grid;
+  gap: 2px;
+}
+
+.reporte-imprimible__columna {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.reporte-imprimible__celda {
+  border: 1px solid #999;
+  min-height: 30px;
+  padding: 2px 3px;
+  overflow: hidden;
+}
+
+.reporte-imprimible__celda--ocupada {
+  background: #ddd; /* único color "ocupado" -- a propósito, no depende de la clase del artículo */
+}
+
+.reporte-imprimible__codigo {
+  font-family: monospace;
+  font-size: 7.5px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reporte-imprimible__codigo--mas {
+  font-style: italic;
+  color: #555;
+}
+
+.reporte-imprimible__columna-etiqueta {
+  font-family: monospace;
+  font-size: 7.5px;
+  text-align: center;
+  color: #555;
+  margin-top: 1px;
+}
+
+@media print {
+  /* Truco estándar "imprimir solo este elemento": todo se oculta salvo el
+     reporte, que se vuelve a mostrar y se saca del overlay fijo. */
+  body * { visibility: hidden; }
+  .reporte-imprimible-overlay, .reporte-imprimible-overlay * { visibility: visible; }
+  .reporte-imprimible-overlay {
+    position: absolute;
+    inset: auto;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* sin esto, el overflow:auto de pantalla recorta todo a "lo que entra en
+       un viewport" -- el navegador imprimía 1 sola hoja en blanco en vez de
+       dejar fluir el contenido real por varias páginas (bug real, 2026-08-04). */
+    height: auto;
+    overflow: visible;
+  }
+  .no-imprimir { display: none !important; }
+  @page { size: landscape; margin: 10mm; }
+}

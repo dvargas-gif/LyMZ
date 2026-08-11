@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { nArts, consumoTotal, llenura, colorLlenura, colorArticulo } from '../../../domain/formulasOcupacion.js';
 import { VERDE_ESTRUCTURA, BLANCO_CALIDO, BLANCO_HUESO_TARJETA, GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO, ESTADOS } from './paleta.js';
@@ -115,6 +116,7 @@ export default function PanelDetalle({
             columna={columna}
             nivel={nivel}
             articulos={rack.niveles[nivel]}
+            rackCompleto={rack}
             configuracionOcupacion={configuracionOcupacion}
             llenuraRack={llenuraTotal}
             descripcionDe={descripcionDe}
@@ -163,7 +165,7 @@ function TarjetaKpi({ icono, etiqueta, valor }) {
 }
 
 /** Un nivel del rack como tarjeta propia -- barra de llenado en vez de solo el número, mismo cálculo de llenura()/colorLlenura() del dominio, aplicado a este nivel solo (no al rack entero). */
-function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer }) {
+function TarjetaNivel({ pasillo, columna, nivel, articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer }) {
   const rackDeEsteNivel = { niveles: { [nivel]: articulos } };
   const proporcion = configuracionOcupacion ? llenura(rackDeEsteNivel, configuracionOcupacion) : 0;
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : VERDE_ESTRUCTURA;
@@ -194,7 +196,10 @@ function TarjetaNivel({ pasillo, columna, nivel, articulos, configuracionOcupaci
               <div style={{ color: GRIS_TEXTO, fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 }}>{descripcionDe(a.articulo)}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <ChipPorcentaje etiqueta="Rack" proporcion={llenuraRack} configuracionOcupacion={configuracionOcupacion} />
+              <ChipPorcentaje
+                etiqueta="Rack" proporcion={llenuraRack} configuracionOcupacion={configuracionOcupacion}
+                rack={rackCompleto} descripcionDe={descripcionDe}
+              />
               {onMoverArticulo && (
                 <BotonMoverArticulo
                   onClick={() => onMoverArticulo(a.articulo, nivel, a.clase, a.tipo)}
@@ -279,13 +284,104 @@ function BotonMoverArticulo({ onClick, deshabilitado, etiqueta, icono = 'ti-arro
   );
 }
 
-/** Chip de % con etiqueta corta -- distingue visualmente (fondo de color + etiqueta) del % de nivel de arriba (texto plano sin fondo), para que nunca parezcan el mismo dato repetido. Mismo colorLlenura() del dominio, nunca un color inventado. */
-function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion }) {
+/**
+ * Chip de % con etiqueta corta -- distingue visualmente (fondo de color +
+ * etiqueta) del % de nivel de arriba (texto plano sin fondo), para que
+ * nunca parezcan el mismo dato repetido. Mismo colorLlenura() del dominio,
+ * nunca un color inventado.
+ *
+ * Pedido explícito 2026-08-11: clic en el % abre una burbuja con la fórmula
+ * exacta y los datos reales usados para calcularla (consumo de cada
+ * artículo del rack + capacidad útil) -- así el número deja de ser una caja
+ * negra. Sin `rack`/`descripcionDe` (ej. el chip de nivel, si algún día
+ * existiera) el clic no hace nada -- degrada a chip informativo simple.
+ */
+function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, descripcionDe }) {
+  const [abierta, setAbierta] = useState(false);
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : GRIS_TEXTO_TENUE;
+  const puedeExplicar = !!(rack && configuracionOcupacion);
+
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, padding: '2px 7px', borderRadius: 999, background: `${color}22`, border: `1px solid ${color}66` }}>
-      <span style={{ fontSize: 8.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color }}>{etiqueta}</span>
-      <span style={{ fontSize: 12, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{Math.round(proporcion * 100)}%</span>
+    <div style={{ position: 'relative' }}>
+      <div
+        onClick={puedeExplicar ? () => setAbierta(v => !v) : undefined}
+        title={puedeExplicar ? 'Ver cómo se calculó este %' : undefined}
+        style={{
+          display: 'inline-flex', alignItems: 'baseline', gap: 4, padding: '2px 7px', borderRadius: 999,
+          background: `${color}22`, border: `1px solid ${color}66`, cursor: puedeExplicar ? 'pointer' : 'default',
+        }}
+      >
+        <span style={{ fontSize: 8.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color }}>{etiqueta}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{Math.round(proporcion * 100)}%</span>
+        {puedeExplicar && <i className="ti ti-info-circle" style={{ fontSize: 10, color, opacity: .7, marginLeft: 1 }} />}
+      </div>
+      {abierta && puedeExplicar && (
+        <>
+          {/* Fondo invisible -- clic afuera cierra la burbuja, mismo patrón que un popover estándar. */}
+          <div onClick={() => setAbierta(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          <BurbujaFormula
+            proporcion={proporcion} configuracionOcupacion={configuracionOcupacion} rack={rack} descripcionDe={descripcionDe}
+            onCerrar={() => setAbierta(false)}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** El contenido de la burbuja: fórmula + cada artículo que aporta al consumo total, para que el % del rack se pueda auditar a ojo. */
+function BurbujaFormula({ proporcion, configuracionOcupacion, rack, descripcionDe, onCerrar }) {
+  const articulos = Object.values(rack.niveles).flat();
+  const total = consumoTotal(rack);
+  const capacidad = configuracionOcupacion.capacidadUtilRack;
+  const articulosOrdenados = [...articulos].sort((a, b) => (b.consumo ?? 0) - (a.consumo ?? 0));
+
+  return (
+    <div
+      style={{
+        position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 41, width: 300,
+        background: BLANCO_CALIDO, border: `1px solid ${BORDE_CLARO}`, borderRadius: 10,
+        boxShadow: '0 12px 32px rgba(0,0,0,.25)', padding: 12, fontSize: 12, color: GRIS_TEXTO,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>Cómo se calculó</span>
+        <button onClick={onCerrar} style={{ border: 'none', background: 'none', cursor: 'pointer', color: GRIS_TEXTO_TENUE, fontSize: 13, padding: 2, lineHeight: 1 }}>
+          <i className="ti ti-x" />
+        </button>
+      </div>
+
+      <div style={{ background: 'rgba(0,0,0,.04)', borderRadius: 6, padding: '6px 8px', fontFamily: 'monospace', fontSize: 11, marginBottom: 8 }}>
+        % rack = min(consumo total ÷ capacidad útil, 120%)
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+        <span style={{ color: GRIS_TEXTO_TENUE }}>Consumo total del rack</span>
+        <strong>{total.toFixed(2)}</strong>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+        <span style={{ color: GRIS_TEXTO_TENUE }}>Capacidad útil del rack</span>
+        <strong>{capacidad.toFixed(2)}</strong>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontVariantNumeric: 'tabular-nums', marginBottom: 10, paddingTop: 4, borderTop: `1px solid ${BORDE_CLARO}` }}>
+        <span style={{ color: GRIS_TEXTO_TENUE }}>Resultado</span>
+        <strong>{total.toFixed(2)} ÷ {capacidad.toFixed(2)} = {Math.round(proporcion * 100)}%</strong>
+      </div>
+
+      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE, marginBottom: 6 }}>
+        Artículos que aportan ({articulosOrdenados.length})
+      </div>
+      <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {articulosOrdenados.map(a => (
+          <div key={a.articulo} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11 }}>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{a.articulo}</span>
+              {descripcionDe && <span style={{ color: GRIS_TEXTO_TENUE }}> · {descripcionDe(a.articulo)}</span>}
+            </span>
+            <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{(a.consumo ?? 0).toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

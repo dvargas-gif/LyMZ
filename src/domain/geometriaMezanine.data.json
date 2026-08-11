@@ -4,7 +4,7 @@
   "generadoDesde": "Claude plano.dxf",
   "pasillos": [
     {
-      "pasillo": "MZ11",
+      "pasillo": "MZ12",
       "orientacion": "vertical",
       "ubicaciones": [
         {
@@ -35,7 +35,7 @@
       ]
     },
     {
-      "pasillo": "MZ12",
+      "pasillo": "MZ11",
       "orientacion": "vertical",
       "ubicaciones": [
         {
