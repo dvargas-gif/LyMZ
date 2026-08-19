@@ -12,6 +12,12 @@ describe('empaquetarArticulos -- casos borde', () => {
     expect(sinAsignar).toEqual([{ articulo: 'A1', motivo: 'sin_dimensiones_importadas' }]);
   });
 
+  it('un artículo con volumenM3 = NaN (dato corrupto, no null) también queda sin asignar con motivo explícito, nunca desaparece en silencio (bug real 2026-08-12: NaN no cae en "grandes" ni en "chicos" porque NaN > x y NaN <= x son ambos false)', () => {
+    const { asignaciones, sinAsignar } = empaquetarArticulos([articulo('A1', NaN)], [cuerpo('MZ01', 1)]);
+    expect(asignaciones).toHaveLength(0);
+    expect(sinAsignar).toEqual([{ articulo: 'A1', motivo: 'sin_dimensiones_importadas' }]);
+  });
+
   it('un artículo que no entra ni en un cuerpo completo queda sin asignar, nunca crashea', () => {
     const { asignaciones, sinAsignar } = empaquetarArticulos([articulo('GIGANTE', CAPACIDAD_UTIL_CUERPO_M3 + 0.5)], [cuerpo('MZ01', 1)]);
     expect(asignaciones).toHaveLength(0);

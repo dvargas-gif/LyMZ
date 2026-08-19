@@ -56,7 +56,13 @@ export function empaquetarArticulos(articulos, cuerpos, opciones = {}) {
   const sinAsignar = [];
   const conVolumen = [];
   for (const a of articulos) {
-    if (a.volumenM3 == null) sinAsignar.push({ articulo: a.articulo, motivo: 'sin_dimensiones_importadas' });
+    // Number.isNaN explícito -- `a.volumenM3 == null` NO atrapa NaN (viene,
+    // por ejemplo, de un volumen mal importado). Sin este chequeo, un NaN no
+    // cae en "grandes" NI en "chicos" (`NaN > x` y `NaN <= x` son ambos
+    // false) -- desaparece en silencio, justo lo que este motor promete no
+    // hacer nunca (bug real encontrado 2026-08-12 corriendo contra datos
+    // reales: 26 articulos con volumen_m3 = NULL en la base).
+    if (a.volumenM3 == null || Number.isNaN(a.volumenM3)) sinAsignar.push({ articulo: a.articulo, motivo: 'sin_dimensiones_importadas' });
     else conVolumen.push(a);
   }
 

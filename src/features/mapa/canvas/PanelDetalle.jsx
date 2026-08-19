@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { nArts, consumoTotal, llenura, colorLlenura, colorArticulo } from '../../../domain/formulasOcupacion.js';
 import { VERDE_ESTRUCTURA, BLANCO_CALIDO, BLANCO_HUESO_TARJETA, GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO, ESTADOS } from './paleta.js';
 import { interaccionBoton } from '../../../ui/motion/variants.js';
+import { DURACION, EASING } from '../../../ui/motion/tokens.js';
 import { useReducedMotion } from '../../../ui/motion/prefersReducedMotion.js';
 import { puedeIniciarTraslado, puedeConfirmar } from '../../migracion/flujoMigracionSlot.js';
 import FlujoMigracionSlot from './FlujoMigracionSlot.jsx';
@@ -298,11 +299,31 @@ function BotonMoverArticulo({ onClick, deshabilitado, etiqueta, icono = 'ti-arro
  */
 function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, descripcionDe }) {
   const [abierta, setAbierta] = useState(false);
+  const contenedorRef = useRef(null);
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : GRIS_TEXTO_TENUE;
   const puedeExplicar = !!(rack && configuracionOcupacion);
 
+  // Clic afuera cierra la burbuja -- listener en document en vez del truco
+  // del fondo invisible `position:fixed` que tenía antes: ese fondo asumía
+  // que "fixed" se ancla siempre al viewport, pero .mapa-panel (el
+  // contenedor de este chip) tiene `backdrop-filter`, y eso crea un nuevo
+  // "containing block" para hijos fixed (spec CSS) -- el fondo quedaba
+  // recortado al tamaño del panel, no de la pantalla, así que un clic en el
+  // canvas de atrás nunca cerraba la burbuja (bug real, encontrado 2026-08-12
+  // verificando este mismo rediseño con Playwright). Este patrón no depende
+  // de ningún contexto de posicionamiento -- solo mira si el clic cayó
+  // dentro del contenedor del chip+burbuja.
+  useEffect(() => {
+    if (!abierta) return;
+    function alClickearFuera(e) {
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) setAbierta(false);
+    }
+    document.addEventListener('mousedown', alClickearFuera);
+    return () => document.removeEventListener('mousedown', alClickearFuera);
+  }, [abierta]);
+
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={contenedorRef} style={{ position: 'relative' }}>
       <div
         onClick={puedeExplicar ? () => setAbierta(v => !v) : undefined}
         title={puedeExplicar ? 'Ver cómo se calculó este %' : undefined}
@@ -315,73 +336,132 @@ function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, de
         <span style={{ fontSize: 12, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{Math.round(proporcion * 100)}%</span>
         {puedeExplicar && <i className="ti ti-info-circle" style={{ fontSize: 10, color, opacity: .7, marginLeft: 1 }} />}
       </div>
-      {abierta && puedeExplicar && (
-        <>
-          {/* Fondo invisible -- clic afuera cierra la burbuja, mismo patrón que un popover estándar. */}
-          <div onClick={() => setAbierta(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+      <AnimatePresence>
+        {abierta && puedeExplicar && (
           <BurbujaFormula
-            proporcion={proporcion} configuracionOcupacion={configuracionOcupacion} rack={rack} descripcionDe={descripcionDe}
+            proporcion={proporcion} color={color} configuracionOcupacion={configuracionOcupacion} rack={rack} descripcionDe={descripcionDe}
             onCerrar={() => setAbierta(false)}
           />
-        </>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-/** El contenido de la burbuja: fórmula + cada artículo que aporta al consumo total, para que el % del rack se pueda auditar a ojo. */
-function BurbujaFormula({ proporcion, configuracionOcupacion, rack, descripcionDe, onCerrar }) {
+/** Anillo de progreso SVG -- mismo dato que el chip (proporcion/color), pero da presencia visual al % en vez de dejarlo como un texto plano dentro de la burbuja. Traza su arco al montar (respeta prefers-reduced-motion). */
+function AnilloPorcentaje({ proporcion, color, tamano = 60 }) {
+  const reducido = useReducedMotion();
+  const grosor = 6;
+  const radio = (tamano - grosor) / 2;
+  const circunferencia = 2 * Math.PI * radio;
+  const avance = Math.min(proporcion, 1) * circunferencia;
+
+  return (
+    <svg width={tamano} height={tamano} viewBox={`0 0 ${tamano} ${tamano}`} style={{ flexShrink: 0, transform: 'rotate(-90deg)' }}>
+      <circle cx={tamano / 2} cy={tamano / 2} r={radio} fill="none" stroke="rgba(0,0,0,.08)" strokeWidth={grosor} />
+      <motion.circle
+        cx={tamano / 2} cy={tamano / 2} r={radio} fill="none" stroke={color} strokeWidth={grosor} strokeLinecap="round"
+        strokeDasharray={circunferencia}
+        initial={{ strokeDashoffset: reducido ? circunferencia - avance : circunferencia }}
+        animate={{ strokeDashoffset: circunferencia - avance }}
+        transition={{ duration: reducido ? 0 : DURACION.navegacion, ease: EASING.entrada }}
+      />
+      <text
+        x={tamano / 2} y={tamano / 2} textAnchor="middle" dominantBaseline="central"
+        transform={`rotate(90 ${tamano / 2} ${tamano / 2})`}
+        style={{ fontSize: 13, fontWeight: 700, fill: color, fontVariantNumeric: 'tabular-nums' }}
+      >
+        {Math.round(proporcion * 100)}%
+      </text>
+    </svg>
+  );
+}
+
+/** El contenido de la burbuja: fórmula + cada artículo que aporta al consumo total, para que el % del rack se pueda auditar a ojo. Pedido explícito 2026-08-12: se sentía "de un sistema más económico" comparado con el resto de la app -- este rediseño reusa el sistema de animación real del proyecto (ui/motion/tokens.js, prohibido inventar duraciones/easings a mano, ver MASTER-PROMPT.md sección 7), nunca valores nuevos. */
+function BurbujaFormula({ proporcion, color, configuracionOcupacion, rack, descripcionDe, onCerrar }) {
+  const reducido = useReducedMotion();
   const articulos = Object.values(rack.niveles).flat();
   const total = consumoTotal(rack);
   const capacidad = configuracionOcupacion.capacidadUtilRack;
   const articulosOrdenados = [...articulos].sort((a, b) => (b.consumo ?? 0) - (a.consumo ?? 0));
+  const mayorConsumo = Math.max(1e-9, ...articulosOrdenados.map(a => a.consumo ?? 0));
 
   return (
-    <div
+    <motion.div
+      initial={reducido ? { opacity: 1 } : { opacity: 0, scale: .94, y: -6 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={reducido ? { opacity: 0 } : { opacity: 0, scale: .96, y: -4 }}
+      transition={{ duration: reducido ? 0 : DURACION.estado, ease: EASING.entrada }}
       style={{
-        position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 41, width: 300,
-        background: BLANCO_CALIDO, border: `1px solid ${BORDE_CLARO}`, borderRadius: 10,
-        boxShadow: '0 12px 32px rgba(0,0,0,.25)', padding: 12, fontSize: 12, color: GRIS_TEXTO,
+        position: 'absolute', top: '100%', right: 0, marginTop: 10, zIndex: 41, width: 300, transformOrigin: 'top right',
+        background: BLANCO_CALIDO, border: `1px solid ${BORDE_CLARO}`, borderRadius: 12,
+        boxShadow: '0 16px 40px rgba(0,0,0,.28)', padding: 14, fontSize: 12, color: GRIS_TEXTO,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+      {/* Pico -- conecta visualmente la burbuja con el chip que la abrió, en vez de flotar suelta. */}
+      <div style={{
+        position: 'absolute', top: -6, right: 16, width: 12, height: 12, background: BLANCO_CALIDO,
+        borderLeft: `1px solid ${BORDE_CLARO}`, borderTop: `1px solid ${BORDE_CLARO}`, transform: 'rotate(45deg)',
+      }} />
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>Cómo se calculó</span>
-        <button onClick={onCerrar} style={{ border: 'none', background: 'none', cursor: 'pointer', color: GRIS_TEXTO_TENUE, fontSize: 13, padding: 2, lineHeight: 1 }}>
+        <button
+          onClick={onCerrar}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,.08)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          style={{
+            border: 'none', background: 'transparent', cursor: 'pointer', color: GRIS_TEXTO_TENUE, fontSize: 12,
+            width: 20, height: 20, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: `background .15s var(--ease-ios)`,
+          }}
+        >
           <i className="ti ti-x" />
         </button>
       </div>
 
-      <div style={{ background: 'rgba(0,0,0,.04)', borderRadius: 6, padding: '6px 8px', fontFamily: 'monospace', fontSize: 11, marginBottom: 8 }}>
-        % rack = min(consumo total ÷ capacidad útil, 120%)
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <AnilloPorcentaje proporcion={proporcion} color={color} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontVariantNumeric: 'tabular-nums', marginBottom: 3 }}>
+            <span style={{ color: GRIS_TEXTO_TENUE, fontSize: 11 }}>Consumo total</span>
+            <strong style={{ fontSize: 11.5 }}>{total.toFixed(2)}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontVariantNumeric: 'tabular-nums', marginBottom: 3 }}>
+            <span style={{ color: GRIS_TEXTO_TENUE, fontSize: 11 }}>Capacidad útil</span>
+            <strong style={{ fontSize: 11.5 }}>{capacidad.toFixed(2)}</strong>
+          </div>
+          <div style={{ height: 1, background: BORDE_CLARO, opacity: .35, margin: '4px 0' }} />
+          <div style={{ fontSize: 10.5, fontFamily: 'monospace', color: GRIS_TEXTO_TENUE }}>
+            {total.toFixed(2)} ÷ {capacidad.toFixed(2)} = <strong style={{ color }}>{Math.round(proporcion * 100)}%</strong>
+          </div>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
-        <span style={{ color: GRIS_TEXTO_TENUE }}>Consumo total del rack</span>
-        <strong>{total.toFixed(2)}</strong>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
-        <span style={{ color: GRIS_TEXTO_TENUE }}>Capacidad útil del rack</span>
-        <strong>{capacidad.toFixed(2)}</strong>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontVariantNumeric: 'tabular-nums', marginBottom: 10, paddingTop: 4, borderTop: `1px solid ${BORDE_CLARO}` }}>
-        <span style={{ color: GRIS_TEXTO_TENUE }}>Resultado</span>
-        <strong>{total.toFixed(2)} ÷ {capacidad.toFixed(2)} = {Math.round(proporcion * 100)}%</strong>
-      </div>
-
-      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE, marginBottom: 6 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE, marginBottom: 7 }}>
         Artículos que aportan ({articulosOrdenados.length})
       </div>
-      <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {articulosOrdenados.map(a => (
-          <div key={a.articulo} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11 }}>
-            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{a.articulo}</span>
-              {descripcionDe && <span style={{ color: GRIS_TEXTO_TENUE }}> · {descripcionDe(a.articulo)}</span>}
-            </span>
-            <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{(a.consumo ?? 0).toFixed(2)}</span>
-          </div>
-        ))}
+      <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {articulosOrdenados.map(a => {
+          const colorArt = configuracionOcupacion ? colorArticulo(a.consumo ?? 0, configuracionOcupacion) : GRIS_TEXTO;
+          const proporcionArt = Math.max(0.03, (a.consumo ?? 0) / mayorConsumo);
+          return (
+            <div key={a.articulo} style={{ fontSize: 11 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{a.articulo}</span>
+                  {descripcionDe && <span style={{ color: GRIS_TEXTO_TENUE }}> · {descripcionDe(a.articulo)}</span>}
+                </span>
+                <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{(a.consumo ?? 0).toFixed(2)}</span>
+              </div>
+              {/* Barra proporcional al mayor consumidor del rack -- mismo lenguaje visual que las barras de llenado de TarjetaNivel, ahora también por artículo dentro de la burbuja. */}
+              <div style={{ height: 3, borderRadius: 2, background: 'rgba(0,0,0,.06)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${proporcionArt * 100}%`, background: colorArt, borderRadius: 2 }} />
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </motion.div>
   );
 }
