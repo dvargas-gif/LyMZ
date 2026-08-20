@@ -62,6 +62,27 @@ const ESTADOS_YA_ACTIVOS = new Set(['vaciando', 'recolectando']);
 const ESTADOS_YA_INICIADOS = new Set(['esperando_aprobacion', 'vaciando', 'recolectando', 'bloqueado', 'confirmado']);
 
 /**
+ * Umbrales de dificultad (pedido explícito 2026-08-20 -- "clasificarlo de
+ * fácil, normal o difícil, así se sabe de antemano") -- reglas como datos
+ * (Ley 8), nunca un número mágico dentro de `clasificarDificultad`. Sobre
+ * los mismos 2 ejes que ya mide el motor: `libera` (a cuántos destinos
+ * distintos alimenta este origen) y `nivelesPropios` (cuánto volumen propio
+ * entrega -- proxy de tiempo/espacio de buffer).
+ */
+export const UMBRAL_DIFICULTAD = {
+  facil: { libera: 1, nivelesPropios: 1 }, // 1 origen -> a lo sumo 1 destino, un solo nivel de contenido
+  normal: { libera: 3, nivelesPropios: 3 },
+  // cualquier cosa por encima de "normal" es "dificil" -- sin techo propio.
+};
+
+/** Clasifica un rack por su complejidad real, no por si está listo o bloqueado -- un rack "difícil" sigue siendo "difícil" aunque hoy nadie lo esté considerando para la próxima oleada. */
+export function clasificarDificultad(libera, nivelesPropios) {
+  if (libera <= UMBRAL_DIFICULTAD.facil.libera && nivelesPropios <= UMBRAL_DIFICULTAD.facil.nivelesPropios) return 'facil';
+  if (libera <= UMBRAL_DIFICULTAD.normal.libera && nivelesPropios <= UMBRAL_DIFICULTAD.normal.nivelesPropios) return 'normal';
+  return 'dificil';
+}
+
+/**
  * Grafo de dependencias entre racks destino -- la pieza compartida entre
  * `planificarSecuencia` (simulación completa, con oleadas y cupo) y
  * `evaluarListoParaIniciar` (chequeo puntual de UN rack, el que gatea el
@@ -97,16 +118,22 @@ function construirGrafoDependencias(movimientosPendientes, identidadLegacy, slot
     if (!origenMz) continue; // origen no identificado todavía -- no bloquea nada, disponible siempre
     const origenClave = claveSlot(origenMz.mzPasillo, origenMz.mzColumna);
     if (origenClave === destinoClave) continue; // auto-loop: vaciar->recolectar del MISMO slot, no una dependencia cruzada
-    if (!destinos.has(origenClave)) continue; // el origen no es destino de NADA en este plan -- siempre disponible
 
-    const estadoOrigenActual = slotsActuales.get(origenClave)?.estado;
-    if (!ESTADOS_ORIGEN_SATISFECHO.has(estadoOrigenActual)) {
-      dependenciasPendientes.get(destinoClave).add(origenClave);
-    }
+    // Se registra SIEMPRE, sea o no el origen destino de algo en este plan --
+    // un origen "hub puro" (alimenta a otros pero nadie le manda nada a él)
+    // igual tiene que contar para calcularDificultadPorRack (ADR-020,
+    // 2026-08-20). Antes esto quedaba adentro del `if` de abajo y un hub puro
+    // nunca se registraba en `desbloquea`/`nivelesDeOrigen`.
     if (!desbloquea.has(origenClave)) desbloquea.set(origenClave, new Set());
     desbloquea.get(origenClave).add(destinoClave);
     if (!nivelesDeOrigen.has(origenClave)) nivelesDeOrigen.set(origenClave, new Set());
     nivelesDeOrigen.get(origenClave).add(Number(m.rclNivel));
+
+    if (!destinos.has(origenClave)) continue; // el origen no es destino de NADA en este plan -- siempre disponible, nunca genera una dependencia pendiente
+    const estadoOrigenActual = slotsActuales.get(origenClave)?.estado;
+    if (!ESTADOS_ORIGEN_SATISFECHO.has(estadoOrigenActual)) {
+      dependenciasPendientes.get(destinoClave).add(origenClave);
+    }
   }
 
   return { destinos, dependenciasPendientes, desbloquea, nivelesDeOrigen };
@@ -139,13 +166,46 @@ export function evaluarListoParaIniciar(mzPasillo, mzColumna, movimientosPendien
 }
 
 /**
+ * Clasifica TODOS los racks destino del plan (`fácil`/`normal`/`difícil`),
+ * corriendo el grafo de dependencias UNA sola vez -- pedido explícito
+ * 2026-08-20: "que se sepa de antemano, no un recálculo del motor cada vez
+ * que considere una nueva ruta o haga un presupuesto de planes". A
+ * diferencia de `planificarSecuencia` (que solo asigna libera/dificultad a
+ * los racks que entraron en alguna oleada), esto devuelve TODOS -- incluso
+ * los bloqueados hoy por una dependencia, o los que nunca se van a
+ * considerar en la próxima simulación -- para que una pantalla pueda
+ * mostrar "este rack es difícil" sin tener que simular una secuencia
+ * completa primero. Quien llama decide cuándo recalcular (ej. una vez
+ * después de "Calcular plan de recolección", no en cada interacción).
+ *
+ * @param {Array<{mzPasillo, mzColumna, rclCodigo, rclNivel, articulo}>} movimientosPendientes
+ * @param {Array<{mzPasillo, mzColumna, mzNivel, mzSubnivel, rclCodigo, rclNivel, rclSubnivel, estadoRcl}>} identidadLegacy
+ * @param {Map<string, {estado}>} [slotsActuales]
+ * @returns {Array<{mzPasillo, mzColumna, libera, nivelesPropios, dificultad}>}
+ */
+export function calcularDificultadPorRack(movimientosPendientes, identidadLegacy, slotsActuales = new Map()) {
+  const { destinos, desbloquea, nivelesDeOrigen } = construirGrafoDependencias(movimientosPendientes, identidadLegacy, slotsActuales);
+  // Union con las claves de `desbloquea` -- un rack que SOLO es origen (nunca
+  // destino de nada en este plan, ej. un "hub" que alimenta a otros pero
+  // nadie le manda nada a él) no está en `destinos`, pero sigue siendo un
+  // rack real cuya dificultad hace falta conocer de antemano.
+  const todosLosRacks = new Set([...destinos, ...desbloquea.keys()]);
+  return [...todosLosRacks].map(clave => {
+    const [mzPasillo, mzColumnaTxt] = clave.split('|');
+    const libera = desbloquea.get(clave)?.size ?? 0;
+    const nivelesPropios = nivelesDeOrigen.get(clave)?.size ?? 0;
+    return { mzPasillo, mzColumna: Number(mzColumnaTxt), libera, nivelesPropios, dificultad: clasificarDificultad(libera, nivelesPropios) };
+  });
+}
+
+/**
  * @param {Array<{mzPasillo, mzColumna, rclCodigo, rclNivel, articulo}>} movimientosPendientes -- migracionMovimientosService.listarPendientesParaSecuencia()
  * @param {Array<{mzPasillo, mzColumna, mzNivel, mzSubnivel, rclCodigo, rclNivel, rclSubnivel, estadoRcl}>} identidadLegacy -- identidadLegacyService.listar()
  * @param {Map<string, {estado}>} slotsActuales -- migracionSlotsService.listar() (clave "pasillo|columna")
  * @param {{capacidadMax?: number, racksSinContenido?: Set<string>}} opciones -- `racksSinContenido`: claves
  *   "pasillo|columna" de racks que HOY no tienen contenido real para vaciar (ver contenidoActualDeRacks() en
  *   generarLoteDespacho.js) -- entran a la oleada sin consumir cupo, nunca requieren aprobación.
- * @returns {{ oleadas: Array<Array<{mzPasillo, mzColumna, requiereAprobacion, rompeCiclo, libera: number, nivelesPropios: number}>>, equiposActivosIniciales: number, advertencias: string[] }}
+ * @returns {{ oleadas: Array<Array<{mzPasillo, mzColumna, requiereAprobacion, rompeCiclo, libera: number, nivelesPropios: number, dificultad: 'facil'|'normal'|'dificil'}>>, equiposActivosIniciales: number, advertencias: string[] }}
  *   `libera`: cuántos otros racks quedan un paso más cerca de poder arrancar una vez que ESTE se vacía (grado de salida).
  *   `nivelesPropios`: cuántos niveles de origen distintos entrega este rack a otros -- proxy de cuánto tiempo/volumen de buffer implica.
  */
@@ -173,16 +233,34 @@ export function planificarSecuencia(movimientosPendientes, identidadLegacy, slot
     }
   }
 
+  /**
+   * Prioriza SIMPLICIDAD, no impacto teórico (corrección de fondo 2026-08-20,
+   * pedido explícito -- ver DECISIONES.md). Antes ordenaba por "más
+   * dependientes primero" (mayor `libera`) para acortar la cadena total en
+   * el papel -- pero eso elegía a propósito, primero, los orígenes más
+   * enredados: un rack RCL compartido por 14 artículos yendo a 11 destinos
+   * MZ distintos SÍ "desbloquea más cosas", pero es exactamente el peor
+   * primer movimiento real para un operador (múltiples artículos, múltiples
+   * destinos, nada simple). Ahora: menos destinos que desbloquea primero
+   * (el caso más simple, 1 origen -> 1 destino, arranca antes que un hub),
+   * y entre empatados, menos volumen propio (`nivelesPropios` -- menos
+   * tiempo/espacio de buffer). El costo real: la cadena total puede tardar
+   * más oleadas en resolverse del todo -- se acepta a cambio de que el
+   * trabajo de cada oleada sea predecible para quien lo hace.
+   */
   function ordenarListos(claves) {
     return [...claves].sort((a, b) => {
       const salidaA = desbloquea.get(a)?.size ?? 0;
       const salidaB = desbloquea.get(b)?.size ?? 0;
-      if (salidaB !== salidaA) return salidaB - salidaA; // más dependientes primero -- acorta la cadena total
+      if (salidaA !== salidaB) return salidaA - salidaB; // menos destinos desbloqueados primero -- el más simple, no el más "eficiente" en el papel
+      const nivelesA = nivelesDeOrigen.get(a)?.size ?? 0;
+      const nivelesB = nivelesDeOrigen.get(b)?.size ?? 0;
+      if (nivelesA !== nivelesB) return nivelesA - nivelesB; // empatados en destinos -- el que entrega menos volumen propio
       return a.localeCompare(b); // desempate determinístico
     });
   }
 
-  /** Ordena candidatos forzados por MENOS niveles propios primero (menor riesgo/tiempo de buffer) -- a diferencia de ordenarListos (que prioriza desbloquear más), acá se prioriza minimizar cuánto tiempo va a quedar cada uno ocupando el buffer. */
+  /** Ordena candidatos forzados por MENOS niveles propios primero (menor riesgo/tiempo de buffer) -- mismo criterio de simplicidad que ordenarListos, pero acá el desempate por `libera` no aplica (todos son parte del mismo ciclo forzado). */
   function ordenarParaForzar(claves) {
     return [...claves].sort((a, b) => {
       const nivelesA = nivelesDeOrigen.get(a)?.size ?? 0;
@@ -248,11 +326,13 @@ export function planificarSecuencia(movimientosPendientes, identidadLegacy, slot
     totalRompeCiclo += tomados.filter(c => forzados.has(c)).length;
     const objeto = (clave, requiereAprobacion) => {
       const [mzPasillo, mzColumnaTxt] = clave.split('|');
+      const libera = desbloquea.get(clave)?.size ?? 0;
+      const nivelesPropios = nivelesDeOrigen.get(clave)?.size ?? 0;
       return {
         mzPasillo, mzColumna: Number(mzColumnaTxt), requiereAprobacion,
         rompeCiclo: forzados.has(clave),
-        libera: desbloquea.get(clave)?.size ?? 0,
-        nivelesPropios: nivelesDeOrigen.get(clave)?.size ?? 0,
+        libera, nivelesPropios,
+        dificultad: clasificarDificultad(libera, nivelesPropios),
       };
     };
     oleadas.push([

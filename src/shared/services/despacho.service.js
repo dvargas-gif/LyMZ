@@ -250,6 +250,33 @@ export const despachoService = {
     if (error) throw error;
   },
 
+  /**
+   * TODAS las tareas alguna vez creadas (cualquier lote, cualquier estado) --
+   * a diferencia de `obtenerLoteActivo()` (solo el lote activo), esto
+   * alimenta métricas de productividad histórica (Dashboard). Pagina de a
+   * 1000 (mismo criterio que `usuariosService.listar()`) porque un solo
+   * `select()` se corta ahí.
+   */
+  async listarTodasLasTareas() {
+    const TAMANO_PAGINA = 1000;
+    const todas = [];
+    let desde = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('despacho_tareas')
+        .select('id, lote_id, trabajador_numero, tipo, cantidad, estado, resuelto_por, resuelto_en')
+        .range(desde, desde + TAMANO_PAGINA - 1);
+      if (error) throw error;
+      todas.push(...data);
+      if (data.length < TAMANO_PAGINA) break;
+      desde += TAMANO_PAGINA;
+    }
+    return todas.map(t => ({
+      id: t.id, loteId: t.lote_id, trabajadorNumero: t.trabajador_numero, tipo: t.tipo,
+      cantidad: t.cantidad, estado: t.estado, resueltoPor: t.resuelto_por, resueltoEn: t.resuelto_en,
+    }));
+  },
+
   /** Lotes ya cerrados, más recientes primero -- trazabilidad. */
   async listarHistorial() {
     const { data, error } = await supabase

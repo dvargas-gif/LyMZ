@@ -12,6 +12,7 @@ import BarraPestanas from './BarraPestanas.jsx';
 import PanelDetalle from './PanelDetalle.jsx';
 import MapaToolbar from './MapaToolbar.jsx';
 import BarraMovimiento from './BarraMovimiento.jsx';
+import ConfirmarConflictoMigracion from './ConfirmarConflictoMigracion.jsx';
 import { posicionesService } from '../../../shared/services/posiciones.service.js';
 import { escenarioPosicionesService } from '../../salas/escenarioPosiciones.service.js';
 import { bloqueosService } from '../../../shared/services/bloqueos.service.js';
@@ -28,6 +29,7 @@ import { construirVistaRcl } from '../../migracion/vistaRcl.js';
 import { puedeDevolverDelBuffer } from '../../migracion/flujoMigracionSlot.js';
 import { evaluarListoParaIniciar } from '../../migracion/planificarSecuencia.js';
 import { detectarDestinosListos, ESTADOS_LISTO_PARA_RECIBIR } from '../../migracion/alertasBuffer.js';
+import { detectarConflictoMigracion } from '../../../domain/detectarConflictoMigracion.js';
 import { puede, ROLES } from '../../auth/roles.js';
 import './canvas.css';
 
@@ -77,6 +79,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [modoBloqueo, setModoBloqueo] = useState(false);
   const [bloqueadas, setBloqueadas] = useState(new Set()); // claves "pasillo|columna" bloqueadas -- no admiten ser origen ni destino de un movimiento
   const [moviendo, setMoviendo] = useState(null); // null | {modo:'cuerpo', origen:{pasillo,columna}} | {modo:'individual', articulo, nivel, clase, tipo, origen:{pasillo,columna,nivel}, destino:null|{pasillo,columna}}
+  const [confirmacionConflicto, setConfirmacionConflicto] = useState(null); // null | {entradas, meta, conflictos} -- ver prepararYAplicarLote(), ADR-019
   const [guardando, setGuardando] = useState(false); // evita doble-click mientras un movimiento persiste
   const [errorAccion, setErrorAccion] = useState(null); // mensaje transitorio (destino ocupado/bloqueado/mismo origen, error de guardado)
   const [modoSeleccionArea, setModoSeleccionArea] = useState(false); // SOLO sala -- activado externamente por la barra de acciones (ver useImperativeHandle)
@@ -635,12 +638,63 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     }
   }
 
+  /**
+   * Antes de aplicar cualquier movimiento manual real (nunca en Sala --
+   * `escenarioId` no nulo ahí, y las Salas no tienen migración real),
+   * revisa si alguno de los artículos ya tenía un `migracion_movimiento`
+   * pendiente hacia otro rack (ver detectarConflictoMigracion.js/ADR-019).
+   * Si hay conflicto, PARA y pide confirmación explícita en vez de aplicar
+   * directo -- pedido explícito del usuario: "que el te vaya al menos
+   * diciendo que va a cambiar" antes de que Despacho le siga pidiendo ese
+   * trabajo a otra persona.
+   *
+   * Fail-open en la CONSULTA (nunca en la decisión del usuario): si la
+   * consulta de conflictos falla -- por ejemplo, el SQL de las columnas
+   * nuevas todavía no se corrió -- se deja pasar el movimiento igual que
+   * antes, con un aviso en consola, para no bloquear la operación real del
+   * mapa por un problema de infraestructura ajeno a este movimiento puntual.
+   */
+  async function prepararYAplicarLote(entradas, meta) {
+    if (escenarioId) { await aplicarLote(entradas, meta); return; }
+    let conflictos = [];
+    try {
+      const articulos = [...new Set(entradas.map(e => e.articulo))];
+      const pendientes = await migracionMovimientosService.buscarPendientesPorArticulos(articulos);
+      conflictos = detectarConflictoMigracion(articulos, pendientes);
+    } catch (err) {
+      console.error('No se pudo revisar conflictos de migración antes de mover -- se deja pasar el movimiento.', err);
+    }
+    if (conflictos.length > 0) { setConfirmacionConflicto({ entradas, meta, conflictos }); return; }
+    await aplicarLote(entradas, meta);
+  }
+
+  /** El usuario confirmó igual, a pesar del conflicto -- marca cada migracion_movimiento afectado "a_revisar" (nunca se borra, un Supervisor/Administrador lo resuelve, ver PanelMigracion.jsx) y recién ahí aplica el movimiento real. */
+  async function confirmarConConflicto() {
+    const { entradas, meta, conflictos } = confirmacionConflicto;
+    setConfirmacionConflicto(null);
+    try {
+      await Promise.all(conflictos.map(c => migracionMovimientosService.marcarARevisar(c.id, {
+        usuarioId: sesion?.usuarioId,
+        motivo: `Movimiento manual en el mapa: ${meta.articuloEtiqueta} (${meta.desde} → ${meta.hacia})`,
+      })));
+    } catch (err) {
+      console.error('No se pudo marcar el conflicto a revisar -- se aplica el movimiento igual (confirmado explícitamente por el usuario).', err);
+    }
+    await aplicarLote(entradas, meta);
+  }
+
+  /** El usuario decidió NO mover -- cancela todo el flujo (no solo el modal), mismo criterio que "Cancelar" en la barra de movimiento. */
+  function cancelarPorConflicto() {
+    setConfirmacionConflicto(null);
+    setMoviendo(null);
+  }
+
   /** Nivel elegido en la barra de movimiento (mover individual) -- último paso del flujo iniciado por iniciarMoverArticulo(). */
   function confirmarNivelIndividual(nivelDestino) {
     if (!moviendo?.destino) return;
     const { articulo, clase, tipo, origen, destino } = moviendo;
     const entrada = { articulo, clase, tipo, origen, destino: { ...destino, nivel: nivelDestino } };
-    aplicarLote([entrada], {
+    prepararYAplicarLote([entrada], {
       articuloEtiqueta: articulo,
       desde: formatoUbicacion(origen.pasillo, origen.columna, origen.nivel),
       hacia: formatoUbicacion(destino.pasillo, destino.columna, nivelDestino),
@@ -669,7 +723,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
         });
       }
     }
-    aplicarLote(entradas, {
+    prepararYAplicarLote(entradas, {
       articuloEtiqueta: `cuerpo completo (${entradas.length} art)`,
       desde: `${origenPasillo}-C${String(origenColumna).padStart(3, '0')}`,
       hacia: `${destinoPasillo}-C${String(destinoColumna).padStart(3, '0')}`,
@@ -1227,6 +1281,14 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       />
 
       {errorAccion && <div className="mapa-error-flotante">{errorAccion}</div>}
+
+      {confirmacionConflicto && (
+        <ConfirmarConflictoMigracion
+          conflictos={confirmacionConflicto.conflictos}
+          onConfirmar={confirmarConConflicto}
+          onCancelar={cancelarPorConflicto}
+        />
+      )}
 
       {pestanasAbiertas.length > 0 && (
         <div

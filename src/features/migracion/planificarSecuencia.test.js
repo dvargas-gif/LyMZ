@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planificarSecuencia, evaluarListoParaIniciar } from './planificarSecuencia.js';
+import { planificarSecuencia, evaluarListoParaIniciar, clasificarDificultad, calcularDificultadPorRack } from './planificarSecuencia.js';
 
 function identidad(mzPasillo, mzColumna, rclCodigo, rclNivel = 1) {
   return { mzPasillo, mzColumna, mzNivel: 1, mzSubnivel: 1, rclCodigo, rclNivel, rclSubnivel: 1, estadoRcl: 'asignado' };
@@ -24,9 +24,9 @@ describe('planificarSecuencia', () => {
 
     expect(advertencias).toEqual([]);
     expect(oleadas).toHaveLength(3);
-    expect(oleadas[0]).toEqual([{ mzPasillo: 'MZ01', mzColumna: 1, requiereAprobacion: false, rompeCiclo: false, libera: 1, nivelesPropios: 1 }]);
-    expect(oleadas[1]).toEqual([{ mzPasillo: 'MZ01', mzColumna: 2, requiereAprobacion: false, rompeCiclo: false, libera: 1, nivelesPropios: 1 }]);
-    expect(oleadas[2]).toEqual([{ mzPasillo: 'MZ01', mzColumna: 3, requiereAprobacion: false, rompeCiclo: false, libera: 0, nivelesPropios: 0 }]);
+    expect(oleadas[0]).toEqual([{ mzPasillo: 'MZ01', mzColumna: 1, requiereAprobacion: false, rompeCiclo: false, libera: 1, nivelesPropios: 1, dificultad: 'facil' }]);
+    expect(oleadas[1]).toEqual([{ mzPasillo: 'MZ01', mzColumna: 2, requiereAprobacion: false, rompeCiclo: false, libera: 1, nivelesPropios: 1, dificultad: 'facil' }]);
+    expect(oleadas[2]).toEqual([{ mzPasillo: 'MZ01', mzColumna: 3, requiereAprobacion: false, rompeCiclo: false, libera: 0, nivelesPropios: 0, dificultad: 'facil' }]);
   });
 
   it('ciclo de 2 racks -- se fuerzan los 2 juntos (el cupo alcanza), ordenados por menos niveles de origen propios', () => {
@@ -45,10 +45,12 @@ describe('planificarSecuencia', () => {
     // (feedback real: forzar de a uno con datos reales daba cientos de
     // oleadas de 1 solo rack cada una).
     expect(oleadas).toHaveLength(1);
-    // Grado de salida empatado (1 y 1) -- el orden final de la oleada lo decide el desempate alfabético de ordenarListos, no quién se forzó primero.
+    // Grado de salida empatado (1 y 1) -- ordenarListos (simplicidad primero,
+    // 2026-08-20) desempata por MENOS niveles propios: columna 2 (1 nivel)
+    // antes que columna 1 (2 niveles), aunque columna 1 se forzó primero.
     expect(oleadas[0]).toEqual([
-      { mzPasillo: 'MZ01', mzColumna: 1, requiereAprobacion: false, rompeCiclo: true, libera: 1, nivelesPropios: 2 },
-      { mzPasillo: 'MZ01', mzColumna: 2, requiereAprobacion: true, rompeCiclo: true, libera: 1, nivelesPropios: 1 },
+      { mzPasillo: 'MZ01', mzColumna: 2, requiereAprobacion: false, rompeCiclo: true, libera: 1, nivelesPropios: 1, dificultad: 'facil' },
+      { mzPasillo: 'MZ01', mzColumna: 1, requiereAprobacion: true, rompeCiclo: true, libera: 1, nivelesPropios: 2, dificultad: 'normal' },
     ]);
   });
 
@@ -83,7 +85,7 @@ describe('planificarSecuencia', () => {
     expect(oleadas.flat()).toHaveLength(4);
   });
 
-  it('más candidatos listos que cupo -- prioriza por grado de salida y marca requiereAprobacion desde el 2do', () => {
+  it('más candidatos listos que cupo -- prioriza por SIMPLICIDAD (menos desbloquea primero), no por impacto teórico', () => {
     const identidadLegacy = [identidad('MZ01', 1, 'RCL-P'), identidad('MZ01', 2, 'RCL-Q')];
     const movimientos = [
       // P y Q listos desde el inicio (sus propios orígenes no son destino de nadie).
@@ -92,7 +94,7 @@ describe('planificarSecuencia', () => {
       // R y S también listos (sin identidad -- da igual, solo importa que sean destinos con origen no-bloqueante).
       movimiento('MZ01', 3, 'RCL-Z1', 1, 'ART-R'),
       movimiento('MZ01', 4, 'RCL-Z2', 1, 'ART-S'),
-      // T y U dependen de P -- le dan a P grado de salida 2 (el mayor de los 4).
+      // T y U dependen de P -- le dan a P grado de salida 2 (el mayor de los 4, el "hub").
       movimiento('MZ01', 5, 'RCL-P', 1, 'ART-T'),
       movimiento('MZ01', 6, 'RCL-P', 1, 'ART-U'),
       // V depende de Q -- grado de salida 1.
@@ -101,15 +103,18 @@ describe('planificarSecuencia', () => {
 
     const { oleadas } = planificarSecuencia(movimientos, identidadLegacy, SIN_PROGRESO, { capacidadMax: 3 });
 
-    // Oleada 0: P (grado 2) primero y libre; Q (grado 1) y R (grado 0, antes que S alfabéticamente) necesitan aprobación; S queda para la próxima.
+    // Oleada 0: R y S primero (grado 0, los más simples -- empatados, orden
+    // alfabético), después Q (grado 1). P (grado 2, el "hub" que más
+    // desbloquea) queda AFUERA a propósito -- corrección de fondo 2026-08-20:
+    // ya no se prioriza "lo que más destraba", se prioriza lo más simple.
     expect(oleadas[0]).toEqual([
-      { mzPasillo: 'MZ01', mzColumna: 1, requiereAprobacion: false, rompeCiclo: false, libera: 2, nivelesPropios: 1 },
-      { mzPasillo: 'MZ01', mzColumna: 2, requiereAprobacion: true, rompeCiclo: false, libera: 1, nivelesPropios: 1 },
-      { mzPasillo: 'MZ01', mzColumna: 3, requiereAprobacion: true, rompeCiclo: false, libera: 0, nivelesPropios: 0 },
+      { mzPasillo: 'MZ01', mzColumna: 3, requiereAprobacion: false, rompeCiclo: false, libera: 0, nivelesPropios: 0, dificultad: 'facil' },
+      { mzPasillo: 'MZ01', mzColumna: 4, requiereAprobacion: true, rompeCiclo: false, libera: 0, nivelesPropios: 0, dificultad: 'facil' },
+      { mzPasillo: 'MZ01', mzColumna: 2, requiereAprobacion: true, rompeCiclo: false, libera: 1, nivelesPropios: 1, dificultad: 'facil' },
     ]);
-    // S (columna 4) quedó afuera de la oleada 0 por cupo -- aparece en una oleada posterior.
+    // P (columna 1, el hub) quedó afuera de la oleada 0 por cupo -- aparece en una oleada posterior.
     const todasLasColumnas = oleadas.flat().map(o => o.mzColumna);
-    expect(todasLasColumnas).toContain(4);
+    expect(todasLasColumnas).toContain(1);
   });
 
   it('un origen en "vaciando" real todavía NO satisface el prerequisito -- recién desde "recolectando"', () => {
@@ -166,7 +171,7 @@ describe('planificarSecuencia', () => {
     // el cupo de verdad está lleno) -- pero NO bloquea al rack libre.
     expect(equiposActivosIniciales).toBe(3);
     expect(advertencias.some(a => a.includes('Cupo lleno'))).toBe(true);
-    expect(oleadas.flat()).toEqual([{ mzPasillo: 'MZ01', mzColumna: 1, requiereAprobacion: false, rompeCiclo: false, libera: 0, nivelesPropios: 0 }]);
+    expect(oleadas.flat()).toEqual([{ mzPasillo: 'MZ01', mzColumna: 1, requiereAprobacion: false, rompeCiclo: false, libera: 0, nivelesPropios: 0, dificultad: 'facil' }]);
   });
 
   it('racks libres se mezclan con los que sí necesitan cupo -- los libres nunca cuentan contra el límite ni piden aprobación', () => {
@@ -257,5 +262,64 @@ describe('evaluarListoParaIniciar', () => {
   it('rack sin ningún movimiento pendiente -- listo por defecto (nada que evaluar)', () => {
     const resultado = evaluarListoParaIniciar('MZ09', 5, [], [], SIN_PROGRESO);
     expect(resultado).toEqual({ listo: true, bloqueadoPor: [] });
+  });
+});
+
+describe('clasificarDificultad', () => {
+  it('libera<=1 y nivelesPropios<=1 -- facil', () => {
+    expect(clasificarDificultad(0, 0)).toBe('facil');
+    expect(clasificarDificultad(1, 1)).toBe('facil');
+  });
+
+  it('por encima de facil pero dentro del umbral normal -- normal', () => {
+    expect(clasificarDificultad(2, 1)).toBe('normal');
+    expect(clasificarDificultad(1, 3)).toBe('normal');
+    expect(clasificarDificultad(3, 3)).toBe('normal');
+  });
+
+  it('por encima del umbral normal en cualquiera de los 2 ejes -- dificil', () => {
+    expect(clasificarDificultad(4, 0)).toBe('dificil');
+    expect(clasificarDificultad(0, 4)).toBe('dificil');
+    expect(clasificarDificultad(11, 5)).toBe('dificil'); // el caso real encontrado 2026-08-20 (RCL198-C001)
+  });
+});
+
+describe('calcularDificultadPorRack', () => {
+  it('clasifica TODOS los destinos del plan, incluso los bloqueados por una dependencia sin resolver', () => {
+    const identidadLegacy = [identidad('MZ01', 1, 'RCL-A'), identidad('MZ01', 2, 'RCL-B')];
+    const movimientos = [
+      movimiento('MZ01', 1, 'RCL-X', 1, 'ART-A'), // libre, sin dependencias
+      movimiento('MZ01', 2, 'RCL-A', 1, 'ART-B'), // depende de A -- sigue clasificado igual, aunque hoy esté bloqueado
+    ];
+
+    const resultado = calcularDificultadPorRack(movimientos, identidadLegacy, SIN_PROGRESO);
+
+    expect(resultado).toHaveLength(2);
+    expect(resultado.find(r => r.mzColumna === 1)).toEqual({ mzPasillo: 'MZ01', mzColumna: 1, libera: 1, nivelesPropios: 1, dificultad: 'facil' });
+    expect(resultado.find(r => r.mzColumna === 2)).toEqual({ mzPasillo: 'MZ01', mzColumna: 2, libera: 0, nivelesPropios: 0, dificultad: 'facil' });
+  });
+
+  it('no depende de slotsActuales -- se puede llamar sin ese argumento para una clasificación "de antemano"', () => {
+    const identidadLegacy = [identidad('MZ01', 1, 'RCL-A')];
+    const movimientos = [movimiento('MZ01', 1, 'RCL-X', 1, 'ART-A')];
+
+    expect(() => calcularDificultadPorRack(movimientos, identidadLegacy)).not.toThrow();
+  });
+
+  it('un origen que alimenta muchos destinos con mucho volumen propio queda "dificil"', () => {
+    const identidadLegacy = [identidad('MZ01', 1, 'RCL-HUB', 1), identidad('MZ01', 1, 'RCL-HUB', 2), identidad('MZ01', 1, 'RCL-HUB', 3), identidad('MZ01', 1, 'RCL-HUB', 4)];
+    const movimientos = [
+      movimiento('MZ01', 2, 'RCL-HUB', 1, 'ART-1'),
+      movimiento('MZ01', 3, 'RCL-HUB', 2, 'ART-2'),
+      movimiento('MZ01', 4, 'RCL-HUB', 3, 'ART-3'),
+      movimiento('MZ01', 5, 'RCL-HUB', 4, 'ART-4'),
+    ];
+
+    const resultado = calcularDificultadPorRack(movimientos, identidadLegacy, SIN_PROGRESO);
+    const hub = resultado.find(r => r.mzColumna === 1);
+
+    expect(hub.libera).toBe(4);
+    expect(hub.nivelesPropios).toBe(4);
+    expect(hub.dificultad).toBe('dificil');
   });
 });

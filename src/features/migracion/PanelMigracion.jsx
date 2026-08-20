@@ -116,6 +116,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [hayRespaldo, setHayRespaldo] = useState(false); // ¿hay una aplicación anterior para deshacer?
   const [deshaciendo, setDeshaciendo] = useState(false);
   const [procesando, setProcesando] = useState(null);
+  const [movimientosARevisar, setMovimientosARevisar] = useState(null); // ADR-019 -- movimientos que un cambio manual en el mapa marcó "a_revisar"
 
   const [error, setError] = useState('');
 
@@ -142,6 +143,13 @@ export default function PanelMigracion({ sesion, onCerrar }) {
       setUsuarios(new Map(todos.map(u => [u.id, u])));
     } catch {
       // Sin permiso (ej. Supervisor) -- se degrada mostrando el id en vez de un nombre legible, no rompe el panel.
+    }
+    try {
+      setMovimientosARevisar(await migracionMovimientosService.listarARevisar());
+    } catch {
+      // ADR-019 -- si el SQL de las columnas nuevas todavía no se corrió, esta
+      // sección se degrada a "sin datos" en vez de romper el resto del panel.
+      setMovimientosARevisar([]);
     }
   }
 
@@ -393,6 +401,25 @@ export default function PanelMigracion({ sesion, onCerrar }) {
     finally { setProcesando(null); }
   }
 
+  /** ADR-019 -- era una falsa alarma (el movimiento manual no afectaba de verdad este traslado): vuelve a 'pendiente', Despacho lo vuelve a ofrecer como tarea real. */
+  async function restaurarRevision(id) {
+    setProcesando(id);
+    setError('');
+    try { await migracionMovimientosService.resolverRevision(id, { usuarioId: sesion.usuarioId, accion: 'restaurar' }); await cargar(); }
+    catch (err) { setError(`No se pudo restaurar: ${err.message || err}`); }
+    finally { setProcesando(null); }
+  }
+
+  /** ADR-019 -- el cambio manual sí hizo obsoleto este movimiento: queda 'descartado' para siempre, nunca vuelve a la planificación de Despacho. */
+  async function descartarRevision(id) {
+    if (!confirm('¿Descartar este movimiento para siempre? No se puede deshacer -- nunca va a volver a ofrecerse como tarea de Despacho.')) return;
+    setProcesando(id);
+    setError('');
+    try { await migracionMovimientosService.resolverRevision(id, { usuarioId: sesion.usuarioId, accion: 'descartar' }); await cargar(); }
+    catch (err) { setError(`No se pudo descartar: ${err.message || err}`); }
+    finally { setProcesando(null); }
+  }
+
   /**
    * Bug real encontrado 2026-07-23 (mismo que en PanelDespacho.jsx, que
    * copió este mismo patrón): el registro de auditoría iba ANTES de
@@ -451,6 +478,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             <Tarjeta valor={activos ? `${activos.length}/3` : '—'} etiqueta="equipos activos" color={activos?.length ? 'libre' : undefined} />
             <Tarjeta valor={esperandoAprobacion?.length ?? '—'} etiqueta="esperando cupo" color={esperandoAprobacion?.length ? 'aprobacion' : undefined} />
             <Tarjeta valor={racksSinEmpezar ?? '—'} etiqueta="racks sin empezar" />
+            <Tarjeta valor={movimientosARevisar?.length ?? '—'} etiqueta="a revisar" color={movimientosARevisar?.length ? 'aprobacion' : undefined} />
           </div>
         </section>
 
@@ -750,6 +778,34 @@ export default function PanelMigracion({ sesion, onCerrar }) {
               />
             </div>
           </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* 4) REVISIÓN -- movimientos que un cambio manual en el mapa marcó  */}
+        {/* "a_revisar" (ver ConfirmarConflictoMigracion.jsx, ADR-019). No se */}
+        {/* les vuelve a pedir a los trabajadores de piso hasta que alguien  */}
+        {/* acá decida "restaurar" o "descartar".                           */}
+        {/* ---------------------------------------------------------------- */}
+        <section>
+          <h3 style={{ fontSize: 12.5, textTransform: 'uppercase', letterSpacing: '.3px', color: 'var(--texto-tenue)', margin: '0 0 8px' }}>Movimientos a revisar</h3>
+          <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 8 }}>
+            Alguien movió uno de estos artículos a mano en el mapa mientras todavía tenían un movimiento de migración pendiente hacia otro rack -- se sacaron de la planificación automática de Despacho hasta que se resuelvan acá.
+          </p>
+          <Lista
+            items={movimientosARevisar}
+            vacio="Nada a revisar ahora mismo."
+            render={m => (
+              <Fila
+                key={m.id}
+                titulo={`${m.articulo} → ${m.mzPasillo}-C${String(m.mzColumna).padStart(3, '0')}`}
+                subtitulo={`${m.motivo ?? 'Sin motivo registrado'} -- marcado por ${nombreDe(usuarios, m.marcadoPor)}, ${m.marcadoEn ? new Date(m.marcadoEn).toLocaleString() : '—'}`}
+                acciones={<>
+                  <button className="btn-success" disabled={procesando === m.id} onClick={() => restaurarRevision(m.id)} style={{ fontSize: 12 }}>Restaurar a pendiente</button>
+                  <button className="btn-danger" disabled={procesando === m.id} onClick={() => descartarRevision(m.id)} style={{ fontSize: 12 }}>Descartar</button>
+                </>}
+              />
+            )}
+          />
         </section>
       </div>
     </ModalBase>
