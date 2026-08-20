@@ -443,6 +443,28 @@ No se implementa ninguna de las tres sin decisión explícita del usuario/negoci
 
 `clasificarDificultad(libera, nivelesPropios)` usa umbrales como datos (`UMBRAL_DIFICULTAD`, Ley 8): fácil ≤1/≤1, normal ≤3/≤3, el resto difícil.
 
-**Pendiente, no decidido todavía:** si esta clasificación se muestra en alguna pantalla (ej. como advertencia al generar una orden en `PanelDespacho.jsx`) -- hoy solo existe como función exportada, sin UI que la consuma.
+**Resuelto (ver ADR-022):** la clasificación ya se muestra en `PanelDespacho.jsx` como advertencia al generar una orden.
 
 **Verificación:** 484 tests (11 nuevos: 4 de `clasificarDificultad`, 3 de `calcularDificultadPorRack`, 4 reescritos por el cambio de prioridad), build limpio. Sin commitear -- pendiente de confirmación explícita de David.
+
+## ADR-022 — Fluidez de interacción: dificultad visible en Despacho + detalles post-acción en Migración/Despacho
+
+**Fecha:** 2026-08-20
+
+**Contexto:** pedido explícito de David tras cerrar ADR-021 -- (1) mostrar la clasificación de dificultad en alguna pantalla real (quedó pendiente en ADR-021), y (2) "mejorar la fluidez de la interacción... los detalles post-acción" en los flujos de Despacho/Migración de esta sesión. Una auditoría de UX (agente dedicado, solo lectura) encontró 6 huecos reales, todos de bajo riesgo -- reusan patrones ya probados en otra parte de la misma app, ninguno inventa timings nuevos (`ui/motion/tokens.js`, MASTER-PROMPT.md sección 7).
+
+**1) Dificultad visible en Despacho.** `despachoService.generarLote()` agrega una línea nueva a `advertencias` ("Dificultad de los racks de esta oleada: N dificil, M normal, K facil.") -- reusa el campo `dificultad` que `planificarSecuencia()` ya calculaba por oleada desde ADR-021, nunca se recalcula.
+
+**2) `ModalBase.jsx` (compartido por ~9 modales) ahora anima su ENTRADA** -- overlay con fade de opacidad + card con `entradaProtagonista()`. Deliberadamente NO se animó la salida: cada uno de los 9 llamadores monta/desmonta este componente con su propio `{mostrar && <ModalBase>}`, y animar la salida bien requeriría envolver los 9 en `AnimatePresence` -- fuera de alcance de este pase puntual. La entrada sola ya resuelve el "aparece de golpe" que reportaba la auditoría.
+
+**3) Botones de acción rápida en `PanelMigracion.jsx`** (Aprobar/Rechazar/Eliminar/Restaurar a pendiente/Descartar) ahora cambian de texto mientras esperan (`"Aprobando…"` etc.) -- mismo patrón que ya usaban `PanelDespacho.jsx`/`ChecklistTrabajador.jsx`, solo faltaba acá.
+
+**4) `Tarjeta` (los KPI del resumen de Migración) reusa `KpiValor`** -- pulso de escala + transición de color al cambiar (`useDestacarAlCambiar`, ya usado en `Productividad.jsx`/`ResumenOcupacion.jsx`). Como algunos valores son strings ya formateados ("42%", "0/3", no números crudos), se pasa `formatear={v => v}` (identidad) en vez del default (`Math.round`) -- `useCountUp` ya no-opea sola con valores no numéricos, así que no rompe nada, solo no anima el conteo en esos casos.
+
+**5) `Fila`/`Lista` en `PanelMigracion.jsx` ahora animan layout + entrada/salida** -- `motion.li` con `layout` + `transicionLayout()` (ya existía en `variants.js`, pensada justo para este caso) envuelto en `AnimatePresence`. Antes, resolver un ítem (aprobar/rechazar/restaurar/descartar) lo hacía desaparecer de un salto y reordenaba el resto sin transición.
+
+**6) `PanelDespacho.jsx`**: el bloque de advertencias y el swap "sin lote"/"con lote" ahora entran con `entradaConStagger()` -- antes aparecían de golpe tras generar una orden.
+
+**Descartado a propósito:** loading visible en "Confirmar igual" de `ConfirmarConflictoMigracion.jsx` -- el modal se cierra sincrónicamente antes de esperar nada, así que agregar ese estado exigiría reestructurar el flujo (mantener el modal abierto hasta resolver) por un beneficio menor. Se documenta la decisión, no se implementa.
+
+**Verificación:** 484 tests, build limpio, y las piezas de mayor riesgo (`ModalBase` por su alcance de 9 modales, `Fila`/`Lista` por ser `AnimatePresence` nuevo) verificadas en navegador real con datos simulados (Playwright, ruta de debug temporal revertida después) -- capturada la animación de salida A MITAD de camino para confirmar que corre de verdad, no solo que no rompe. Sin commitear -- pendiente de confirmación explícita de David.

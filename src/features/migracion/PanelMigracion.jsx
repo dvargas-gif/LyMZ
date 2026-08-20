@@ -18,6 +18,10 @@ import { detectarPosicionesLibresDeIdentidad, agruparPosicionesLibresPorCuerpo }
 import { exportarExcel } from '../../shared/utils/exportExcel.js';
 import ModalBase from '../../shared/components/ModalBase.jsx';
 import PanelCargando from '../../shared/components/PanelCargando.jsx';
+import KpiValor from '../../ui/motion/KpiValor.jsx';
+import { motion, AnimatePresence } from 'framer-motion';
+import { transicionLayout } from '../../ui/motion/variants.js';
+import { useReducedMotion } from '../../ui/motion/prefersReducedMotion.js';
 const ReporteMzImprimible = lazy(() => import('../mapa/ReporteMzImprimible.jsx'));
 
 const ESTADOS_ACTIVOS = new Set(['vaciando', 'recolectando']);
@@ -35,32 +39,44 @@ const COLOR_ESTADO = {
   ciclo: { fondo: 'var(--amarillo-tenue, #FDF3D8)', borde: '#D9A72C', texto: '#8A6412' },
 };
 
+/** `valor` puede ser un número, un string ya formateado ("42%", "0/3") o '—' (sin dato) -- `formatear` identidad (nunca Math.round, el default de KpiValor) para no romper los que no son números crudos. El pulso al cambiar (useDestacarAlCambiar) funciona igual para cualquiera de los 3 -- pedido explícito 2026-08-20: que estos números no cambien "mudos" después de aprobar/rechazar/eliminar/etc. */
 function Tarjeta({ valor, etiqueta, color }) {
   const c = COLOR_ESTADO[color];
   return (
     <div style={{ padding: '8px 14px', borderRadius: 10, border: `1px solid ${c?.borde ?? 'var(--borde-claro)'}`, background: c?.fondo ?? 'transparent', minWidth: 92 }}>
-      <div style={{ fontSize: 19, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: c?.texto ?? 'inherit', lineHeight: 1.2 }}>{valor}</div>
+      <div style={{ fontSize: 19, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: c?.texto ?? 'inherit', lineHeight: 1.2 }}>
+        <KpiValor valor={valor} formatear={v => v} />
+      </div>
       <div style={{ fontSize: 10.5, color: 'var(--texto-tenue)' }}>{etiqueta}</div>
     </div>
   );
 }
 
+/** `layout` + fade in/out (pedido explícito 2026-08-20) -- antes, resolver un ítem (aprobar/rechazar/eliminar/restaurar/descartar) lo hacía desaparecer de un salto y reordenaba el resto de la lista sin transición. `transicionLayout()` ya existe en variants.js justo para este caso (FLIP en listas que reordenan). */
 function Fila({ titulo, subtitulo, acciones }) {
+  const reducido = useReducedMotion();
   return (
-    <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--borde-claro)' }}>
+    <motion.li
+      layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transicionLayout(reducido)}
+      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--borde-claro)' }}
+    >
       <div>
         <div style={{ fontWeight: 700, fontSize: 13.5 }}>{titulo}</div>
         <div style={{ fontSize: 11, color: 'var(--texto-tenue)' }}>{subtitulo}</div>
       </div>
       {acciones && <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{acciones}</div>}
-    </li>
+    </motion.li>
   );
 }
 
 function Lista({ items, vacio, render }) {
   if (items === null) return <PanelCargando lineas={2} />;
   if (items.length === 0) return <p style={{ fontSize: 12.5, color: 'var(--texto-tenue)' }}>{vacio}</p>;
-  return <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>{items.map(render)}</ul>;
+  return (
+    <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <AnimatePresence>{items.map(render)}</AnimatePresence>
+    </ul>
+  );
 }
 
 /**
@@ -753,7 +769,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
                     key={s.id}
                     titulo={`${rackDe(s)} -- ${s.estado === 'vaciando' ? 'Vaciando' : 'Recolectando'}`}
                     subtitulo={`Iniciado por ${nombreDe(usuarios, s.iniciadoPor)}, ${new Date(s.iniciadoEn).toLocaleString()}`}
-                    acciones={<button className="btn-danger" disabled={procesando === s.id} onClick={() => eliminar(s)} style={{ fontSize: 12 }}>Eliminar</button>}
+                    acciones={<button className="btn-danger" disabled={procesando === s.id} onClick={() => eliminar(s)} style={{ fontSize: 12 }}>{procesando === s.id ? 'Eliminando…' : 'Eliminar'}</button>}
                   />
                 )}
               />
@@ -770,8 +786,8 @@ export default function PanelMigracion({ sesion, onCerrar }) {
                     titulo={rackDe(s)}
                     subtitulo={`Solicitado por ${nombreDe(usuarios, s.iniciadoPor)}, ${new Date(s.iniciadoEn).toLocaleString()}`}
                     acciones={<>
-                      <button className="btn-success" disabled={procesando === s.id} onClick={() => aprobar(s.id)} style={{ fontSize: 12 }}>Aprobar</button>
-                      <button className="btn-danger" disabled={procesando === s.id} onClick={() => rechazar(s.id)} style={{ fontSize: 12 }}>Rechazar</button>
+                      <button className="btn-success" disabled={procesando === s.id} onClick={() => aprobar(s.id)} style={{ fontSize: 12 }}>{procesando === s.id ? 'Aprobando…' : 'Aprobar'}</button>
+                      <button className="btn-danger" disabled={procesando === s.id} onClick={() => rechazar(s.id)} style={{ fontSize: 12 }}>{procesando === s.id ? 'Rechazando…' : 'Rechazar'}</button>
                     </>}
                   />
                 )}
@@ -800,8 +816,8 @@ export default function PanelMigracion({ sesion, onCerrar }) {
                 titulo={`${m.articulo} → ${m.mzPasillo}-C${String(m.mzColumna).padStart(3, '0')}`}
                 subtitulo={`${m.motivo ?? 'Sin motivo registrado'} -- marcado por ${nombreDe(usuarios, m.marcadoPor)}, ${m.marcadoEn ? new Date(m.marcadoEn).toLocaleString() : '—'}`}
                 acciones={<>
-                  <button className="btn-success" disabled={procesando === m.id} onClick={() => restaurarRevision(m.id)} style={{ fontSize: 12 }}>Restaurar a pendiente</button>
-                  <button className="btn-danger" disabled={procesando === m.id} onClick={() => descartarRevision(m.id)} style={{ fontSize: 12 }}>Descartar</button>
+                  <button className="btn-success" disabled={procesando === m.id} onClick={() => restaurarRevision(m.id)} style={{ fontSize: 12 }}>{procesando === m.id ? 'Restaurando…' : 'Restaurar a pendiente'}</button>
+                  <button className="btn-danger" disabled={procesando === m.id} onClick={() => descartarRevision(m.id)} style={{ fontSize: 12 }}>{procesando === m.id ? 'Descartando…' : 'Descartar'}</button>
                 </>}
               />
             )}

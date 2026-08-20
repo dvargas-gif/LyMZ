@@ -136,9 +136,20 @@ export const despachoService = {
     // entre "cupo de equipos concurrentes lleno" (capacidadMax, atado a
     // capacidad física de carritos) y "el rack no tenía tarea real" -- son
     // causas distintas y requieren decisiones distintas del usuario.
+    // Dificultad de la oleada elegida -- pedido explícito 2026-08-20 (ADR-021):
+    // "que se sepa de antemano". `oleada[i].dificultad` ya viene calculado por
+    // planificarSecuencia (facil/normal/dificil, ver UMBRAL_DIFICULTAD) --
+    // acá solo se resume, nunca se recalcula.
+    const conteoPorDificultad = oleada.reduce((acc, r) => { acc[r.dificultad] = (acc[r.dificultad] ?? 0) + 1; return acc; }, {});
+    const resumenDificultad = ['dificil', 'normal', 'facil']
+      .filter(d => conteoPorDificultad[d] > 0)
+      .map(d => `${conteoPorDificultad[d]} ${d}`)
+      .join(', ');
+
     const advertencias = [
       ...advertenciasSecuencia,
       `Esta oleada trae ${oleada.length} rack(s) (con ${equiposActivosIniciales} equipo(s) ya activos antes de generar esta orden, cupo de equipos concurrentes de planificarSecuencia).`,
+      `Dificultad de los racks de esta oleada: ${resumenDificultad}.`,
       ...advertenciasReparto,
     ];
 

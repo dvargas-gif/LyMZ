@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { despachoService } from '../../shared/services/despacho.service.js';
 import { migracionSlotsService } from '../../shared/services/migracionSlots.service.js';
 import { migracionBufferService } from '../../shared/services/migracionBuffer.service.js';
 import { migracionAuditoriaService } from '../../shared/services/migracionAuditoria.service.js';
 import { puede } from '../auth/roles.js';
+import { entradaConStagger } from '../../ui/motion/variants.js';
+import { useReducedMotion } from '../../ui/motion/prefersReducedMotion.js';
 import PanelCargando from '../../shared/components/PanelCargando.jsx';
 import ChecklistTrabajador from './ChecklistTrabajador.jsx';
 import HojaTrabajo from './HojaTrabajo.jsx';
@@ -27,6 +30,7 @@ function rackTexto(mzPasillo, mzColumna) {
  * en ese momento, nunca con un plan cacheado.
  */
 export default function PanelDespacho({ sesion }) {
+  const reducido = useReducedMotion();
   const [lote, setLote] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -253,10 +257,13 @@ export default function PanelDespacho({ sesion }) {
       {error && <p style={{ color: 'var(--red)', fontSize: 12.5, margin: '0 0 14px' }}>{error}</p>}
 
       {advertenciasGeneracion.length > 0 && (
-        <div style={{ border: '1px solid #D9A72C', background: 'var(--amarillo-tenue, #FDF3D8)', borderRadius: 10, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: '#8A6412' }}>
+        <motion.div
+          {...entradaConStagger(0, reducido)}
+          style={{ border: '1px solid #D9A72C', background: 'var(--amarillo-tenue, #FDF3D8)', borderRadius: 10, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: '#8A6412' }}
+        >
           <b style={{ display: 'block', marginBottom: 4 }}>Por qué esta oleada trajo lo que trajo:</b>
           {advertenciasGeneracion.map((a, i) => <p key={i} style={{ margin: i === 0 ? 0 : '4px 0 0' }}>{a}</p>)}
-        </div>
+        </motion.div>
       )}
 
       {/* Diagnóstico de "equipos activos" (2026-07-23, pedido explícito:
@@ -293,7 +300,7 @@ export default function PanelDespacho({ sesion }) {
       )}
 
       {!lote && (
-        <div style={{ border: '1px solid var(--borde-claro)', borderRadius: 12, padding: 16, maxWidth: 420 }}>
+        <motion.div {...entradaConStagger(0, reducido)} style={{ border: '1px solid var(--borde-claro)', borderRadius: 12, padding: 16, maxWidth: 420 }}>
           <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }} htmlFor="ordenes-ejecucion-cantidad-operadores">
             Cantidad de operadores disponibles
           </label>
@@ -309,11 +316,11 @@ export default function PanelDespacho({ sesion }) {
           <p style={{ fontSize: 11.5, color: 'var(--texto-tenue)', marginTop: 10 }}>
             Se arma con la próxima oleada lista según el plan de migración -- si no hay ninguna, no se genera nada.
           </p>
-        </div>
+        </motion.div>
       )}
 
       {lote && (
-        <>
+        <motion.div {...entradaConStagger(0, reducido)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12.5, color: 'var(--texto-tenue)' }}>
               Orden #{lote.id} -- {lote.cantidadOperadores} operador(es) -- {totalResueltas}/{totalTareas} tarea(s) resueltas
@@ -366,7 +373,7 @@ export default function PanelDespacho({ sesion }) {
               </div>
             ))}
           </div>
-        </>
+        </motion.div>
       )}
 
       {puedeCerrarOCancelar && (
