@@ -11,6 +11,7 @@ import PanelCargando from '../../shared/components/PanelCargando.jsx';
 import ChecklistTrabajador from './ChecklistTrabajador.jsx';
 import HojaTrabajo from './HojaTrabajo.jsx';
 import HojaVerificacionCabecilla from './HojaVerificacionCabecilla.jsx';
+import AvanceOrdenVisual from './AvanceOrdenVisual.jsx';
 
 const CANTIDAD_DEFECTO = 6;
 const ESTADOS_CUENTAN_COMO_ACTIVO = new Set(['vaciando', 'recolectando']);
@@ -321,9 +322,14 @@ export default function PanelDespacho({ sesion }) {
 
       {lote && (
         <motion.div {...entradaConStagger(0, reducido)}>
+          {totalTareas > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <AvanceOrdenVisual proporcion={totalResueltas / totalTareas} etiqueta={`${totalResueltas}/${totalTareas} tarea(s) resueltas`} />
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12.5, color: 'var(--texto-tenue)' }}>
-              Orden #{lote.id} -- {lote.cantidadOperadores} operador(es) -- {totalResueltas}/{totalTareas} tarea(s) resueltas
+              Orden #{lote.id} -- {lote.cantidadOperadores} operador(es)
             </span>
             <button className="btn-secondary" onClick={() => setModalImpresion({ tipo: 'todos' })}>
               Imprimir las {lote.trabajadores.length} hoja(s) de trabajo

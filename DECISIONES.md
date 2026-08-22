@@ -445,7 +445,7 @@ No se implementa ninguna de las tres sin decisión explícita del usuario/negoci
 
 **Resuelto (ver ADR-022):** la clasificación ya se muestra en `PanelDespacho.jsx` como advertencia al generar una orden.
 
-**Verificación:** 484 tests (11 nuevos: 4 de `clasificarDificultad`, 3 de `calcularDificultadPorRack`, 4 reescritos por el cambio de prioridad), build limpio. Sin commitear -- pendiente de confirmación explícita de David.
+**Verificación:** 484 tests (11 nuevos: 4 de `clasificarDificultad`, 3 de `calcularDificultadPorRack`, 4 reescritos por el cambio de prioridad), build limpio. Commiteado en `86fa562`.
 
 ## ADR-022 — Fluidez de interacción: dificultad visible en Despacho + detalles post-acción en Migración/Despacho
 
@@ -467,4 +467,16 @@ No se implementa ninguna de las tres sin decisión explícita del usuario/negoci
 
 **Descartado a propósito:** loading visible en "Confirmar igual" de `ConfirmarConflictoMigracion.jsx` -- el modal se cierra sincrónicamente antes de esperar nada, así que agregar ese estado exigiría reestructurar el flujo (mantener el modal abierto hasta resolver) por un beneficio menor. Se documenta la decisión, no se implementa.
 
-**Verificación:** 484 tests, build limpio, y las piezas de mayor riesgo (`ModalBase` por su alcance de 9 modales, `Fila`/`Lista` por ser `AnimatePresence` nuevo) verificadas en navegador real con datos simulados (Playwright, ruta de debug temporal revertida después) -- capturada la animación de salida A MITAD de camino para confirmar que corre de verdad, no solo que no rompe. Sin commitear -- pendiente de confirmación explícita de David.
+**Verificación:** 484 tests, build limpio, y las piezas de mayor riesgo (`ModalBase` por su alcance de 9 modales, `Fila`/`Lista` por ser `AnimatePresence` nuevo) verificadas en navegador real con datos simulados (Playwright, ruta de debug temporal revertida después) -- capturada la animación de salida A MITAD de camino para confirmar que corre de verdad, no solo que no rompe. Commiteado en `1e4a2c3`.
+
+## ADR-023 — Avance de una orden de Despacho como rack esquemático (2D/CSS), no reuso del 3D del Login
+
+**Fecha:** 2026-08-21
+
+**Contexto:** David pidió un indicador visual de avance al generar/cerrar una orden de Despacho, "tipo si se vaciara o se llenara un rack como la animación 3d del inicio del front". Investigación previa (agente dedicado) confirmó que `Rack3DEscena.jsx`/`RackModel.js` (la escena del Login) es Three.js puro reusable en cámara/luces/drag/zoom/resize, pero `crearMercaderia()` -- la parte que dibuja mercadería dentro del rack -- es 100% decorativa y hardcodeada, sin ningún concepto de nivel de llenado: reusar la escena real habría significado reescribir esa pieza entera, no enchufar un prop nuevo. Presentado ese costo real, David eligió explícitamente la versión simple: "Mejor la versión simple (2D/CSS) por ahora".
+
+**Diseño:** `src/features/despacho/AvanceOrdenVisual.jsx` -- un rack esquemático de 5 niveles (el número real de niveles de un rack en toda la app) en CSS puro, sin Three.js. Cada nivel es una barra independiente que se llena de abajo hacia arriba según `proporcion` (0-1, agnóstico de qué representa -- hoy `tareasResueltas/tareasTotales` del lote activo), animada con `motion.div` + `DURACION.estado`/`EASING.cambio` de `ui/motion/tokens.js` (sin timings nuevos). Al lado, el porcentaje numérico y una etiqueta opcional. Se anima nivel por nivel (no una sola barra continua) para que se lea como "el rack se llena", no como una barra de progreso genérica.
+
+**Ubicación:** `PanelDespacho.jsx`, arriba de la línea "Orden #N -- K operador(es)", visible solo cuando hay un lote activo con `totalTareas > 0`. Se quitó el texto redundante "{resueltas}/{total} tarea(s) resueltas" del `<span>` adyacente porque ahora lo cubre la `etiqueta` del componente nuevo.
+
+**Verificación:** 484 tests, build limpio, y verificado en navegador real (Playwright + ruta de debug temporal con `despachoService.obtenerLoteActivo()`/`migracionSlotsService.listar()` mockeados, 3 trabajadores/12 tareas/6 confirmadas = 50%, revertida después) -- captura muestra 2 niveles llenos completos + 1 a la mitad exacta, sin errores de consola. Sin commitear -- pendiente de confirmación explícita de David.

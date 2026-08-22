@@ -2,6 +2,7 @@ import { useState } from 'react';
 import PanelImportIdentidadLegacy from './PanelImportIdentidadLegacy.jsx';
 import PanelImportInventarioRcl from './PanelImportInventarioRcl.jsx';
 import PanelImportArticuloDimensiones from './PanelImportArticuloDimensiones.jsx';
+import PanelImportZonasPick from './PanelImportZonasPick.jsx';
 import PanelCargaMasiva from '../cargaMasiva/PanelCargaMasiva.jsx';
 
 /**
@@ -22,6 +23,7 @@ const PESTANAS = [
   { id: 'identidad', icon: 'ti-replace', label: 'Identidad RCL↔MZ', Componente: PanelImportIdentidadLegacy },
   { id: 'inventario', icon: 'ti-package', label: 'Inventario RCL', Componente: PanelImportInventarioRcl },
   { id: 'dimensiones', icon: 'ti-ruler-2', label: 'Dimensiones', Componente: PanelImportArticuloDimensiones },
+  { id: 'zonas-pick', icon: 'ti-target-arrow', label: 'Zonas de pick', Componente: PanelImportZonasPick },
   { id: 'carga-masiva', icon: 'ti-upload', label: 'Carga masiva de posiciones', Componente: PanelCargaMasiva },
 ];
 
