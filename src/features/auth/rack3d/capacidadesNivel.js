@@ -11,10 +11,10 @@ export const CAPACIDADES_NIVEL = [
     texto: 'Cada slot migrado se confirma por un rol distinto al del operador que ejecutó, con historial completo consultable. Trazabilidad legal, no solo operativa.',
   },
   {
-    corto: 'Buffer',
-    titulo: 'Buffer inteligente',
+    corto: 'Carrito',
+    titulo: 'Carrito de traslado inteligente',
     icono: 'ti-hourglass-low',
-    texto: 'Espacio transitorio con reglas automáticas -- si un operador acumula demasiado material sin ubicar, el sistema le bloquea nuevas tareas hasta que resuelva. Control remoto sin necesidad de estar en el piso.',
+    texto: 'Traslado directo con reglas automáticas -- solo acepta artículos que de verdad forman parte del plan, y si un operador acumula demasiado material sin ubicar, el sistema le bloquea nuevas tareas hasta que resuelva. Control remoto sin necesidad de estar en el piso.',
   },
   {
     corto: 'Migración',

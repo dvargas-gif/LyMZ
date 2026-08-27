@@ -1052,7 +1052,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     try {
       const bufferDelSlot = await migracionBufferService.listarPorSlot(slot.id);
       const mensaje = bufferDelSlot.length > 0
-        ? `Vas a sacar ${bufferDelSlot.length} artículo(s) que ya moviste al buffer para este slot. ¿Confirmás cancelar el traslado?`
+        ? `Vas a sacar ${bufferDelSlot.length} artículo(s) que ya moviste al carrito de traslado para este slot. ¿Confirmás cancelar el traslado?`
         : '¿Cancelar este traslado?';
       if (!confirm(mensaje)) return;
       await migracionBufferService.eliminarPorSlot(slot.id);

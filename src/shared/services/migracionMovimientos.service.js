@@ -358,7 +358,7 @@ export const migracionMovimientosService = {
 
     const motivos = [];
     if ((slots.count ?? 0) > 0) motivos.push(`${slots.count} rack(s) con algún progreso`);
-    if ((buffer.count ?? 0) > 0) motivos.push(`${buffer.count} artículo(s) en el buffer`);
+    if ((buffer.count ?? 0) > 0) motivos.push(`${buffer.count} artículo(s) en el carrito de traslado`);
     if ((recolectados.count ?? 0) > 0) motivos.push(`${recolectados.count} artículo(s) ya recolectado(s)`);
     if (motivos.length > 0) {
       throw new Error(`No se puede reiniciar -- ya hay trabajo real en curso: ${motivos.join(', ')}.`);

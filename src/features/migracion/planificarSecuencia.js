@@ -349,7 +349,7 @@ export function planificarSecuencia(movimientosPendientes, identidadLegacy, slot
   }
 
   if (totalRompeCiclo > 0) {
-    advertencias.unshift(`${totalRompeCiclo} de ${oleadas.flat().length} rack(s) sugeridos forman parte de bloques de racks interdependientes (marcados abajo) -- van a necesitar mantener su contenido en el buffer más tiempo del normal.`);
+    advertencias.unshift(`${totalRompeCiclo} de ${oleadas.flat().length} rack(s) sugeridos forman parte de bloques de racks interdependientes (marcados abajo) -- van a necesitar mantener su contenido en el carrito de traslado más tiempo del normal.`);
   }
 
   return { oleadas, equiposActivosIniciales, advertencias };

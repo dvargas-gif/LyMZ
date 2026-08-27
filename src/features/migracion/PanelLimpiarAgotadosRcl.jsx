@@ -100,7 +100,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion }) {
   async function confirmarEliminacion() {
     if (totalSeleccionado === 0) return;
     if (!detalleMotivo.trim()) { setError('Escribí un motivo -- queda en la auditoría de cada artículo.'); return; }
-    if (!confirm(`Vas a marcar ${totalSeleccionado} artículo(s) como exiliados (${mapaSeleccionado.length} del mapa, ${bufferSeleccionado.length} del buffer). Esto no tiene un "deshacer" con un solo click. ¿Confirmás?`)) return;
+    if (!confirm(`Vas a marcar ${totalSeleccionado} artículo(s) como exiliados (${mapaSeleccionado.length} del mapa, ${bufferSeleccionado.length} del carrito de traslado). Esto no tiene un "deshacer" con un solo click. ¿Confirmás?`)) return;
 
     setAplicando(true);
     setError('');
@@ -122,7 +122,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion }) {
         ...bufferSeleccionado.map(f => auditService.registrar({
           usuarioId: sesion.usuarioId, usuarioNombre: sesion.nombre, ip: sesion.ip,
           accion: ACCIONES.ADMIN, articulo: f.articulo,
-          observaciones: `Exiliado (purgado del buffer) -- ${detalleMotivo.trim()} (origen ${f.origenRclCodigo}-${f.origenNivel})`,
+          observaciones: `Exiliado (purgado del carrito de traslado) -- ${detalleMotivo.trim()} (origen ${f.origenRclCodigo}-${f.origenNivel})`,
         })),
       ]);
 
@@ -142,7 +142,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion }) {
       'Mapa', f.articulo, `${f.pasillo}-C${String(f.columna).padStart(3, '0')}-${f.nivel}`,
       `${f.rclCodigo}-N${String(f.rclNivel).padStart(2, '0')}-${f.rclSubnivel}`, motivo.trim(),
     ]));
-    bufferSeleccionado.forEach(f => filas.push(['Buffer', f.articulo, '—', `${f.origenRclCodigo}-${f.origenNivel}`, motivo.trim()]));
+    bufferSeleccionado.forEach(f => filas.push(['Carrito de traslado', f.articulo, '—', `${f.origenRclCodigo}-${f.origenNivel}`, motivo.trim()]));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filas), 'Exiliados');
     XLSX.writeFile(wb, 'Reporte_articulos_exiliados_rcl.xlsx');
@@ -155,7 +155,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion }) {
   return (
     <div>
       <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
-        Cruza el mapa MZ real Y el buffer de migración contra el inventario RCL importado más reciente: un artículo
+        Cruza el mapa MZ real Y el carrito de traslado contra el inventario RCL importado más reciente: un artículo
         cuyo origen RCL ya no tiene stock real hoy se OFRECE como candidato a <b>exiliado</b> -- sacado del mezanine
         para liberar espacio. Nada se aplica solo: revisá la lista, destildá lo que querés dejar, y confirmá.
       </p>
@@ -177,7 +177,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion }) {
         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5, flexWrap: 'wrap' }}>
             <span>⚠ Sin stock real -- mapa: <b style={{ color: previa.agotadosMapa.length ? 'var(--red)' : 'inherit' }}>{previa.agotadosMapa.length}</b></span>
-            <span>⚠ Sin stock real -- buffer: <b style={{ color: previa.agotadosBuffer.length ? 'var(--red)' : 'inherit' }}>{previa.agotadosBuffer.length}</b></span>
+            <span>⚠ Sin stock real -- carrito de traslado: <b style={{ color: previa.agotadosBuffer.length ? 'var(--red)' : 'inherit' }}>{previa.agotadosBuffer.length}</b></span>
             <span style={{ color: 'var(--texto-tenue)' }}>{previa.sinOrigenRcl.length} artículo(s) del mapa sin origen RCL registrado -- no se tocan</span>
           </div>
 
@@ -195,7 +195,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion }) {
                 <TablaMapa titulo={`Del mapa (${previa.agotadosMapa.length})`} filas={previa.agotadosMapa} soloLectura />
               )}
               {previa.agotadosBuffer.length > 0 && (
-                <TablaBuffer titulo={`Del buffer (${previa.agotadosBuffer.length})`} filas={previa.agotadosBuffer} soloLectura />
+                <TablaBuffer titulo={`Del carrito de traslado (${previa.agotadosBuffer.length})`} filas={previa.agotadosBuffer} soloLectura />
               )}
               <button className="btn-secondary" onClick={reiniciar} style={{ marginTop: 4 }}>Salir</button>
             </>
@@ -229,7 +229,7 @@ export default function PanelLimpiarAgotadosRcl({ sesion }) {
                 <TablaMapa titulo={`Del mapa (${previa.agotadosMapa.length})`} filas={previa.agotadosMapa} seleccionados={seleccionados} onToggle={toggleSeleccion} />
               )}
               {previa.agotadosBuffer.length > 0 && (
-                <TablaBuffer titulo={`Del buffer (${previa.agotadosBuffer.length})`} filas={previa.agotadosBuffer} seleccionados={seleccionados} onToggle={toggleSeleccion} />
+                <TablaBuffer titulo={`Del carrito de traslado (${previa.agotadosBuffer.length})`} filas={previa.agotadosBuffer} seleccionados={seleccionados} onToggle={toggleSeleccion} />
               )}
             </>
           )}
