@@ -8,6 +8,15 @@
    sientan como iOS, no lineales. */
 :root {
   --ease-ios: cubic-bezier(.32, .72, 0, 1);
+  /* Pedido explícito 2026-08-26: el panel de detalle debe sentirse "como
+     las animaciones de las Mac" (genio/dock) -- distinto a propósito de
+     --ease-ios (esa es la curva "sin rebote" que el resto del canvas usa a
+     propósito). Un genio real (deformar el rectángulo en un embudo hacia un
+     punto) ya se descartó antes por costoso para una pestaña chica (ver
+     comentario en .mapa-pestana más abajo) -- acá se aproxima el mismo
+     espíritu con una curva "back-out" (overshoot leve y asienta) en vez de
+     warping real, solo para .mapa-panel. */
+  --ease-mac: cubic-bezier(.34, 1.56, .64, 1);
 }
 
 .mapa-pestana__cerrar {
@@ -17,6 +26,25 @@
   background: rgba(0, 0, 0, .08);
   opacity: 1;
 }
+
+/* Rieles laterales -- marco del mueble (2026-08-26, pedido explícito: "que
+   la ventana se vea como un rack"). Dos barras verticales flanqueando la
+   pila de niveles, como los parantes de un rack real. */
+.mapa-panel-rack {
+  position: relative;
+}
+.mapa-panel-rack::before,
+.mapa-panel-rack::after {
+  content: '';
+  position: absolute;
+  top: 4px; bottom: 20px;
+  width: 8px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #9C9184, #827E76);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
+}
+.mapa-panel-rack::before { left: 6px; }
+.mapa-panel-rack::after { right: 6px; }
 
 .mapa-panel-nivel {
   transition: transform .15s var(--ease-ios), box-shadow .15s var(--ease-ios), border-color .15s var(--ease-ios);
@@ -36,19 +64,31 @@
    anima (a diferencia de un mount/unmount instantáneo de React). */
 .mapa-panel {
   transform-origin: top center;
-  transition: opacity .32s var(--ease-ios), transform .32s var(--ease-ios), max-height .32s var(--ease-ios);
-  animation: mapa-panel-entrada .32s var(--ease-ios); /* corre UNA vez al montar -- la transition de arriba maneja los cambios de estado después */
+  /* opacity con --ease-ios (parejo) a propósito -- --ease-mac tiene overshoot
+     (rebota pasado el 100%), perfecto para transform/escala pero arruina un
+     fade: la opacidad "llega" antes de que termine el tiempo nominal y el
+     panel se ve desaparecer de golpe en vez de desvanecerse. */
+  transition: opacity .3s var(--ease-ios), transform .38s var(--ease-mac), max-height .38s var(--ease-mac);
+  /* Dos animaciones separadas (no una) -- misma razón que la transition de
+     arriba: la opacidad necesita su propia curva pareja, el rebote es solo
+     para el tamaño/posición. Corren UNA vez al montar -- la transition de
+     arriba maneja los cambios de estado después. */
+  animation: mapa-panel-entrada-opacidad .3s var(--ease-ios), mapa-panel-entrada-transform .38s var(--ease-mac);
   opacity: 1;
   transform: scale(1) translateY(0);
   max-height: 900px;
 }
-@keyframes mapa-panel-entrada {
-  from { opacity: 0; transform: scale(.94) translateY(-10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+@keyframes mapa-panel-entrada-opacidad {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes mapa-panel-entrada-transform {
+  from { transform: scale(.8) translateY(-16px); }
+  to { transform: scale(1) translateY(0); }
 }
 .mapa-panel--oculto {
   opacity: 0;
-  transform: scale(.96) translateY(-8px);
+  transform: scale(.82) translateY(-14px);
   max-height: 0;
   overflow: hidden;
   pointer-events: none;
@@ -122,6 +162,25 @@
 .mapa-toolbar__buscar input::placeholder { color: #B9B3A8; }
 .mapa-toolbar__buscar--activo { background: rgba(255,255,255,.06); }
 .mapa-toolbar__buscar--activo input { width: 170px; }
+.mapa-toolbar__sugerencias {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 260px; max-width: 340px;
+  max-height: 280px; overflow-y: auto; list-style: none; margin: 0; padding: 4px;
+  background: rgba(27,31,32,.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #4A4038; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  animation: mapa-pestana-entrada .18s var(--ease-ios);
+}
+.mapa-toolbar__sugerencia {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 6px 8px; border-radius: 6px; border: none; background: transparent; color: #F2EDE4;
+  font-size: 12px; font-family: inherit; cursor: pointer; transition: background .12s var(--ease-ios);
+}
+.mapa-toolbar__sugerencia:hover { background: rgba(255,255,255,.08); }
+.mapa-toolbar__sugerencia-tipo {
+  flex-shrink: 0; font-size: 9.5px; font-weight: 700; letter-spacing: .3px; padding: 2px 6px; border-radius: 999px;
+  background: rgba(255,255,255,.1); color: #B9B3A8;
+}
+.mapa-toolbar__sugerencia--rcl .mapa-toolbar__sugerencia-tipo { background: rgba(224,162,61,.22); color: #E0A23D; }
+.mapa-toolbar__sugerencia--mz .mapa-toolbar__sugerencia-tipo { background: rgba(63,167,172,.22); color: #6FC4C9; }
 .mapa-toolbar__resultado {
   font-size: 11px; padding: 4px 10px; border-radius: 999px; background: rgba(27,31,32,.82);
   backdrop-filter: blur(12px); border: 1px solid #4A4038; width: fit-content; max-width: 260px;
@@ -202,6 +261,16 @@
   background: rgba(27, 31, 32, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border: 1px solid #4A4038; color: #F2EDE4; font-size: 12px;
   animation: mapa-pestana-entrada .22s var(--ease-ios);
+}
+.mapa-movebar__destino-planeado {
+  padding: 3px 10px; border-radius: 999px; background: rgba(58, 99, 88, .55); border: 1px solid #3A6358;
+  font-weight: 600; font-size: 11.5px;
+}
+/* Neutro a propósito (gris, no verde/amber) -- no es un dato ni una alerta,
+   es la ausencia explícita de uno (2026-08-26, ver BarraMovimiento.jsx). */
+.mapa-movebar__sin-plan {
+  padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, .06); border: 1px solid #4A4038;
+  color: #B9B3A8; font-weight: 600; font-size: 11.5px;
 }
 .mapa-movebar__niveles { display: flex; gap: 4px; flex-wrap: wrap; }
 .mapa-movebar__nivel {

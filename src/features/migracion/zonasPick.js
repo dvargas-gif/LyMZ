@@ -53,6 +53,16 @@ function valorCantidadPorPrefijo(raw, prefijoSinTildes) {
 }
 
 /**
+ * Ubicación RCL asignada como cara de pick (2026-08-24) -- puede no tener
+ * stock real HOY (la reposición eventualmente lo lleva ahí), así que se
+ * guarda tal cual venga, informativa, nunca bloquea la fila si falta.
+ */
+function valorUbicacion(raw) {
+  const clave = Object.keys(raw).find(k => sinTildes(k.trim().toUpperCase()).startsWith('UBICACION'));
+  return clave !== undefined ? String(raw[clave] ?? '').trim() : '';
+}
+
+/**
  * @param {number} fila -- número de fila tal como lo vería el usuario en Excel (fila 2 = primera fila de datos).
  * @param {object} raw -- fila cruda del sheet.
  */
@@ -85,7 +95,9 @@ export function parsearFilaZonaPick(fila, raw) {
     return { ...base, valido: false, motivo: `La Cantidad Máxima (${cantidadMaxima}) debe ser mayor que la Cantidad Mínima (${cantidadMinima})` };
   }
 
-  return { ...base, valido: true, motivo: '', cantidadMinima, cantidadMaxima };
+  const ubicacionRcl = valorUbicacion(raw) || null;
+
+  return { ...base, valido: true, motivo: '', cantidadMinima, cantidadMaxima, ubicacionRcl };
 }
 
 export function parsearFilasZonaPick(rawRows) {

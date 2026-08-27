@@ -13,6 +13,7 @@ import PanelDetalle from './PanelDetalle.jsx';
 import MapaToolbar from './MapaToolbar.jsx';
 import BarraMovimiento from './BarraMovimiento.jsx';
 import ConfirmarConflictoMigracion from './ConfirmarConflictoMigracion.jsx';
+import PanelBitacoraMigracion from './PanelBitacoraMigracion.jsx';
 import { posicionesService } from '../../../shared/services/posiciones.service.js';
 import { escenarioPosicionesService } from '../../salas/escenarioPosiciones.service.js';
 import { bloqueosService } from '../../../shared/services/bloqueos.service.js';
@@ -23,9 +24,14 @@ import { migracionSlotsService } from '../../../shared/services/migracionSlots.s
 import { migracionBufferService } from '../../../shared/services/migracionBuffer.service.js';
 import { migracionMovimientosService } from '../../../shared/services/migracionMovimientos.service.js';
 import { migracionAuditoriaService } from '../../../shared/services/migracionAuditoria.service.js';
+import { migracionRealtimeService } from '../../../shared/services/migracionRealtime.service.js';
 import { identidadLegacyService } from '../../../shared/services/identidadLegacy.service.js';
 import { inventarioRclService } from '../../../shared/services/inventarioRcl.service.js';
+import { inventarioService } from '../../../shared/services/inventario.service.js';
+import { zonasPickService } from '../../../shared/services/zonasPick.service.js';
 import { construirVistaRcl } from '../../migracion/vistaRcl.js';
+import { detectarArticulosSinHogar } from '../../migracion/articulosSinHogar.js';
+import { buscarSugerencias } from './buscarSugerencias.js';
 import { puedeDevolverDelBuffer } from '../../migracion/flujoMigracionSlot.js';
 import { evaluarListoParaIniciar } from '../../migracion/planificarSecuencia.js';
 import { detectarDestinosListos, ESTADOS_LISTO_PARA_RECIBIR } from '../../migracion/alertasBuffer.js';
@@ -73,6 +79,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [tamano, setTamano] = useState({ ancho: 800, alto: 600 });
   const [busqueda, setBusqueda] = useState('');
   const [resultadoBusqueda, setResultadoBusqueda] = useState(null);
+  const [sugerencias, setSugerencias] = useState([]); // resultados de buscarSugerencias() mientras se escribe -- ver buscarArticulo/seleccionarSugerencia
   const [celdaResaltada, setCeldaResaltada] = useState(null); // clave "pasillo|columna" con flash momentáneo (ver buscarArticulo)
   const [cambios, setCambios] = useState([]); // pila de LOTES {entradas, articuloEtiqueta, desde, hacia, tipoMovimiento, timestamp} -- alimenta Deshacer, Exportar Y la Terminal de cambios, misma fuente para que no puedan desincronizarse
   const [modoEdicion, setModoEdicion] = useState(false); // arrastrar para mover un cuerpo completo (mismo nombre que "Modo edición" del mapa legacy)
@@ -93,6 +100,19 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [vistaContenido, setVistaContenido] = useState('mz'); // 'mz' | 'rcl' -- F4, toggle de CONTENIDO (no solo etiqueta, ver DECISIONES.md)
   const [identidadLegacy, setIdentidadLegacy] = useState([]);
   const [inventarioRcl, setInventarioRcl] = useState([]);
+  const [bitacoraMigracion, setBitacoraMigracion] = useState([]); // últimos eventos de migracion_auditoria, más reciente primero -- ver PanelBitacoraMigracion.jsx
+  const [bitacoraAbierta, setBitacoraAbierta] = useState(false);
+  const [zonasPick, setZonasPick] = useState([]); // ver articulosSinHogar.js
+  const [inventarioSlottingPlano, setInventarioSlottingPlano] = useState([]); // lista CRUDA de inventario_slotting (quién "tiene hogar") -- distinto de `racks` (ya agrupado), ver articulosSinHogar.js
+  const [filtroSinHogar, setFiltroSinHogar] = useState(false);
+  // `cargando` (más abajo) solo mira `racks` -- por diseño, ese es el dato
+  // rápido que ya alcanza para mostrar el mapa base. Vista RCL depende de
+  // OTRA carga aparte (identidadLegacy/inventarioRcl, ver el efecto de
+  // abajo), que llega después -- sin este estado propio, Vista RCL se ve
+  // vacía en ese hueco en vez de avisar que todavía está cargando (bug
+  // real encontrado 2026-08-26, agravado por las 2 consultas nuevas que
+  // sumé hoy al mismo lote para el filtro "Sin hogar").
+  const [cargandoMigracion, setCargandoMigracion] = useState(true);
   const stageRef = useRef(null);
   const contenedorRef = useRef(null);
   const vistaActualRef = useRef({ x: 40, y: 40, escala: 1 }); // última cámara conocida, para animar SIN depender de closures viejas de pos/escala
@@ -170,6 +190,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
 
   useEffect(() => {
     let activo = true;
+    setCargandoMigracion(!escenarioId); // arranca true en el mapa real, false en sala (esa carga nunca corre ahí)
     (async () => {
       const modelo = await obtenerWarehouseModel(escenarioId).cargar();
       if (!activo) return;
@@ -179,16 +200,38 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       setBloqueadas(new Set(modelo.bloqueos()));
       // F2/F4 -- migración RCL->MZ: SOLO mapa real (ninguna de estas tablas tiene escenario_id).
       if (!escenarioId) {
-        const [slots, identidad, inventario, buffer, movimientosDestinos] = await Promise.all([
+        // allSettled, NO all (bug real 2026-08-26): con Promise.all, si UNA
+        // sola de estas 8 consultas falla (ej. una tabla nueva sin RLS
+        // aplicado todavía en esta base puntual), el lote ENTERO se cae y
+        // nada carga -- ni siquiera lo que antes andaba bien (identidadLegacy/
+        // inventarioRcl, que Vista RCL necesita). Con allSettled, cada
+        // consulta que sí funciona se aplica igual; la que falla se loguea
+        // clara en consola en vez de tumbar a las demás en silencio.
+        const NOMBRES = ['slots de migración', 'identidad legacy', 'inventario RCL', 'buffer', 'movimientos', 'bitácora', 'zonas de pick', 'inventario slotting'];
+        const resultados = await Promise.allSettled([
           migracionSlotsService.listar(),
           identidadLegacyService.listar(),
           inventarioRclService.listar(),
           migracionBufferService.listarTodo(),
           migracionMovimientosService.listarTodos(),
+          migracionAuditoriaService.listarRecientes(50),
+          zonasPickService.listar(),
+          inventarioService.listar(),
         ]);
+        resultados.forEach((r, i) => {
+          if (r.status === 'rejected') console.error(`No se pudo cargar "${NOMBRES[i]}" para el mapa:`, r.reason);
+        });
         if (activo) {
-          setMigracionSlots(slots); setIdentidadLegacy(identidad); setInventarioRcl(inventario); setBufferGlobal(buffer);
-          setMovimientosDestinoPorId(movimientosDestinos);
+          const [slots, identidad, inventario, buffer, movimientosDestinos, bitacora, zonas, inventarioSlotting] = resultados;
+          if (slots.status === 'fulfilled') setMigracionSlots(slots.value);
+          if (identidad.status === 'fulfilled') setIdentidadLegacy(identidad.value);
+          if (inventario.status === 'fulfilled') setInventarioRcl(inventario.value);
+          if (buffer.status === 'fulfilled') setBufferGlobal(buffer.value);
+          if (movimientosDestinos.status === 'fulfilled') setMovimientosDestinoPorId(movimientosDestinos.value);
+          if (bitacora.status === 'fulfilled') setBitacoraMigracion(bitacora.value);
+          if (zonas.status === 'fulfilled') setZonasPick(zonas.value);
+          if (inventarioSlotting.status === 'fulfilled') setInventarioSlottingPlano(inventarioSlotting.value);
+          setCargandoMigracion(false);
         }
       }
     })();
@@ -196,28 +239,81 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   }, [escenarioId]);
 
   /**
-   * Corrección de fondo (2026-08-11, ver vistaRcl.js): el destino MZ de la
-   * Vista RCL ya no sale de `identidad_legacy` (foto congelada del import,
-   * desactualizada en el 88% de los casos según auditoría real) -- sale en
-   * vivo de `racks`, el mismo plan MZ vigente que ya usa el resto del mapa.
-   * Aplanado a la forma {articulo,pasillo,columna,nivel} que espera
-   * construirVistaRcl(), derivando pasillo/columna de la CLAVE del Map
-   * (mismo criterio que PanelDetalle.jsx), no de un campo redundante del rack.
+   * "Migración en vivo" (2026-08-26, pedido explícito de David: "quiero un
+   * real time de los movimientos") -- suscribe UNA sola vez por pestaña de
+   * mapa abierta (SOLO mapa real, ninguna de estas tablas tiene
+   * escenario_id) a los cambios de movimientos/slots/buffer/auditoría, y
+   * refresca el estado local correspondiente. Refetch completo por tabla
+   * (no un parche fila-por-fila) -- más simple y seguro que reconciliar a
+   * mano el shape ya normalizado de cada servicio, y estas tablas no son
+   * tan grandes como para que un refetch sea costoso. Debounce corto por
+   * tabla para no disparar N refetches cuando una operación (ej.
+   * "reemplazarPendientes") toca muchas filas de una sola vez.
    */
-  const inventarioSlottingPlano = useMemo(() => {
-    if (!racks) return [];
-    const filas = [];
-    for (const [clave, rack] of racks) {
-      const [pasillo, columna] = clave.split('|');
-      for (const nivel in rack.niveles) {
-        for (const a of rack.niveles[nivel]) filas.push({ articulo: a.articulo, pasillo, columna: Number(columna), nivel });
-      }
-    }
-    return filas;
-  }, [racks]);
+  useEffect(() => {
+    if (escenarioId) return; // ninguna de estas tablas tiene escenario_id -- solo mapa real
+    const timers = {};
+    const debounceRefetch = (clave, fn) => {
+      clearTimeout(timers[clave]);
+      timers[clave] = setTimeout(fn, 400);
+    };
+    const desuscribir = migracionRealtimeService.suscribirCambios({
+      onMovimiento: () => debounceRefetch('movimiento', async () => {
+        setMovimientosDestinoPorId(await migracionMovimientosService.listarTodos());
+      }),
+      onSlot: () => debounceRefetch('slot', async () => {
+        setMigracionSlots(await migracionSlotsService.listar());
+      }),
+      onBuffer: () => debounceRefetch('buffer', async () => {
+        setBufferGlobal(await migracionBufferService.listarTodo());
+      }),
+      onAuditoria: payload => {
+        const d = payload.new;
+        setBitacoraMigracion(actual => [{
+          id: d.id, mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna,
+          evento: d.evento, detalle: d.detalle, usuarioId: d.usuario_id, fechaHora: d.fecha_hora,
+        }, ...actual].slice(0, 50));
+      },
+    });
+    return () => { Object.values(timers).forEach(clearTimeout); desuscribir(); };
+  }, [escenarioId]);
 
-  /** Vista RCL (F4) -- misma forma que racks(), pero con el inventario actual por RCL en vez del acomodo MZ. Se recalcula solo si cambia la data cruda (identidad_legacy/inventario_rcl_actual/racks). */
-  const vistaRclRacks = useMemo(() => construirVistaRcl(identidadLegacy, inventarioRcl, inventarioSlottingPlano), [identidadLegacy, inventarioRcl, inventarioSlottingPlano]);
+  /**
+   * artículo -> destino planeado (2026-08-24, pedido explícito: al mover un
+   * artículo individual "desde la RCL", mostrar hacia dónde va según el plan
+   * real, no solo desde dónde sale). Un artículo puede tener más de un
+   * movimiento pendiente (orígenes RCL distintos, ver generarMovimientos.js)
+   * -- si hay más de uno, no se adivina cuál mostrar: se marca `ambiguo` y la
+   * barra de movimiento avisa en vez de arriesgar un destino equivocado.
+   * Definido ANTES de vistaRclRacks porque esa vista también lo necesita
+   * (2026-08-25, ver vistaRcl.js/destinoPlaneadoPorArticulo).
+   */
+  const destinoPlaneadoPorArticulo = useMemo(() => {
+    const mapa = new Map();
+    for (const m of movimientosDestinoPorId) {
+      if (!mapa.has(m.articulo)) mapa.set(m.articulo, []);
+      mapa.get(m.articulo).push({ mzPasillo: m.mzPasillo, mzColumna: m.mzColumna, mzNivel: m.mzNivel });
+    }
+    const resuelto = new Map();
+    for (const [articulo, destinos] of mapa) {
+      resuelto.set(articulo, destinos.length === 1 ? { ...destinos[0], ambiguo: false } : { ambiguo: true, cantidad: destinos.length });
+    }
+    return resuelto;
+  }, [movimientosDestinoPorId]);
+
+  /**
+   * Vista RCL (F4) -- misma forma que racks(), pero con el inventario actual
+   * por RCL en vez del acomodo MZ. Posiciona cada rack en la identidad
+   * FÍSICA propia de `identidad_legacy` (mismo edificio/grilla que MZ, solo
+   * cambia el nombre) -- corrección de fondo 2026-08-24, ver vistaRcl.js.
+   * Se recalcula solo si cambia la data cruda. Cada artículo lleva su
+   * `destinoPlaneado` (2026-08-25) para poder comparar "dónde está
+   * físicamente" contra "a dónde va" en la ficha del rack.
+   */
+  const vistaRclRacks = useMemo(
+    () => construirVistaRcl(identidadLegacy, inventarioRcl, destinoPlaneadoPorArticulo),
+    [identidadLegacy, inventarioRcl, destinoPlaneadoPorArticulo]
+  );
   /** Qué Map de racks se MUESTRA -- las mutaciones (mover/bloquear/buffer) siempre operan sobre `racks` (el real), nunca sobre esta vista derivada. */
   const racksVisibles = (!escenarioId && vistaContenido === 'rcl') ? vistaRclRacks : racks;
 
@@ -405,6 +501,28 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     return claves;
   }, [pestanaActiva, migracionSlots, movimientosPendientesSlot, identidadLegacy]);
 
+  /**
+   * Artículos "sin hogar fijo" (2026-08-26, pedido explícito de David: un
+   * filtro visual para que Bairon vea dónde están los artículos que nunca
+   * tuvieron una posición MZ asignada, y los mueva libremente) -- ver
+   * articulosSinHogar.js. Se calcula siempre (no solo con el filtro activo)
+   * para poder mostrar el conteo en el botón antes de tocarlo -- el cruce es
+   * liviano (un par de Sets sobre listas que ya están en memoria).
+   */
+  const articulosSinHogar = useMemo(
+    () => detectarArticulosSinHogar(inventarioRcl, zonasPick, inventarioSlottingPlano, identidadLegacy),
+    [inventarioRcl, zonasPick, inventarioSlottingPlano, identidadLegacy]
+  );
+  /** Solo resalta cuando el toggle está activo -- `articulosSinHogar` de arriba se calcula siempre (para el conteo del botón), pero el resaltado en el mapa es opt-in. */
+  const clavesSinHogar = useMemo(() => {
+    if (!filtroSinHogar) return new Set();
+    const claves = new Set();
+    for (const a of articulosSinHogar) {
+      if (a.mzPasillo != null && a.mzColumna != null) claves.add(`${a.mzPasillo}|${a.mzColumna}`);
+    }
+    return claves;
+  }, [filtroSinHogar, articulosSinHogar]);
+
   /** Lista de pick (F1.5-C) del destino MZ de la pestaña abierta -- independiente del estado del slot (la ficha decide cuándo mostrarla, ver FlujoMigracionSlot.jsx). Vacía si escenarioId (sala) o si no hay pestaña abierta. */
   useEffect(() => {
     let activo = true;
@@ -475,30 +593,30 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     animarVistaA({ x: centro.x - puntoReal.x * nuevaEscala, y: centro.y - puntoReal.y * nuevaEscala, escala: nuevaEscala }, DURACION_ZOOM_BOTON_MS);
   }
 
-  /** Mismo criterio que buscar() del mapa legacy (substring, primer match) -- pero en vez de scrollIntoView anima la cámara y abre la pestaña del rack encontrado, para que "nunca te sientas perdido" también aplique al resultado de una búsqueda. */
+  /**
+   * Con sugerencias (2026-08-24, pedido explícito: "que pueda buscar por
+   * RCL, por MZ, y que sea con sugerencias") -- ya no salta directo al
+   * primer match por substring, arma la lista completa (artículo, RCL o
+   * MZ) vía buscarSugerencias() y el usuario elige (ver seleccionarSugerencia).
+   */
   function buscarArticulo(texto) {
     setBusqueda(texto);
-    const q = texto.trim().toLowerCase();
-    if (!q) { setResultadoBusqueda(null); return; }
-    for (const celda of celdas) {
-      const rack = racksVisibles.get(`${celda.pasillo}|${celda.columna}`);
-      if (!rack) continue;
-      for (const nivel in rack.niveles) {
-        const encontrado = rack.niveles[nivel].find(a => a.articulo.toLowerCase().includes(q));
-        if (encontrado) {
-          const escalaDestino = Math.max(vistaActualRef.current.escala, ESCALA_BUSQUEDA_MIN);
-          animarVistaA(calcularVistaCentradaEnCelda(celda, tamano, escalaDestino));
-          abrirPestana(`${celda.pasillo}|${celda.columna}`);
-          const clave = `${celda.pasillo}|${celda.columna}`;
-          setResultadoBusqueda(`✓ ${encontrado.articulo} → ${celda.pasillo}-C${String(celda.columna).padStart(3, '0')}`);
-          setCeldaResaltada(clave);
-          clearTimeout(resaltadoTimeoutRef.current);
-          resaltadoTimeoutRef.current = setTimeout(() => setCeldaResaltada(null), 1400);
-          return;
-        }
-      }
-    }
-    setResultadoBusqueda('No encontrado.');
+    setSugerencias(buscarSugerencias(texto, celdas, racksVisibles));
+    setResultadoBusqueda(null);
+  }
+
+  /** El usuario tocó una sugerencia -- mismo salto de cámara + resaltado que antes tenía el substring automático, ahora disparado a propósito. */
+  function seleccionarSugerencia(sug) {
+    const celda = { pasillo: sug.pasillo, columna: sug.columna };
+    const escalaDestino = Math.max(vistaActualRef.current.escala, ESCALA_BUSQUEDA_MIN);
+    animarVistaA(calcularVistaCentradaEnCelda(celda, tamano, escalaDestino));
+    abrirPestana(`${sug.pasillo}|${sug.columna}`);
+    const clave = `${sug.pasillo}|${sug.columna}`;
+    setResultadoBusqueda(`✓ ${sug.etiqueta}`);
+    setSugerencias([]);
+    setCeldaResaltada(clave);
+    clearTimeout(resaltadoTimeoutRef.current);
+    resaltadoTimeoutRef.current = setTimeout(() => setCeldaResaltada(null), 1400);
   }
 
   /** Misma lógica de 2 hojas que exportar() del mapa legacy (11-buscar-exportar.js): estado completo + hoja "Cambios" -- lee de `cambios`, la MISMA pila que alimenta Deshacer, para que nunca puedan desincronizarse. */
@@ -587,7 +705,12 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   function iniciarMoverArticulo(clave, articulo, nivel, clase, tipo) {
     const [pasillo, columna] = clave.split('|');
     if (bloqueadas.has(clave)) { mostrarError('Esa posición está bloqueada.'); return; }
-    setMoviendo({ modo: 'individual', articulo, clase, tipo, origen: { pasillo, columna: Number(columna), nivel }, destino: null });
+    const destinoPlaneado = destinoPlaneadoPorArticulo.get(articulo) ?? null;
+    // sinPlanConocido: SOLO tiene sentido "no hay plan" en el mapa real (la
+    // migración RCL->MZ no existe en una sala) -- 2026-08-26, pedido
+    // explícito de David: distinguir "no hay plan" (mostrado) de "no
+    // mostrar nada" (silencio, lo que hacía antes).
+    setMoviendo({ modo: 'individual', articulo, clase, tipo, origen: { pasillo, columna: Number(columna), nivel }, destino: null, destinoPlaneado, sinPlanConocido: !escenarioId });
   }
 
   function cancelarMovimiento() {
@@ -1158,6 +1281,24 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       ref={contenedorRef}
       style={{ position: 'relative', width: '100%', height: 'calc(100vh - 160px)', background: FONDO, borderRadius: 12, overflow: 'hidden' }}
     >
+      {/*
+        Vista RCL depende de una carga APARTE (identidadLegacy/inventarioRcl,
+        ver el efecto de arriba) que termina después que `racks` -- sin este
+        aviso, en ese hueco la grilla se ve vacía como si no hubiera nada
+        (bug real reportado por David 2026-08-26, agravado por las 2
+        consultas nuevas del filtro "Sin hogar" en el mismo lote). Overlay,
+        no reemplaza el Stage -- el toolbar/minimapa siguen andando.
+      */}
+      {!cargando && !escenarioId && vistaContenido === 'rcl' && cargandoMigracion && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 15, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(18, 20, 21, .55)', backdropFilter: 'blur(2px)', color: BLANCO_CALIDO_TENUE, fontSize: 13,
+          pointerEvents: 'none',
+        }}>
+          Cargando información de RCL…
+        </div>
+      )}
+
       {cargando ? (
         <div style={{ color: BLANCO_CALIDO_TENUE, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 13 }}>
           Cargando mapa…
@@ -1201,7 +1342,11 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
                   rack={rack}
                   configuracionOcupacion={configuracionOcupacion}
                   resaltada={celdaResaltada === clave}
-                  resaltadoMigracion={clavesTareaPropia.has(clave) ? 'destino' : (clavesOrigenRecoleccion.has(clave) ? 'origen' : null)}
+                  resaltadoMigracion={
+                    clavesTareaPropia.has(clave) ? 'destino'
+                      : clavesOrigenRecoleccion.has(clave) ? 'origen'
+                      : clavesSinHogar.has(clave) ? 'sin_hogar' : null
+                  }
                   bloqueada={bloqueadas.has(clave)}
                   seleccionada={seleccionArea.has(clave)}
                   arrastrable={modoEdicion && !moviendo && !soloLectura && vistaContenido === 'mz'}
@@ -1210,6 +1355,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
                   onDragStart={manejarInicioDrag}
                   onDragEnd={manejadores.onDragEnd}
                   descripcionDe={descripcionDe}
+                  vistaContenido={vistaContenido}
                 />
               );
             })}
@@ -1248,6 +1394,8 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           valorBusqueda={busqueda}
           onCambiarBusqueda={buscarArticulo}
           resultadoBusqueda={resultadoBusqueda}
+          sugerencias={sugerencias}
+          onSeleccionarSugerencia={seleccionarSugerencia}
           onExportar={exportarExcel}
           modoEdicion={modoEdicion}
           onToggleEdicion={() => { setModoEdicion(v => !v); setModoBloqueo(false); cancelarMovimiento(); }}
@@ -1269,6 +1417,10 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           alertasDestinoListo={alertasDestinoListo}
           articulosPorClase={articulosPorClase}
           mostrarReporte={mostrarReporte}
+          mostrarFiltroSinHogar={!escenarioId}
+          filtroSinHogar={filtroSinHogar}
+          onToggleFiltroSinHogar={() => setFiltroSinHogar(v => !v)}
+          cantidadSinHogar={articulosSinHogar.length}
         />
       )}
 
@@ -1281,6 +1433,15 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       />
 
       {errorAccion && <div className="mapa-error-flotante">{errorAccion}</div>}
+
+      {!escenarioId && (
+        <PanelBitacoraMigracion
+          eventos={bitacoraMigracion}
+          abierta={bitacoraAbierta}
+          onToggle={() => setBitacoraAbierta(v => !v)}
+        />
+      )}
+
 
       {confirmacionConflicto && (
         <ConfirmarConflictoMigracion
@@ -1319,6 +1480,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
               // de vista MZ<->RCL (F4), y esa posición puede no tener contenido en
               // la vista nueva -- nunca undefined, PanelDetalle asume rack.niveles.
               rack={racksVisibles.get(pestanaActiva) ?? { niveles: {} }}
+              vistaContenido={vistaContenido}
               configuracionOcupacion={configuracionOcupacion}
               descripcionDe={descripcionDe}
               oculto={panelMinimizado}
@@ -1602,7 +1764,7 @@ function CajasAnimadas({ puntos }) {
  * manejarFinDrag en MapaCanvas.jsx): los datos, no la posición del nodo
  * Konva, son la fuente de verdad de dónde vive cada rack.
  */
-const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion, onHover, onClick, onDragStart, onDragEnd, descripcionDe, resaltada, resaltadoMigracion, bloqueada, arrastrable, seleccionada }) {
+const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion, onHover, onClick, onDragStart, onDragEnd, descripcionDe, resaltada, resaltadoMigracion, bloqueada, arrastrable, seleccionada, vistaContenido }) {
   const vacia = !rack || nArts(rack) === 0;
   const cantidad = vacia ? 0 : nArts(rack);
   const primerArticulo = vacia ? null : Object.values(rack.niveles)[0]?.[0];
@@ -1611,8 +1773,11 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
     : (primerArticulo?.tipo === 'CUERPO' ? colorDeClase(null, 'CUERPO') : colorDeClase(primerArticulo?.clase));
   const proporcionLlenura = !vacia && configuracionOcupacion ? llenura(rack, configuracionOcupacion) : 0;
   const colorBarra = !vacia && configuracionOcupacion ? colorLlenura(proporcionLlenura, configuracionOcupacion) : null;
-  // "destino" (verde, mismo tono que resaltada) -- a dónde hay que LLEVAR mercadería (F2, ver clavesTareaPropia en MapaCanvas.jsx). "origen" (morado) -- de dónde hay que SACARLA durante "Recolectando" (ver clavesOrigenRecoleccion).
-  const colorResaltadoMigracion = resaltadoMigracion === 'destino' ? ESTADOS.ok : (resaltadoMigracion === 'origen' ? MIGRACION_ORIGEN : null);
+  // "destino" (verde, mismo tono que resaltada) -- a dónde hay que LLEVAR mercadería (F2, ver clavesTareaPropia en MapaCanvas.jsx). "origen" (morado) -- de dónde hay que SACARLA durante "Recolectando" (ver clavesOrigenRecoleccion). "sin_hogar" (amber, 2026-08-26) -- artículos sin posición MZ asignada, filtro para reacomodo manual (ver articulosSinHogar.js).
+  const colorResaltadoMigracion = resaltadoMigracion === 'destino' ? ESTADOS.ok
+    : resaltadoMigracion === 'origen' ? MIGRACION_ORIGEN
+    : resaltadoMigracion === 'sin_hogar' ? ESTADOS.alerta
+    : null;
   const grupoRef = useRef(null);
 
   // Konva redibuja el LAYER entero (~300 celdas) en cada frame mientras se
@@ -1632,11 +1797,20 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
   function textoHover() {
     const aviso = resaltadoMigracion === 'destino' ? ' · Tu tarea: llevar mercadería acá'
       : resaltadoMigracion === 'origen' ? ' · Sacar artículo(s) de acá para tu tarea'
+      : resaltadoMigracion === 'sin_hogar' ? ' · Artículo(s) sin posición MZ asignada -- se puede mover libremente'
       : '';
-    if (vacia) return `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}\nVacío${bloqueada ? ' · Bloqueado' : ''}${aviso}`;
+    const mzTexto = `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}`;
+    if (vacia) return `${mzTexto}\nVacío${bloqueada ? ' · Bloqueado' : ''}${aviso}`;
     const consumo = consumoTotal(rack).toFixed(2);
     const desc = primerArticulo ? descripcionDe(primerArticulo.articulo) : '';
-    return `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}${bloqueada ? ' · Bloqueado' : ''}${aviso}\n${cantidad} artículo(s) · consumo ${consumo}\n${desc}`;
+    // En Vista RCL (2026-08-25, pedido explícito: "yo ahí lo que quiero es el
+    // RCL", el MZ ya se sabe con solo mirar la fila/columna) -- el encabezado
+    // lidera con la identidad RCL real de este rack, el MZ queda como
+    // referencia simbólica entre paréntesis, nunca al revés.
+    const encabezado = vistaContenido === 'rcl'
+      ? `${[...new Set(Object.values(rack.niveles).flat().map(a => a.rackActual).filter(Boolean))].join(', ') || 'RCL desconocido'} (${mzTexto})`
+      : mzTexto;
+    return `${encabezado}${bloqueada ? ' · Bloqueado' : ''}${aviso}\n${cantidad} artículo(s) · consumo ${consumo}\n${desc}`;
   }
 
   return (

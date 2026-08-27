@@ -9,6 +9,7 @@ import { puedeIniciarTraslado, puedeConfirmar } from '../../migracion/flujoMigra
 import FlujoMigracionSlot from './FlujoMigracionSlot.jsx';
 
 const ORDEN_NIVELES = ['N05', 'N04', 'N03', 'N02', 'N01', 'CUERPO']; // mismo criterio que NIVORDER del mapa legacy
+const NIVELES_FISICOS = ['N05', 'N04', 'N03', 'N02', 'N01']; // los 5 niveles reales del rack, sin CUERPO -- para dibujarlos SIEMPRE, ocupados o no (ver EstanteVacio)
 
 /**
  * Panel de detalle de un rack -- misma información que el modal del mapa
@@ -27,7 +28,7 @@ const ORDEN_NIVELES = ['N05', 'N04', 'N03', 'N02', 'N01', 'CUERPO']; // mismo cr
  * de golpe como pasaba con el mount/unmount de React.
  */
 export default function PanelDetalle({
-  clave, rack, configuracionOcupacion, descripcionDe, oculto,
+  clave, rack, vistaContenido = 'mz', configuracionOcupacion, descripcionDe, oculto,
   onMoverCuerpo, onMoverArticulo, moviendoAlgo,
   bloqueada, onToggleBloqueo,
   soloLectura = false,
@@ -109,14 +110,46 @@ export default function PanelDetalle({
         />
       )}
 
-      <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {niveles.map(nivel => (
+      {/*
+        Niveles físicos SIEMPRE los 5 (N05 arriba .. N01 abajo, orden real
+        del rack -- 2026-08-26, pedido explícito: "que la ventana se vea
+        como un rack"), ocupados o no -- antes solo se mostraban los
+        ocupados, perdiendo la forma del mueble completo. CUERPO (vista
+        agrupada, no es un nivel físico real) sigue apareciendo solo cuando
+        hay contenido, sin slot vacío -- no tiene un "hueco" físico propio.
+        Los rieles laterales (.mapa-panel-rack, canvas.css) son el marco del
+        mueble.
+      */}
+      <div className="mapa-panel-rack" style={{ padding: '0 22px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {NIVELES_FISICOS.map(nivel => (
+          rack.niveles[nivel]?.length ? (
+            <TarjetaNivel
+              key={nivel}
+              pasillo={pasillo}
+              columna={columna}
+              nivel={nivel}
+              vistaContenido={vistaContenido}
+              articulos={rack.niveles[nivel]}
+              rackCompleto={rack}
+              configuracionOcupacion={configuracionOcupacion}
+              llenuraRack={llenuraTotal}
+              descripcionDe={descripcionDe}
+              onMoverArticulo={soloLectura ? null : onMoverArticulo}
+              moviendoAlgo={moviendoAlgo}
+              onDepositarBuffer={migracionEstado === 'vaciando' ? onDepositarBuffer : null}
+            />
+          ) : (
+            <EstanteVacio key={nivel} nivel={nivel} />
+          )
+        ))}
+        {rack.niveles.CUERPO?.length > 0 && (
           <TarjetaNivel
-            key={nivel}
+            key="CUERPO"
             pasillo={pasillo}
             columna={columna}
-            nivel={nivel}
-            articulos={rack.niveles[nivel]}
+            nivel="CUERPO"
+            vistaContenido={vistaContenido}
+            articulos={rack.niveles.CUERPO}
             rackCompleto={rack}
             configuracionOcupacion={configuracionOcupacion}
             llenuraRack={llenuraTotal}
@@ -125,8 +158,22 @@ export default function PanelDetalle({
             moviendoAlgo={moviendoAlgo}
             onDepositarBuffer={migracionEstado === 'vaciando' ? onDepositarBuffer : null}
           />
-        ))}
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Estante vacío -- barra delgada, sin llenado ni artículos, solo para que se vea la forma completa del rack (5 niveles) aunque este puntual no tenga nada. */
+function EstanteVacio({ nivel }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: 8,
+      border: `1px dashed ${BORDE_CLARO}`, opacity: .55,
+    }}>
+      <i className="ti ti-layers-intersect" style={{ fontSize: 12, color: GRIS_TEXTO_TENUE }} />
+      <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>{nivel}</span>
+      <span style={{ fontSize: 10.5, color: GRIS_TEXTO_TENUE }}>Vacío</span>
     </div>
   );
 }
@@ -166,7 +213,7 @@ function TarjetaKpi({ icono, etiqueta, valor }) {
 }
 
 /** Un nivel del rack como tarjeta propia -- barra de llenado en vez de solo el número, mismo cálculo de llenura()/colorLlenura() del dominio, aplicado a este nivel solo (no al rack entero). */
-function TarjetaNivel({ pasillo, columna, nivel, articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer }) {
+function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer }) {
   const rackDeEsteNivel = { niveles: { [nivel]: articulos } };
   const proporcion = configuracionOcupacion ? llenura(rackDeEsteNivel, configuracionOcupacion) : 0;
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : VERDE_ESTRUCTURA;
@@ -221,27 +268,35 @@ function TarjetaNivel({ pasillo, columna, nivel, articulos, rackCompleto, config
           </div>
 
           {/*
-            Viaje origen -> destino: RCL (rack_actual, foto de fábrica -- el
-            mezzanine VIEJO) hacia MZ (pasillo/columna/nivel -- el layout
-            NUEVO). Confirmado con el usuario que son dos datos reales, no
-            uno legado y otro vigente -- el operador arma un rack nuevo con
-            artículos dispersos por el mezzanine viejo, así que necesita
-            SIEMPRE los dos, con el mismo peso visual (ninguno es "el dato
-            secundario"). No hay indicador de "ya reacomodado" a propósito:
-            el dominio no distingue hoy "reasignado en el sistema" (movido)
-            de "trasladado físicamente" -- ver DECISIONES.md.
+            En vista MZ: viaje origen -> destino real (RCL de rack_actual
+            hacia el MZ del plan de migración, un movimiento de verdad) --
+            flecha correcta, confirmado con el usuario que son dos datos
+            reales, con el mismo peso visual.
+            En vista RCL (2026-08-26, corrección pedida por David tras la
+            confusión real de esta sesión): este RCL y este MZ NO son
+            "origen -> destino", son la MISMA posición física con dos
+            nombres (identidad_legacy) -- una flecha ahí sugiere viaje donde
+            no lo hay. Se usa "=" en vez de flecha; el viaje real (si existe)
+            lo dice ComparacionDestinoMigracion, más abajo, con su propia
+            flecha/camión -- nunca se mezclan los dos símbolos.
           */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, fontSize: 16, fontWeight: 800, color: GRIS_TEXTO, fontVariantNumeric: 'tabular-nums', flexWrap: 'wrap' }}>
             <span>{a.rackActual || 'sin origen registrado'}</span>
-            <i className="ti ti-arrow-narrow-right" style={{ fontSize: 15, fontWeight: 400, color: GRIS_TEXTO_TENUE, flexShrink: 0 }} />
+            {vistaContenido === 'rcl' ? (
+              <span style={{ fontSize: 15, fontWeight: 400, color: GRIS_TEXTO_TENUE, flexShrink: 0 }} title="Misma posición física, dos nombres">=</span>
+            ) : (
+              <i className="ti ti-arrow-narrow-right" style={{ fontSize: 15, fontWeight: 400, color: GRIS_TEXTO_TENUE, flexShrink: 0 }} />
+            )}
+            {/* Sin nivel acá -- ya está implícito (esta tarjeta ES el nivel, ver el encabezado "N05" arriba, 2026-08-26 pedido explícito: "no es necesario el nivel"). */}
             <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
               <span>{pasillo}</span>
               <span style={{ color: BORDE_CLARO, fontWeight: 400 }}>·</span>
               <span>C{String(columna).padStart(3, '0')}</span>
-              <span style={{ color: BORDE_CLARO, fontWeight: 400 }}>·</span>
-              <span>{nivel}</span>
             </span>
           </div>
+          {vistaContenido === 'rcl' && (
+            <ComparacionDestinoMigracion identidadFisica={a.identidadFisica} destinoPlaneado={a.destinoPlaneado} />
+          )}
           {/* Estilo inline (no la clase .chip compartida) a propósito -- este
               panel es una "isla" siempre clara, ajena al toggle claro/oscuro
               del resto de la app (mismo criterio que Login/Sidebar, pero
@@ -260,6 +315,49 @@ function TarjetaNivel({ pasillo, columna, nivel, articulos, rackCompleto, config
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Solo en Vista RCL (2026-08-25, pedido explícito de David: "los movimientos
+ * a donde van deberían ser diferentes el lugar donde estoy, si no no movería
+ * nada") -- compara la identidad FÍSICA de este RCL (dónde está parado, ver
+ * vistaRcl.js/identidadFisica) contra el destino real del plan de migración
+ * para este artículo puntual (vistaRcl.js/destinoPlaneado). Son dos
+ * preguntas distintas -- acá se responden juntas para que el operador no
+ * tenga que adivinar si hace falta cargar algo o no.
+ */
+function ComparacionDestinoMigracion({ identidadFisica, destinoPlaneado }) {
+  if (!destinoPlaneado) {
+    return (
+      <div style={{ fontSize: 11, color: GRIS_TEXTO_TENUE, marginTop: 3 }}>
+        Sin movimiento de migración pendiente para este artículo.
+      </div>
+    );
+  }
+  if (destinoPlaneado.ambiguo) {
+    return (
+      <div style={{ fontSize: 11, color: ESTADOS.alerta, marginTop: 3, fontWeight: 600 }}>
+        ⚠ {destinoPlaneado.cantidad} destinos posibles -- no se puede mostrar uno solo.
+      </div>
+    );
+  }
+  const mismoLugar = identidadFisica
+    && destinoPlaneado.mzPasillo === identidadFisica.mzPasillo
+    && destinoPlaneado.mzColumna === identidadFisica.mzColumna;
+  if (mismoLugar) {
+    return (
+      <div style={{ fontSize: 11, color: ESTADOS.ok, marginTop: 3, fontWeight: 600 }}>
+        ✓ El plan de migración lo deja en el mismo lugar -- no requiere traslado físico.
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, marginTop: 3, fontWeight: 700, color: ESTADOS.alerta }}>
+      <i className="ti ti-truck-delivery" style={{ fontSize: 12 }} />
+      Plan de migración: {destinoPlaneado.mzPasillo} · C{String(destinoPlaneado.mzColumna).padStart(3, '0')}
+      {destinoPlaneado.mzNivel != null && ` · ${destinoPlaneado.mzNivel}`}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { identidadLegacyService } from './identidadLegacy.service.js';
 import { inventarioRclService } from './inventarioRcl.service.js';
 import { inventarioService } from './inventario.service.js';
 import { planificarSecuencia } from '../../features/migracion/planificarSecuencia.js';
-import { generarLoteDespacho, contenidoActualDeRacks } from '../../features/despacho/generarLoteDespacho.js';
+import { generarLoteDespacho, contenidoActualDeRacks, seleccionarRacksCompletos } from '../../features/despacho/generarLoteDespacho.js';
 
 function tareaDesdeFila(t) {
   return {
@@ -94,7 +94,11 @@ export const despachoService = {
     // posibles (no solo los de la oleada elegida) para que
     // planificarSecuencia los pueda sumar sin límite de cupo.
     const destinosUnicos = [...new Map(movimientosPendientes.map(m => [`${m.mzPasillo}|${m.mzColumna}`, { mzPasillo: m.mzPasillo, mzColumna: m.mzColumna }])).values()];
-    const contenidoDeTodosLosDestinos = contenidoActualDeRacks(destinosUnicos, identidadLegacy, inventarioRclActual);
+    // Sin filtrar por destino real a propósito -- esto solo mide "¿tiene
+    // contenido físico real este rack?" para el cupo de equipos, nada que
+    // ver con si ESE contenido tiene a dónde ir (eso se filtra más abajo,
+    // donde sí importa: al armar las tareas reales de la oleada elegida).
+    const { contenido: contenidoDeTodosLosDestinos } = contenidoActualDeRacks(destinosUnicos, identidadLegacy, inventarioRclActual);
     const destinosConContenido = new Set(contenidoDeTodosLosDestinos.map(c => `${c.mzPasillo}|${c.mzColumna}`));
     const racksSinContenido = new Set(
       destinosUnicos.map(r => `${r.mzPasillo}|${r.mzColumna}`).filter(clave => !destinosConContenido.has(clave))
@@ -103,8 +107,8 @@ export const despachoService = {
     const { oleadas, equiposActivosIniciales, advertencias: advertenciasSecuencia } = planificarSecuencia(
       movimientosPendientes, identidadLegacy, slotsActuales, { racksSinContenido }
     );
-    const oleada = oleadas[0] ?? [];
-    if (oleada.length === 0) {
+    const oleadaCandidata = oleadas[0] ?? [];
+    if (oleadaCandidata.length === 0) {
       throw new Error(advertenciasSecuencia[0] ?? 'No hay ningún rack listo para despachar ahora mismo.');
     }
 
@@ -122,13 +126,51 @@ export const despachoService = {
       totalConMovimientoPorRack.set(clave, (totalConMovimientoPorRack.get(clave) ?? 0) + 1);
     }
 
-    const contenidoActual = contenidoActualDeRacks(oleada, identidadLegacy, inventarioRclActual);
+    // Filtro real (2026-08-25, ver generarLoteDespacho.js): un artículo sin
+    // NINGÚN migracion_movimiento (ni pendiente ni recolectado) no tiene
+    // destino real -- nunca se genera su tarea "vaciar", así nunca puede
+    // quedar varado en el buffer como pasó esta semana (5998025, 7551089,
+    // 5502280, 5998002, 5502179). Se calcula sobre TODA la oleada candidata
+    // (no solo la ya recortada) para poder clasificar cada rack por
+    // completitud antes de elegir cuáles entran esta vez.
+    const articulosConDestinoReal = new Set(movimientosCualquierEstado.map(m => m.articulo));
+    const { contenido: contenidoDeLaOleada, sinDestino } = contenidoActualDeRacks(oleadaCandidata, identidadLegacy, inventarioRclActual, articulosConDestinoReal);
+    const sinDestinoPorRack = new Map();
+    for (const a of sinDestino) {
+      const clave = `${a.mzPasillo}|${a.mzColumna}`;
+      sinDestinoPorRack.set(clave, (sinDestinoPorRack.get(clave) ?? 0) + 1);
+    }
+
+    // Recorte a "2-3 racks completos" (pedido explícito 2026-08-25: "que el
+    // cálculo de cada oleada tenga como fin dos racks completos... esto nos
+    // permite recalcular conforme vamos confirmando") -- nunca mezcla un
+    // rack que va a quedar a medias con uno que sí cierra del todo.
+    const { seleccionados: oleada, diferidosPorCupo, incompletos } = seleccionarRacksCompletos(
+      oleadaCandidata, sinDestinoPorRack, totalPlanificadoPorRack, totalConMovimientoPorRack
+    );
+    if (oleada.length === 0) {
+      const detalleIncompletos = incompletos
+        .map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')} (faltan ${r.faltanRecolectar} por recolectar, ${r.faltanVaciar} sin destino)`)
+        .join('; ');
+      throw new Error(`Ningún rack de los candidatos de hoy cierra completo -- ${incompletos.length} quedarían a medias: ${detalleIncompletos}. Resolvé destinos o recalculá el plan antes de generar.`);
+    }
+
+    const clavesOleada = new Set(oleada.map(r => `${r.mzPasillo}|${r.mzColumna}`));
+    const contenidoActual = contenidoDeLaOleada.filter(c => clavesOleada.has(`${c.mzPasillo}|${c.mzColumna}`));
+
     const { trabajadores, advertencias: advertenciasReparto } = generarLoteDespacho(
       oleada, contenidoActual, movimientosPendientes, cantidadOperadores,
       { totalPlanificadoPorRack, totalConMovimientoPorRack }
     );
     if (trabajadores.length === 0) {
       throw new Error(advertenciasReparto[0] ?? advertenciasSecuencia[0] ?? 'No se pudo generar ninguna tarea para esta oleada.');
+    }
+    if (diferidosPorCupo.length > 0) {
+      advertenciasSecuencia.unshift(`${diferidosPorCupo.length} rack(s) más también cerrarían completos, pero quedan para la próxima oleada (tope de 2-3 racks completos por oleada, pedido explícito): ${diferidosPorCupo.map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')}`).join(', ')}.`);
+    }
+    if (incompletos.length > 0) {
+      const detalle = incompletos.map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')} (${r.faltanRecolectar > 0 ? `${r.faltanRecolectar} sin stock real` : ''}${r.faltanRecolectar > 0 && r.faltanVaciar > 0 ? ', ' : ''}${r.faltanVaciar > 0 ? `${r.faltanVaciar} sin destino` : ''})`).join('; ');
+      advertenciasSecuencia.unshift(`⚠ ${incompletos.length} rack(s) candidatos NO entraron en esta oleada porque quedarían a medias: ${detalle}. No se resuelven solos -- necesitan recalcular el plan o resolver destino a mano.`);
     }
     // Transparencia sobre POR QUÉ la oleada trajo estos racks y no más --
     // pedido explícito (2026-07-22, sesión de pruebas antes del jueves):

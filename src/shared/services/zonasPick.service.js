@@ -10,11 +10,12 @@ export const zonasPickService = {
     while (true) {
       const { data, error } = await supabase
         .from('zonas_pick')
-        .select('articulo, cantidad_minima, cantidad_maxima')
+        .select('articulo, cantidad_minima, cantidad_maxima, ubicacion_rcl')
         .range(desde, desde + TAMANO_PAGINA - 1);
       if (error) throw error;
       todas.push(...data.map(d => ({
         articulo: d.articulo, cantidadMinima: d.cantidad_minima, cantidadMaxima: d.cantidad_maxima,
+        ubicacionRcl: d.ubicacion_rcl,
       })));
       if (data.length < TAMANO_PAGINA) break;
       desde += TAMANO_PAGINA;
@@ -28,6 +29,7 @@ export const zonasPickService = {
     const filasDb = filas.map(f => ({
       articulo: f.articulo,
       cantidad_minima: f.cantidadMinima, cantidad_maxima: f.cantidadMaxima,
+      ubicacion_rcl: f.ubicacionRcl ?? null,
       importado_por: usuarioId, importado_en: ahora,
     }));
     for (let i = 0; i < filasDb.length; i += TAMANO_PAGINA) {

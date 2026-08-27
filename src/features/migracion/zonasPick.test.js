@@ -26,6 +26,18 @@ describe('parsearFilasZonaPick', () => {
     expect(f.articulo).toBe('3265021');
   });
 
+  it('captura la Ubicación (cara de pick RCL asignada) cuando viene en el archivo', () => {
+    const [f] = parsearFilasZonaPick([fila('123', 10, 50, { Ubicación: 'RCL170-C003-N01-1' })]);
+    expect(f.valido).toBe(true);
+    expect(f.ubicacionRcl).toBe('RCL170-C003-N01-1');
+  });
+
+  it('sin columna de Ubicación, queda en null -- no bloquea la fila (compatibilidad con lo ya importado)', () => {
+    const [f] = parsearFilasZonaPick([fila('123', 10, 50)]);
+    expect(f.valido).toBe(true);
+    expect(f.ubicacionRcl).toBeNull();
+  });
+
   it('tolera variantes sin tilde de "Mínima"/"Máxima" (MINIMA/MAXIMA)', () => {
     const [f] = parsearFilasZonaPick([{ 'Código Articulo': '1', 'Cantidad MINIMA': 2, 'Cantidad MAXIMA': 8 }]);
     expect(f.valido).toBe(true);

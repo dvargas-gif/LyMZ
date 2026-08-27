@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generarLoteDespacho, contenidoActualDeRacks } from './generarLoteDespacho.js';
+import { generarLoteDespacho, contenidoActualDeRacks, seleccionarRacksCompletos } from './generarLoteDespacho.js';
 
 function movimiento(id, mzPasillo, mzColumna, articulo, rclCodigo = 'RCL-X', rclNivel = '1') {
   return { id, mzPasillo, mzColumna, rclCodigo, rclNivel, articulo };
@@ -19,7 +19,7 @@ describe('contenidoActualDeRacks', () => {
     const identidadLegacy = [identidad('MZ01', 1, 'RCL-A', 1), identidad('MZ02', 9, 'RCL-B', 1)];
     const inventario = [inventarioRcl('RCL-A', 1, 'ART-VIEJO-1', 5), inventarioRcl('RCL-B', 1, 'ART-FUERA-DE-OLEADA', 2)];
 
-    const contenido = contenidoActualDeRacks(oleada, identidadLegacy, inventario);
+    const { contenido } = contenidoActualDeRacks(oleada, identidadLegacy, inventario);
 
     expect(contenido).toEqual([{ mzPasillo: 'MZ01', mzColumna: 1, rclCodigo: 'RCL-A', rclNivel: 1, articulo: 'ART-VIEJO-1', cantidad: 5 }]);
   });
@@ -32,7 +32,30 @@ describe('contenidoActualDeRacks', () => {
     ];
     const inventario = [inventarioRcl('RCL-A', 1, 'ART-X'), inventarioRcl('RCL-C', 1, 'ART-Y')];
 
-    expect(contenidoActualDeRacks(oleada, identidadLegacy, inventario)).toEqual([]);
+    expect(contenidoActualDeRacks(oleada, identidadLegacy, inventario).contenido).toEqual([]);
+  });
+
+  it('sin articulosConDestinoReal (parámetro omitido), no filtra nada -- mismo comportamiento que antes de este ajuste', () => {
+    const oleada = [{ mzPasillo: 'MZ01', mzColumna: 1 }];
+    const identidadLegacy = [identidad('MZ01', 1, 'RCL-A', 1)];
+    const inventario = [inventarioRcl('RCL-A', 1, 'HUERFANO', 5)];
+
+    const { contenido, sinDestino } = contenidoActualDeRacks(oleada, identidadLegacy, inventario);
+
+    expect(contenido).toHaveLength(1);
+    expect(sinDestino).toEqual([]);
+  });
+
+  it('con articulosConDestinoReal, un artículo sin ningún movimiento real queda en sinDestino, no en contenido -- nunca se genera su tarea vaciar (caso real 2026-08-24: 5998025/7551089/etc. varados en el buffer)', () => {
+    const oleada = [{ mzPasillo: 'MZ01', mzColumna: 1 }];
+    const identidadLegacy = [identidad('MZ01', 1, 'RCL-A', 1)];
+    const inventario = [inventarioRcl('RCL-A', 1, 'CON-DESTINO', 5), inventarioRcl('RCL-A', 1, 'HUERFANO', 3)];
+    const articulosConDestinoReal = new Set(['CON-DESTINO']);
+
+    const { contenido, sinDestino } = contenidoActualDeRacks(oleada, identidadLegacy, inventario, articulosConDestinoReal);
+
+    expect(contenido).toEqual([{ mzPasillo: 'MZ01', mzColumna: 1, rclCodigo: 'RCL-A', rclNivel: 1, articulo: 'CON-DESTINO', cantidad: 5 }]);
+    expect(sinDestino).toEqual([{ mzPasillo: 'MZ01', mzColumna: 1, rclCodigo: 'RCL-A', rclNivel: 1, articulo: 'HUERFANO', cantidad: 3 }]);
   });
 });
 
@@ -250,5 +273,72 @@ describe('generarLoteDespacho -- orden por cuerpo, reparto PAREJO por cabeza (20
     const { trabajadores } = generarLoteDespacho(oleada, aVaciar, movimientos, 1);
 
     expect(trabajadores[0].tareas.map(t => t.orden)).toEqual([0, 1]);
+  });
+});
+
+describe('seleccionarRacksCompletos (2026-08-25, pedido explícito: "2 a 3 rack completos" por oleada)', () => {
+  const rack = (p, c) => ({ mzPasillo: p, mzColumna: c });
+
+  it('sin ninguno de los mapas opcionales, todos los racks se consideran completos (mismo criterio "sin datosPlan" del resto del archivo)', () => {
+    const oleada = [rack('MZ01', 1), rack('MZ01', 2)];
+    const { seleccionados, diferidosPorCupo, incompletos } = seleccionarRacksCompletos(oleada, new Map());
+    expect(seleccionados).toEqual(oleada);
+    expect(diferidosPorCupo).toEqual([]);
+    expect(incompletos).toEqual([]);
+  });
+
+  it('un rack con artículos sin destino (faltanVaciar > 0) cae en incompletos, nunca en seleccionados', () => {
+    const oleada = [rack('MZ05', 30)];
+    const sinDestinoPorRack = new Map([['MZ05|30', 18]]);
+    const { seleccionados, incompletos } = seleccionarRacksCompletos(oleada, sinDestinoPorRack);
+    expect(seleccionados).toEqual([]);
+    expect(incompletos).toEqual([{ mzPasillo: 'MZ05', mzColumna: 30, faltanRecolectar: 0, faltanVaciar: 18 }]);
+  });
+
+  it('un rack al que el plan le falta stock real (faltanRecolectar > 0) cae en incompletos', () => {
+    const oleada = [rack('MZ03', 6)];
+    const totalPlanificadoPorRack = new Map([['MZ03|6', 20]]);
+    const totalConMovimientoPorRack = new Map([['MZ03|6', 3]]);
+    const { seleccionados, incompletos } = seleccionarRacksCompletos(oleada, new Map(), totalPlanificadoPorRack, totalConMovimientoPorRack);
+    expect(seleccionados).toEqual([]);
+    expect(incompletos).toEqual([{ mzPasillo: 'MZ03', mzColumna: 6, faltanRecolectar: 17, faltanVaciar: 0 }]);
+  });
+
+  it('respeta el límite (default 3) -- los completos de más quedan en diferidosPorCupo, en el mismo orden de prioridad de la oleada', () => {
+    const oleada = [rack('MZ01', 1), rack('MZ01', 2), rack('MZ01', 3), rack('MZ01', 4)];
+    const { seleccionados, diferidosPorCupo } = seleccionarRacksCompletos(oleada, new Map());
+    expect(seleccionados).toEqual([rack('MZ01', 1), rack('MZ01', 2), rack('MZ01', 3)]);
+    expect(diferidosPorCupo).toEqual([rack('MZ01', 4)]);
+  });
+
+  it('límite explícito de 2 (David: "de 2 a 3")', () => {
+    const oleada = [rack('MZ01', 1), rack('MZ01', 2), rack('MZ01', 3)];
+    const { seleccionados, diferidosPorCupo } = seleccionarRacksCompletos(oleada, new Map(), new Map(), new Map(), 2);
+    expect(seleccionados).toHaveLength(2);
+    expect(diferidosPorCupo).toHaveLength(1);
+  });
+
+  it('un rack incompleto NUNCA cuenta contra el límite ni desplaza a uno completo -- nunca se "gasta cupo" en algo que no va a cerrar', () => {
+    const oleada = [rack('MZ05', 30), rack('MZ01', 1), rack('MZ01', 2)];
+    const sinDestinoPorRack = new Map([['MZ05|30', 18]]);
+    const { seleccionados, incompletos } = seleccionarRacksCompletos(oleada, sinDestinoPorRack, new Map(), new Map(), 2);
+    expect(seleccionados).toEqual([rack('MZ01', 1), rack('MZ01', 2)]);
+    expect(incompletos.map(r => r.mzPasillo + '|' + r.mzColumna)).toEqual(['MZ05|30']);
+  });
+
+  it('preserva el orden de prioridad original de la oleada -- no reordena por completitud', () => {
+    const oleada = [rack('MZ01', 5), rack('MZ01', 1), rack('MZ01', 9)];
+    const { seleccionados } = seleccionarRacksCompletos(oleada, new Map());
+    expect(seleccionados.map(r => r.mzColumna)).toEqual([5, 1, 9]);
+  });
+
+  it('caso real 2026-08-25 (la simulación contra datos reales): de 4 racks candidatos, solo 2 cierran completos', () => {
+    const oleada = [rack('MZ01', 31), rack('MZ09', 1), rack('MZ03', 6), rack('MZ05', 30)];
+    const sinDestinoPorRack = new Map([['MZ03|6', 1], ['MZ05|30', 18]]);
+    const totalPlanificadoPorRack = new Map([['MZ03|6', 20]]);
+    const totalConMovimientoPorRack = new Map([['MZ03|6', 3]]);
+    const { seleccionados, incompletos } = seleccionarRacksCompletos(oleada, sinDestinoPorRack, totalPlanificadoPorRack, totalConMovimientoPorRack);
+    expect(seleccionados).toEqual([rack('MZ01', 31), rack('MZ09', 1)]);
+    expect(incompletos).toHaveLength(2);
   });
 });

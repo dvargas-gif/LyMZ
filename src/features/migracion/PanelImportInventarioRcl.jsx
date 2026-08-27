@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { parsearFilasInventario, validarInventarioRcl } from './inventarioRcl.service.js';
+import { parsearFilasInventario, validarInventarioRcl, resolverEstadoYaMigrado } from './inventarioRcl.service.js';
 import { inventarioRclService } from '../../shared/services/inventarioRcl.service.js';
+import { migracionMovimientosService } from '../../shared/services/migracionMovimientos.service.js';
+import { migracionYaMigradoService } from '../../shared/services/migracionYaMigrado.service.js';
 
 /**
  * Import del inventario ACTUAL por sub-posición RCL (F1.5-B, hoja
@@ -20,16 +22,41 @@ export default function PanelImportInventarioRcl({ sesion }) {
   const [aplicando, setAplicando] = useState(false);
   const [error, setError] = useState('');
   const [resultado, setResultado] = useState(null);
+  const [yaMigrado, setYaMigrado] = useState(null); // null = no hay filas "ya migrado" en este archivo o todavía no se resolvió
+  const [cargandoYaMigrado, setCargandoYaMigrado] = useState(false);
+  const [aplicandoYaMigrado, setAplicandoYaMigrado] = useState(false);
+  const [yaMigradoAplicado, setYaMigradoAplicado] = useState(null);
 
-  function procesarFilas(filasCrudas) {
+  async function procesarFilas(filasCrudas) {
     setError('');
     setResultado(null);
+    setYaMigrado(null);
+    setYaMigradoAplicado(null);
     const parsed = parsearFilasInventario(filasCrudas);
     if (parsed.length === 0) {
       setError('El archivo no tiene filas de datos reconocibles (¿tiene columnas de RCL/posición, artículo y cantidad?).');
       return;
     }
-    setPrevia(validarInventarioRcl(parsed));
+    const validado = validarInventarioRcl(parsed);
+    setPrevia(validado);
+
+    // Check "ya migrado" (2026-08-25, permanente en cada carga, pedido explícito):
+    // filas cuya ubicación viene en formato MZ en vez de RCL -- el artículo ya se
+    // movió físicamente, se cruza contra migracion_movimientos para saber si el
+    // sistema ya lo tiene confirmado o no.
+    if (validado.yaMigrado.length > 0) {
+      setCargandoYaMigrado(true);
+      try {
+        const estados = await migracionMovimientosService.buscarEstadoPorDestinoYArticulo(
+          validado.yaMigrado.map(f => ({ mzPasillo: f.mzPasillo, mzColumna: f.mzColumna, articulo: f.articulo }))
+        );
+        setYaMigrado(resolverEstadoYaMigrado(validado.yaMigrado, estados));
+      } catch (err) {
+        setError(`No se pudo cruzar las filas "ya migrado" contra el sistema: ${err.message || err}`);
+      } finally {
+        setCargandoYaMigrado(false);
+      }
+    }
   }
 
   function manejarArchivo(e) {
@@ -60,6 +87,43 @@ export default function PanelImportInventarioRcl({ sesion }) {
       setError(`No se pudo aplicar el import: ${err.message || err}`);
     } finally {
       setAplicando(false);
+    }
+  }
+
+  /**
+   * Reconciliación "ya migrado" (2026-08-25, decisión de negocio confirmada
+   * con David -- ver PROTOCOLO-GOBERNANZA.md Regla 2, dos veredictos, dos
+   * acciones distintas):
+   * - 'pendiente_para_confirmar': ya existía un movimiento planeado -- se
+   *   marca 'recolectado' con el mismo método que usa el flujo guiado
+   *   normal (marcarRecolectado), no se inventa un camino nuevo.
+   * - 'confirmado' / 'requiere_revision_manual' / 'sin_registro': NUNCA se
+   *   toca `migracion_movimientos` -- solo queda registrado como hallazgo.
+   * Todo caso, sin excepción, deja su rastro en migracion_ya_migrado
+   * (tabla de auditoría aparte, ver migracionYaMigrado.service.js).
+   */
+  async function aplicarYaMigrado() {
+    if (!yaMigrado || yaMigrado.length === 0) return;
+    setAplicandoYaMigrado(true);
+    setError('');
+    try {
+      const paraConfirmar = yaMigrado.filter(f => f.veredicto === 'pendiente_para_confirmar' && f.movimientoId);
+      await Promise.all(paraConfirmar.map(f => migracionMovimientosService.marcarRecolectado(f.movimientoId, sesion.usuarioId)));
+
+      const filasConAccion = yaMigrado.map(f => ({
+        ...f,
+        accionTomada: f.veredicto === 'pendiente_para_confirmar' ? 'marcado_recolectado' : 'ninguna_solo_hallazgo',
+      }));
+      await migracionYaMigradoService.registrarLote(filasConAccion, sesion.usuarioId);
+
+      setYaMigradoAplicado({
+        marcadosRecolectado: paraConfirmar.length,
+        hallazgos: yaMigrado.length - paraConfirmar.length,
+      });
+    } catch (err) {
+      setError(`No se pudo aplicar la reconciliación "ya migrado": ${err.message || err}`);
+    } finally {
+      setAplicandoYaMigrado(false);
     }
   }
 
@@ -100,6 +164,9 @@ export default function PanelImportInventarioRcl({ sesion }) {
           <div style={{ display: 'flex', gap: 14, marginBottom: 12, fontSize: 12.5 }}>
             <span>✅ Válidas: <b>{previa.validas.length}</b></span>
             <span>⚠ Rechazadas: <b style={{ color: previa.rechazadas.length ? 'var(--red)' : 'inherit' }}>{previa.rechazadas.length}</b></span>
+            {previa.yaMigrado.length > 0 && (
+              <span>🚚 Ya migrado: <b style={{ color: 'var(--amber, #b98900)' }}>{previa.yaMigrado.length}</b></span>
+            )}
             {previa.validas.some(f => f.pallets > 1) && (
               <span style={{ color: 'var(--texto-tenue)' }}>
                 📦 {previa.validas.filter(f => f.pallets > 1).length} sub-posición(es) combinan varios pallets del mismo artículo (cantidad sumada)
@@ -110,10 +177,90 @@ export default function PanelImportInventarioRcl({ sesion }) {
             <button className="btn-primary" disabled={aplicando || previa.validas.length === 0} onClick={aplicar}>
               {aplicando ? 'Actualizando…' : `Actualizar ${previa.validas.length} fila(s) válida(s)`}
             </button>
-            <button className="btn-secondary" disabled={aplicando} onClick={() => setPrevia(null)}>Cancelar</button>
+            <button className="btn-secondary" disabled={aplicando} onClick={() => { setPrevia(null); setYaMigrado(null); setYaMigradoAplicado(null); }}>Cancelar</button>
           </div>
-          {previa.rechazadas.length > 0 && <TablaRechazadas filas={previa.rechazadas} />}
+          {previa.yaMigrado.length > 0 && (
+            <TablaYaMigrado
+              filas={previa.yaMigrado}
+              resuelto={yaMigrado}
+              cargando={cargandoYaMigrado}
+              aplicando={aplicandoYaMigrado}
+              aplicado={yaMigradoAplicado}
+              onAplicar={aplicarYaMigrado}
+            />
+          )}
+          {previa.rechazadas.filter(f => !f.yaMigrado).length > 0 && <TablaRechazadas filas={previa.rechazadas.filter(f => !f.yaMigrado)} />}
         </div>
+      )}
+    </div>
+  );
+}
+
+const VEREDICTO_INFO = {
+  confirmado: { icono: '✓', texto: 'Confirmado, ya recolectado', color: 'var(--green)' },
+  pendiente_para_confirmar: { icono: '⚠', texto: 'Planeado, sin confirmar -- se marca recolectado al aplicar', color: 'var(--amber, #b98900)' },
+  requiere_revision_manual: { icono: '⚠', texto: 'Ambiguo -- revisar a mano (no se toca solo)', color: 'var(--red)' },
+  sin_registro: { icono: '⚠', texto: 'Sin ningún movimiento planeado -- queda como hallazgo', color: 'var(--red)' },
+};
+
+/**
+ * Filas rechazadas por venir con ubicación en formato MZ en vez de RCL --
+ * señal de que el artículo ya se movió físicamente (2026-08-25, pedido
+ * explícito: "esto con cada carga de inventario nuevo"). Se cruzan contra
+ * migracion_movimientos (ver PanelImportInventarioRcl/procesarFilas) para
+ * decir si el sistema ya sabe esto o no -- nunca se aplican como sub-posición
+ * RCL (no lo son), solo informan.
+ *
+ * "Aplicar reconciliación" es una acción APARTE del import principal (decisión
+ * de negocio 2026-08-25, ver aplicarYaMigrado en el componente padre): solo
+ * marca 'recolectado' los casos 'pendiente_para_confirmar' -- el resto queda
+ * como hallazgo en migracion_ya_migrado, nunca se toca migracion_movimientos.
+ */
+function TablaYaMigrado({ filas, resuelto, cargando, aplicando, aplicado, onAplicar }) {
+  const porFila = new Map((resuelto ?? []).map(r => [r.fila, r]));
+  const paraConfirmar = (resuelto ?? []).filter(r => r.veredicto === 'pendiente_para_confirmar').length;
+  return (
+    <div style={{ overflowX: 'auto', marginBottom: 18 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: 'var(--amber, #b98900)', marginBottom: 6 }}>
+        🚚 Ya migrado -- ubicación en formato MZ, no RCL
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 8 }}>
+        Estas filas no se pueden aplicar como sub-posición RCL (ya no lo son), pero indican que el artículo ya
+        está físicamente en el MZ nuevo. {cargando ? 'Cruzando contra el sistema…' : 'Estado según lo que el sistema tiene registrado:'}
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead><tr style={theadRow}>
+          <th style={thStyle}>Fila</th><th style={thStyle}>Ubicación MZ</th><th style={thStyle}>Artículo</th><th style={thStyle}>Cantidad</th><th style={thStyle}>Estado</th>
+        </tr></thead>
+        <tbody>
+          {filas.map(f => {
+            const info = cargando ? null : VEREDICTO_INFO[porFila.get(f.fila)?.veredicto];
+            return (
+              <tr key={f.fila} style={{ borderTop: '1px solid var(--borde-sutil)', background: 'var(--amarillo-tenue, #fff8e6)' }}>
+                <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.fila}</td>
+                <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.rclTexto}</td>
+                <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.articulo || '—'}</td>
+                <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{f.cantidadTexto || '—'}</td>
+                <td style={{ ...tdStyle, color: info?.color, fontSize: 11.5, fontWeight: 600 }}>
+                  {cargando ? '…' : `${info.icono} ${info.texto}`}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {!cargando && !aplicado && (
+        <div style={{ marginTop: 10 }}>
+          <button className="btn-secondary" disabled={aplicando || !resuelto} onClick={onAplicar}>
+            {aplicando ? 'Aplicando…' : `Aplicar reconciliación (${paraConfirmar} para marcar recolectado, resto queda como hallazgo)`}
+          </button>
+        </div>
+      )}
+      {aplicado && (
+        <p style={{ fontSize: 12.5, color: 'var(--green)', marginTop: 10 }}>
+          ✓ {aplicado.marcadosRecolectado} movimiento(s) marcado(s) recolectado, {aplicado.hallazgos} fila(s) registrada(s) solo como hallazgo.
+        </p>
       )}
     </div>
   );

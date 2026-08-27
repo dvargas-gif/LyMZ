@@ -41,6 +41,7 @@ Rechazar cualquier atajo que las viole, incluso si el usuario lo pide en un mome
 - `BACKLOG-MIGRACION.md` — lista de queries directas/lógica duplicada que aún vive fuera del dominio (archivo y línea). Medidor honesto del avance del Strangler Fig.
 - `PROTOCOLO-MAPA.md` — contrato postMessage actual del mapa legacy (mensajes, payloads, dirección) — entregable de G0, referencia obligatoria para la Fase 2 (bridge).
 - `MASTER-PROMPT.md` — este archivo. Fuente de verdad del mandato; cualquier cambio de alcance se refleja acá y se registra en `DECISIONES.md`.
+- `PROTOCOLO-GOBERNANZA.md` — reglas de aprobación/ejecución para código y datos de producción (código vs. SQL, decisiones semánticas, PRE/POST verificado, hallazgos aparte). Referencia obligatoria en toda sesión que toque producción -- ver ADR-025 (2026-08-25) para el incidente que lo originó.
 
 ### 4.2 Ciclo de cada sesión
 

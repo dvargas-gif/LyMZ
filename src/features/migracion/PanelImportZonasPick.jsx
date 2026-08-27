@@ -65,9 +65,10 @@ export default function PanelImportZonasPick({ sesion }) {
   return (
     <div>
       <p style={{ fontSize: 12, color: 'var(--texto-tenue)', marginBottom: 16 }}>
-        Subí el archivo con <b>Código Articulo</b>, <b>Cantidad Mínima</b> y <b>Cantidad Máxima</b> de pick por
-        artículo (los nombres de columna son flexibles, no hace falta que coincidan exacto). Volver a subirlo
-        actualiza los valores de cada artículo -- nunca se acumula ni se duplica.
+        Subí el archivo con <b>Código Articulo</b>, <b>Cantidad Mínima</b>, <b>Cantidad Máxima</b> y <b>Ubicación</b>
+        (la posición RCL asignada como cara de pick, aunque hoy no tenga stock real) por artículo -- los nombres de
+        columna son flexibles, no hace falta que coincidan exacto. Volver a subirlo actualiza los valores de cada
+        artículo -- nunca se acumula ni se duplica.
       </p>
 
       {!previa && !resultado && (

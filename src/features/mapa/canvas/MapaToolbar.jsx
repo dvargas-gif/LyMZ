@@ -21,6 +21,7 @@ import LeyendaClases from './LeyendaClases.jsx';
 export default function MapaToolbar({
   onRestablecerVista, onZoomIn, onZoomOut,
   valorBusqueda, onCambiarBusqueda, resultadoBusqueda,
+  sugerencias = [], onSeleccionarSugerencia,
   onExportar,
   modoEdicion, onToggleEdicion,
   modoBloqueo, onToggleBloqueo,
@@ -32,6 +33,7 @@ export default function MapaToolbar({
   cambiosMigracion = [], bufferGlobal = [], mostrarBuffer = false, onDevolverBuffer, alertasDestinoListo = [],
   mostrarReporte = false,
   articulosPorClase,
+  mostrarFiltroSinHogar = false, filtroSinHogar = false, onToggleFiltroSinHogar, cantidadSinHogar = 0,
 }) {
   const [buscarEnfocado, setBuscarEnfocado] = useState(false);
   const [terminalAbierta, setTerminalAbierta] = useState(false);
@@ -67,16 +69,34 @@ export default function MapaToolbar({
 
         <div className="mapa-toolbar__separador" />
 
-        <div className={`mapa-toolbar__buscar ${buscarEnfocado ? 'mapa-toolbar__buscar--activo' : ''}`}>
+        <div className={`mapa-toolbar__buscar ${buscarEnfocado ? 'mapa-toolbar__buscar--activo' : ''}`} style={{ position: 'relative' }}>
           <i className="ti ti-search" style={{ fontSize: 14, color: BLANCO_CALIDO_TENUE }} />
           <input
             type="text"
-            placeholder="Buscar artículo…"
+            placeholder="Buscar artículo, RCL o MZ…"
             value={valorBusqueda}
             onChange={e => onCambiarBusqueda(e.target.value)}
             onFocus={() => setBuscarEnfocado(true)}
             onBlur={() => setBuscarEnfocado(false)}
           />
+          {buscarEnfocado && sugerencias.length > 0 && (
+            <ul className="mapa-toolbar__sugerencias">
+              {sugerencias.map(s => (
+                <li key={s.clave}>
+                  <button
+                    type="button"
+                    className={`mapa-toolbar__sugerencia mapa-toolbar__sugerencia--${s.tipo}`}
+                    // onMouseDown (no onClick) -- corre ANTES de que el onBlur del
+                    // input cierre la lista, si no el click nunca llega a registrarse.
+                    onMouseDown={e => { e.preventDefault(); onSeleccionarSugerencia(s); }}
+                  >
+                    <span className="mapa-toolbar__sugerencia-tipo">{s.tipo.toUpperCase()}</span>
+                    {s.etiqueta}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="mapa-toolbar__separador" />
@@ -112,6 +132,26 @@ export default function MapaToolbar({
               onClick={() => setBufferAbierto(v => !v)}
               activo={bufferAbierto}
               badge={bufferGlobal.length > 0 ? bufferGlobal.length : null}
+            />
+          </>
+        )}
+
+        {/*
+          Filtro "sin hogar" (2026-08-26, pedido explícito de David) --
+          antes era un botón flotante en la esquina, se pisaba con la
+          Bitácora al abrirse (bug real reportado, ver PanelBitacoraMigracion.jsx)
+          -- movido acá adentro, mismo patrón que el resto de los toggles del
+          toolbar, sin riesgo de superponerse con nada.
+        */}
+        {mostrarFiltroSinHogar && (
+          <>
+            <div className="mapa-toolbar__separador" />
+            <BotonToolbar
+              icono="ti-map-pin-question"
+              titulo={filtroSinHogar ? 'Ocultar artículos sin posición MZ asignada' : 'Ver artículos sin posición MZ asignada'}
+              onClick={onToggleFiltroSinHogar}
+              activo={filtroSinHogar}
+              badge={cantidadSinHogar > 0 ? cantidadSinHogar : null}
             />
           </>
         )}

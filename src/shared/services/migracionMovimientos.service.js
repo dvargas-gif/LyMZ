@@ -50,11 +50,18 @@ async function respaldarPendienteActual() {
  * (ver supabase/sql/2026-07-13_migracion_rcl_mz_rls.sql).
  */
 export const migracionMovimientosService = {
-  /** id -> destino MZ, para TODOS los movimientos pendientes -- liviano (sin cantidad/orden/estado), pensado para que MapaCanvas.jsx resuelva el destino real de cada artículo del buffer (via migracion_buffer.movimiento_id) sin otro round-trip por destino. */
+  /**
+   * id -> destino MZ, para TODOS los movimientos pendientes -- liviano (sin
+   * cantidad/orden/estado), pensado para que MapaCanvas.jsx resuelva el
+   * destino real de cada artículo del buffer (via migracion_buffer.movimiento_id)
+   * sin otro round-trip por destino. Incluye `articulo` (2026-08-24, pedido
+   * explícito: mostrar destino planeado al iniciar un movimiento individual
+   * desde Vista RCL) para poder resolver también por artículo, no solo por id.
+   */
   async listarTodos() {
     const data = await seleccionarPaginado((desde, hasta) =>
-      supabase.from('migracion_movimientos').select('id, mz_pasillo, mz_columna').eq('estado', 'pendiente').range(desde, hasta));
-    return data.map(d => ({ id: d.id, mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna }));
+      supabase.from('migracion_movimientos').select('id, mz_pasillo, mz_columna, mz_nivel, articulo').eq('estado', 'pendiente').range(desde, hasta));
+    return data.map(d => ({ id: d.id, mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna, mzNivel: d.mz_nivel, articulo: d.articulo }));
   },
 
   /**
@@ -69,12 +76,17 @@ export const migracionMovimientosService = {
    * recalcule el plan con stock nuevo). Pensado para
    * despacho.service.js/generarLoteDespacho.js -- pedido explícito 2026-07-22
    * tras un caso real (vaciar 14 para recolectar 1 en un rack cuyo plan SÍ
-   * tenía más artículos, solo que sin stock).
+   * tenía más artículos, solo que sin stock). Incluye `articulo` (2026-08-25,
+   * pedido explícito de David tras el incidente real de esta semana: "no
+   * quiero que me deje mercadería") -- despacho.service.js lo usa para
+   * armar el set de artículos que alguna vez tuvieron un destino real
+   * calculado, y así `contenidoActualDeRacks()` nunca genere una tarea
+   * "vaciar" para un artículo que no tiene a dónde ir.
    */
   async listarTodosCualquierEstado() {
     const data = await seleccionarPaginado((desde, hasta) =>
-      supabase.from('migracion_movimientos').select('mz_pasillo, mz_columna').range(desde, hasta));
-    return data.map(d => ({ mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna }));
+      supabase.from('migracion_movimientos').select('mz_pasillo, mz_columna, articulo').range(desde, hasta));
+    return data.map(d => ({ mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna, articulo: d.articulo }));
   },
 
   /** TODOS los movimientos pendientes, con su origen RCL -- lo que necesita planificarSecuencia.js para armar el grafo de dependencias entre racks (a diferencia de listarTodos(), acá sí hace falta rcl_codigo/rcl_nivel). */
@@ -105,6 +117,12 @@ export const migracionMovimientosService = {
    * 'recolectado' (sería perder progreso real de un operador). Se puede
    * correr de nuevo cuando se reimporte un inventario RCL más fresco.
    *
+   * Tampoco borra una fila 'pendiente' si `despacho_tareas` o
+   * `migracion_buffer` todavía la referencian (2026-08-25, ver el
+   * comentario dentro de la función) -- sin este filtro, el DELETE choca
+   * contra el FK (sin ON DELETE CASCADE, a propósito) apenas exista una
+   * tarea de Despacho o un artículo en el buffer esperando ese destino.
+   *
    * ANTES de borrar nada, respalda el pendiente actual en
    * `migracion_movimientos_respaldo` (reemplaza lo que hubiera ahí de una
    * aplicación anterior -- un solo nivel de deshacer, no un historial
@@ -121,7 +139,33 @@ export const migracionMovimientosService = {
   async reemplazarPendientes(movimientos, usuarioId) {
     await respaldarPendienteActual();
 
-    const { error: errorBorrado } = await supabase.from('migracion_movimientos').delete().eq('estado', 'pendiente');
+    // Bug real encontrado 2026-08-25 (auditoría real, no hipotética --
+    // confirmado con datos de producción): `despacho_tareas.movimiento_id`
+    // y `migracion_buffer.movimiento_id` referencian esta tabla SIN
+    // `ON DELETE CASCADE` (a propósito -- no queremos que recalcular el
+    // plan borre en cascada trabajo físico real en curso). El DELETE de
+    // abajo, sin este filtro, choca contra ese FK apenas exista una tarea
+    // de Despacho o un artículo en el buffer todavía apuntando a un
+    // movimiento pendiente -- confirmado que pasa hoy mismo en producción
+    // (29 filas). Nunca se borra una fila "pendiente" que algo real
+    // todavía referencia -- el recálculo la deja intacta (representa
+    // trabajo físico ya comprometido), solo reemplaza lo que nadie usa.
+    const [{ data: referenciadosPorTareas, error: errorTareas }, { data: referenciadosPorBuffer, error: errorBuffer }] = await Promise.all([
+      supabase.from('despacho_tareas').select('movimiento_id').not('movimiento_id', 'is', null),
+      supabase.from('migracion_buffer').select('movimiento_id').eq('purgado', false).not('movimiento_id', 'is', null),
+    ]);
+    if (errorTareas) throw errorTareas;
+    if (errorBuffer) throw errorBuffer;
+    const idsReferenciados = [...new Set([
+      ...referenciadosPorTareas.map(r => r.movimiento_id),
+      ...referenciadosPorBuffer.map(r => r.movimiento_id),
+    ])];
+
+    let queryBorrado = supabase.from('migracion_movimientos').delete().eq('estado', 'pendiente');
+    if (idsReferenciados.length > 0) {
+      queryBorrado = queryBorrado.not('id', 'in', `(${idsReferenciados.join(',')})`);
+    }
+    const { error: errorBorrado } = await queryBorrado;
     if (errorBorrado) throw errorBorrado;
 
     const ahora = new Date().toISOString();
@@ -140,6 +184,32 @@ export const migracionMovimientosService = {
         });
       if (error) throw error;
     }
+  },
+
+  /**
+   * Estado de migración conocido para un conjunto de pares (mzPasillo, mzColumna,
+   * articulo) -- usado por el import de Inventario RCL (F1.5-B) para el check
+   * "ya migrado" (2026-08-25, pedido explícito de David tras ver filas rechazadas
+   * cuya ubicación ya venía en formato MZ: el artículo se movió físicamente antes
+   * de que el sistema generara/confirmara ese movimiento). Trae TODOS los
+   * movimientos alguna vez generados para los pasillos involucrados (cualquier
+   * estado) y el llamador cruza por artículo+columna -- así el import puede
+   * distinguir "recolectado" (el motor ya lo tiene confirmado, coincide) de
+   * "pendiente/a_revisar/descartado" (el motor lo tiene planeado pero no
+   * confirmado) de "sin ningún registro" (el motor no se enteró de este
+   * movimiento -- señal más fuerte de que hace falta revisión manual).
+   * Incluye `id` para que el llamador pueda marcar 'recolectado' el
+   * movimiento exacto que corresponde, sin adivinar cuál.
+   */
+  async buscarEstadoPorDestinoYArticulo(pares) {
+    if (pares.length === 0) return [];
+    const mzPasillos = [...new Set(pares.map(p => p.mzPasillo))];
+    const data = await seleccionarPaginado((desde, hasta) =>
+      supabase.from('migracion_movimientos')
+        .select('id, mz_pasillo, mz_columna, articulo, estado')
+        .in('mz_pasillo', mzPasillos)
+        .range(desde, hasta));
+    return data.map(d => ({ id: d.id, mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna, articulo: d.articulo, estado: d.estado }));
   },
 
   /** Paso 2 del flujo guiado (recolectando): el operador marca UN artículo puntual como ya recolectado. */

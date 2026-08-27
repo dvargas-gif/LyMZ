@@ -10,6 +10,34 @@ export default function BarraMovimiento({ moviendo, guardando, nivelesDisponible
 
   const origenTexto = `${moviendo.origen.pasillo}-C${String(moviendo.origen.columna).padStart(3, '0')}${moviendo.origen.nivel ? `-${moviendo.origen.nivel}` : ''}`;
 
+  /**
+   * Destino planeado real (2026-08-24, pedido explícito: "que vea donde
+   * está y hacia dónde va el artículo" al mover individual desde Vista RCL)
+   * -- solo se muestra si hay UN solo movimiento pendiente para ese artículo;
+   * si hay más de uno (orígenes distintos) se avisa en vez de arriesgar
+   * mostrar el equivocado. Solo aplica al modo 'individual' -- mover un
+   * cuerpo entero no tiene un destino planeado por artículo.
+   *
+   * Cuando NO hay ningún plan (2026-08-26, pedido explícito de David: "una
+   * cosa es que le presentes dónde debería ir, sin plan, y otra es que no
+   * muestres nada") -- se avisa explícito en vez de quedar en silencio,
+   * para que el operador sepa que está moviendo sin ninguna guía, no que
+   * el sistema simplemente no tenía nada que decir. Solo en el mapa real
+   * (`sinPlanConocido`, ver MapaCanvas.jsx) -- en una sala no existe el
+   * concepto de "plan de migración".
+   */
+  let destinoPlaneadoTexto = null;
+  let sinPlan = false;
+  if (moviendo.modo === 'individual') {
+    if (moviendo.destinoPlaneado) {
+      destinoPlaneadoTexto = moviendo.destinoPlaneado.ambiguo
+        ? `Destino planeado: ambiguo (${moviendo.destinoPlaneado.cantidad} movimientos pendientes distintos) -- revisá el plan antes de decidir.`
+        : `Destino planeado: ${moviendo.destinoPlaneado.mzPasillo}-C${String(moviendo.destinoPlaneado.mzColumna).padStart(3, '0')}-${moviendo.destinoPlaneado.mzNivel}.`;
+    } else if (moviendo.sinPlanConocido) {
+      sinPlan = true;
+    }
+  }
+
   let mensaje;
   if (guardando) {
     mensaje = 'Guardando…';
@@ -24,6 +52,8 @@ export default function BarraMovimiento({ moviendo, guardando, nivelesDisponible
   return (
     <div className="mapa-movebar">
       <span>{mensaje}</span>
+      {!guardando && destinoPlaneadoTexto && <span className="mapa-movebar__destino-planeado">{destinoPlaneadoTexto}</span>}
+      {!guardando && sinPlan && <span className="mapa-movebar__sin-plan">Sin destino planificado -- moviendo libremente.</span>}
       {!guardando && moviendo.modo === 'individual' && moviendo.destino && (
         <div className="mapa-movebar__niveles">
           {nivelesDisponibles.map(n => (

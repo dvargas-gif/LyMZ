@@ -69,12 +69,25 @@ function claveRack(mzPasillo, mzColumna) {
  * identidad RCL vieja) -- lo que hay que sacar y depositar en el buffer
  * antes de poder recolectar nada nuevo ahí. Función pura, sin Supabase.
  *
+ * Filtro real (2026-08-25, pedido explícito de David tras el incidente real
+ * de esta semana -- varios artículos vaciados quedaron días en el buffer sin
+ * destino: "no quiero que me deje mercadería"): si se pasa
+ * `articulosConDestinoReal`, un artículo SIN ningún `migracion_movimiento`
+ * (en cualquier estado -- ver `listarTodosCualquierEstado()`) NUNCA se
+ * incluye en `contenido` -- nunca se genera la tarea "vaciar" para él, así
+ * que nunca puede quedar varado en el buffer por esta vía. Se devuelve
+ * aparte en `sinDestino`, explícito, para que quien llama pueda avisar con
+ * números reales en vez de que el artículo desaparezca en silencio.
+ *
  * @param {Array<{mzPasillo, mzColumna}>} oleadaRacks
  * @param {Array<{mzPasillo, mzColumna, rclCodigo, rclNivel, rclSubnivel, estadoRcl}>} identidadLegacy -- identidadLegacyService.listar()
  * @param {Array<{rclCodigo, rclNivel, rclSubnivel, articulo, cantidad}>} inventarioRclActual -- inventarioRclService.listar()
- * @returns {Array<{mzPasillo, mzColumna, rclCodigo, rclNivel, articulo, cantidad}>}
+ * @param {Set<string>} [articulosConDestinoReal] -- OPCIONAL. Artículos con al menos un
+ *   `migracion_movimiento` alguna vez generado (ver migracionMovimientosService.listarTodosCualquierEstado()).
+ *   Sin este parámetro, no se filtra nada -- mismo comportamiento que antes de este ajuste.
+ * @returns {{ contenido: Array<{mzPasillo, mzColumna, rclCodigo, rclNivel, articulo, cantidad}>, sinDestino: Array<{mzPasillo, mzColumna, rclCodigo, rclNivel, articulo, cantidad}> }}
  */
-export function contenidoActualDeRacks(oleadaRacks, identidadLegacy, inventarioRclActual) {
+export function contenidoActualDeRacks(oleadaRacks, identidadLegacy, inventarioRclActual, articulosConDestinoReal = null) {
   const racksDeLaOleada = new Set(oleadaRacks.map(r => claveRack(r.mzPasillo, r.mzColumna)));
 
   const mzPorRcl = new Map();
@@ -87,16 +100,22 @@ export function contenidoActualDeRacks(oleadaRacks, identidadLegacy, inventarioR
   }
 
   const contenido = [];
+  const sinDestino = [];
   for (const item of inventarioRclActual) {
     if (Number(item.rclSubnivel) !== SUBNIVEL_UNICO) continue;
     const destino = mzPorRcl.get(`${item.rclCodigo}|${Number(item.rclNivel)}`);
     if (!destino) continue;
-    contenido.push({
+    const fila = {
       mzPasillo: destino.mzPasillo, mzColumna: destino.mzColumna,
       rclCodigo: item.rclCodigo, rclNivel: item.rclNivel, articulo: item.articulo, cantidad: item.cantidad,
-    });
+    };
+    if (articulosConDestinoReal && !articulosConDestinoReal.has(item.articulo)) {
+      sinDestino.push(fila);
+      continue;
+    }
+    contenido.push(fila);
   }
-  return contenido;
+  return { contenido, sinDestino };
 }
 
 /**
@@ -238,4 +257,51 @@ export function generarLoteDespacho(oleadaRacks, contenidoActualPorRack, movimie
   advertencias.push(`Esta orden contempla ${bloques.length} cuerpo(s) (posible MZ nuevo cada uno) y ${totalTareas} tarea(s) en total, repartidas parejo entre los operadores.`);
 
   return { trabajadores, advertencias };
+}
+
+/**
+ * Recorta la oleada candidata (ya priorizada por `planificarSecuencia`) a
+ * solo los racks que van a CERRAR completos -- pedido explícito 2026-08-25:
+ * "que el cálculo de cada oleada tenga como fin dos racks completos...
+ * siempre sea de 2 a 3 rack... esto nos permite recalcular conforme vamos
+ * confirmando o dejando listos los racks". "Completo" = ni falta nada por
+ * recolectar por falta de stock real, ni queda ningún artículo sin destino
+ * sin poder sacarse (ver `contenidoActualDeRacks`) -- las dos formas reales
+ * de quedar a medias que ya encontramos en producción.
+ *
+ * Preserva el ORDEN de prioridad que ya trae `oleada` (planificarSecuencia
+ * ya decidió qué va primero) -- esto solo filtra y corta, nunca reordena.
+ *
+ * @param {Array<{mzPasillo, mzColumna, ...}>} oleada
+ * @param {Map<string, number>} sinDestinoPorRack -- clave "pasillo|columna" -> cantidad de artículos sin destino en ese rack (agrupar el `sinDestino` de `contenidoActualDeRacks`)
+ * @param {Map<string, number>} [totalPlanificadoPorRack] -- ver generarLoteDespacho(). Sin este par de mapas, ningún rack se considera incompleto por falta de stock (mismo criterio "opcional" que el resto del archivo).
+ * @param {Map<string, number>} [totalConMovimientoPorRack]
+ * @param {number} [limite] -- tope de racks completos a devolver esta oleada (David: "2 a 3").
+ * @returns {{ seleccionados: Array, diferidosPorCupo: Array, incompletos: Array<{mzPasillo, mzColumna, faltanRecolectar, faltanVaciar}> }}
+ *   `seleccionados`: entran en esta oleada, van a cerrar completos.
+ *   `diferidosPorCupo`: TAMBIÉN van a cerrar completos, pero ya se llegó al límite -- quedan para la próxima oleada, sin más trámite.
+ *   `incompletos`: NO van a cerrar completos con lo que hay hoy (falta stock real o algún artículo sin destino) -- no se resuelven solos esperando, necesitan recalcular el plan o resolver el destino a mano.
+ */
+export function seleccionarRacksCompletos(oleada, sinDestinoPorRack, totalPlanificadoPorRack = new Map(), totalConMovimientoPorRack = new Map(), limite = 3) {
+  const seleccionados = [];
+  const diferidosPorCupo = [];
+  const incompletos = [];
+
+  for (const rack of oleada) {
+    const clave = claveRack(rack.mzPasillo, rack.mzColumna);
+    const totalPlan = totalPlanificadoPorRack.get(clave) ?? 0;
+    const totalMov = totalConMovimientoPorRack.get(clave) ?? 0;
+    const faltanRecolectar = Math.max(0, totalPlan - totalMov);
+    const faltanVaciar = sinDestinoPorRack.get(clave) ?? 0;
+
+    if (faltanRecolectar > 0 || faltanVaciar > 0) {
+      incompletos.push({ ...rack, faltanRecolectar, faltanVaciar });
+    } else if (seleccionados.length < limite) {
+      seleccionados.push(rack);
+    } else {
+      diferidosPorCupo.push(rack);
+    }
+  }
+
+  return { seleccionados, diferidosPorCupo, incompletos };
 }

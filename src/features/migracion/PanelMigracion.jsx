@@ -8,7 +8,9 @@ import { identidadLegacyService } from '../../shared/services/identidadLegacy.se
 import { migracionSlotsService } from '../../shared/services/migracionSlots.service.js';
 import { usuariosService } from '../usuarios/usuarios.service.js';
 import { posicionesEliminadasService } from '../../shared/services/posicionesEliminadas.service.js';
-import { generarMovimientosMigracion } from './generarMovimientos.js';
+import { generarMovimientosMigracionOptimizado } from './generarMovimientosOptimizado.js';
+import { validarGeometria } from '../../domain/GeometriaMezanine.js';
+import geometriaCruda from '../../domain/geometriaMezanine.data.json';
 import { despachoService } from '../../shared/services/despacho.service.js';
 import { articuloDimensionesService } from '../../shared/services/articuloDimensiones.service.js';
 import { detectarCuerposParaAjustarNiveles } from '../../domain/reglasAsignacionCuerpo.js';
@@ -171,16 +173,28 @@ export default function PanelMigracion({ sesion, onCerrar }) {
 
   useEffect(() => { cargar(); }, []);
 
-  // ---- Plan ----
+  /**
+   * Plan calculado con el motor de optimización (2026-08-26, pedido
+   * explícito de David: "que la lógica de selección sea la nueva") -- el
+   * origen RCL + cantidad real se detecta igual que siempre, pero el
+   * destino MZ ya no es el fijo de `inventario_slotting`, lo elige
+   * `generarMovimientosMigracionOptimizado()` (volumen, densidad, afinidad
+   * de zona, ocupación real de lo que ya está puesto). La salida tiene la
+   * MISMA forma de siempre -- Aplicar/previa/migracion_movimientos no
+   * cambiaron nada (ver generarMovimientosOptimizado.js).
+   */
   async function calcular() {
     setCargandoPlan(true);
     setError('');
     try {
-      const [inventarioSlotting, inventarioRclActual] = await Promise.all([
+      const [inventarioSlotting, inventarioRclActual, dimensiones] = await Promise.all([
         inventarioService.listar(),
         inventarioRclService.listar(),
+        articuloDimensionesService.listar(),
       ]);
-      setPrevia(generarMovimientosMigracion(inventarioSlotting, inventarioRclActual));
+      const volumenPorArticulo = new Map(dimensiones.map(d => [d.articulo, d.volumenM3]));
+      const geometria = validarGeometria(geometriaCruda);
+      setPrevia(generarMovimientosMigracionOptimizado(inventarioSlotting, inventarioRclActual, volumenPorArticulo, geometria));
       setPaso('previa');
     } catch (err) {
       setError(`No se pudo calcular el plan: ${err.message || err}`);
@@ -524,9 +538,13 @@ export default function PanelMigracion({ sesion, onCerrar }) {
 
           {paso === 'previa' && previa && (
             <div>
-              <div style={{ display: 'flex', gap: 14, marginBottom: 14, fontSize: 12.5 }}>
+              <div style={{ display: 'flex', gap: 14, marginBottom: 14, fontSize: 12.5, flexWrap: 'wrap' }}>
                 <span>✅ Movimientos a generar: <b>{previa.movimientos.length}</b></span>
                 <span style={{ color: 'var(--texto-tenue)' }}>⚠ {previa.sinStock.length} artículo(s) del plan sin stock real -- se excluyen (ver "Limpiar artículos sin stock real")</span>
+                {/* Motor de optimización (2026-08-26) -- artículos sin volumen cargado no pasan por la lógica nueva, usan su destino fijo original como respaldo. Visible acá para saber cuántos NO se beneficiaron de la selección inteligente. */}
+                {previa.respaldados?.length > 0 && (
+                  <span style={{ color: 'var(--texto-tenue)' }}>ℹ {previa.respaldados.length} artículo(s) sin dimensión cargada -- usaron su destino fijo original</span>
+                )}
               </div>
 
               {previa.movimientos.length === 0 ? (

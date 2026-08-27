@@ -21,13 +21,22 @@ export const inventarioRclService = {
   },
 
   /**
-   * Antes de upsertear, borra artículos "fantasma": filas que YA existen en
-   * las MISMAS sub-posiciones que trae este archivo, cuyo artículo ya NO
-   * aparece en la foto nueva (se consumió/movió) -- el upsert (clave de 4
-   * columnas: posición+artículo) solo actualiza o inserta, nunca borra, así
-   * que sin esto un artículo que desaparece de un re-import queda con su
-   * cantidad vieja para siempre. Acotado a las sub-posiciones que SÍ vienen
-   * en este archivo -- nunca toca una sub-posición que este import no cubre.
+   * Antes de upsertear, borra en dos pasos lo que ya no es real (el archivo
+   * es SIEMPRE un export completo de todos los RCL del mezanine, confirmado
+   * explícitamente con el usuario 2026-08-24 -- nunca parcial):
+   *
+   * 1) Racks que quedaron en cero por completo: si un `rcl_codigo` que hoy
+   *    existe en la base no aparece EN ABSOLUTO en el archivo nuevo (ningún
+   *    nivel/sub-posición), significa que se vació entero -- el archivo no
+   *    lista posiciones en cero, las omite. Se borra completo, no solo lo
+   *    que "coincide" sub-posición por sub-posición (ese rack nunca
+   *    aparecería en ese cruce porque no está en absoluto en el archivo).
+   * 2) Artículos "fantasma" dentro de sub-posiciones que SÍ vienen en el
+   *    archivo, cuyo artículo ya no aparece en la foto nueva (se
+   *    consumió/movió) -- el upsert (clave de 4 columnas: posición+artículo)
+   *    solo actualiza o inserta, nunca borra, así que sin esto un artículo
+   *    que desaparece de un re-import queda con su cantidad vieja para
+   *    siempre.
    */
   async guardarLote(filas, usuarioId) {
     const ahora = new Date().toISOString();
@@ -40,7 +49,27 @@ export const inventarioRclService = {
     const subposicionesTocadas = new Set(filasDb.map(f => `${f.rcl_codigo}|${f.rcl_nivel}|${f.rcl_subnivel}`));
     const clavesNuevas = new Set(filasDb.map(f => `${f.rcl_codigo}|${f.rcl_nivel}|${f.rcl_subnivel}|${f.articulo}`));
     const codigosUnicos = [...new Set(filasDb.map(f => f.rcl_codigo))];
+    const codigosEnArchivo = new Set(codigosUnicos);
 
+    // Paso 1: racks vaciados por completo (ver comentario de arriba).
+    const codigosExistentes = new Set();
+    {
+      let desde = 0;
+      while (true) {
+        const { data, error } = await supabase.from('inventario_rcl_actual').select('rcl_codigo').range(desde, desde + TAMANO_PAGINA - 1);
+        if (error) throw error;
+        data.forEach(d => codigosExistentes.add(d.rcl_codigo));
+        if (data.length < TAMANO_PAGINA) break;
+        desde += TAMANO_PAGINA;
+      }
+    }
+    const codigosVaciados = [...codigosExistentes].filter(c => !codigosEnArchivo.has(c));
+    for (let i = 0; i < codigosVaciados.length; i += TAMANO_PAGINA) {
+      const { error } = await supabase.from('inventario_rcl_actual').delete().in('rcl_codigo', codigosVaciados.slice(i, i + TAMANO_PAGINA));
+      if (error) throw error;
+    }
+
+    // Paso 2: artículos fantasma dentro de los rcl_codigo que sí vienen.
     for (let i = 0; i < codigosUnicos.length; i += TAMANO_PAGINA) {
       const { data: existentes, error: errorLectura } = await supabase
         .from('inventario_rcl_actual')
