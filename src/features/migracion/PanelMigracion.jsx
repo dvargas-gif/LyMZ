@@ -461,7 +461,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
    * la auditoría queda como best-effort después, sin bloquear nada.
    */
   async function eliminar(s) {
-    if (!confirm(`¿Eliminar el traslado de ${rackDe(s)}? Esto libera su cupo y su buffer -- no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar el traslado de ${rackDe(s)}? Esto libera su cupo y su carrito de traslado -- no se puede deshacer.`)) return;
     setProcesando(s.id);
     setError('');
     try {
@@ -568,7 +568,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
                   : `✓ Plan de recolección actualizado -- ${resultado.aplicados} movimiento(s)`}
               </b>
               {resultado.sinStock > 0 && <span style={{ color: 'var(--texto-tenue)', fontSize: 12.5 }}> — {resultado.sinStock} artículo(s) quedaron afuera por no tener stock real.</span>}
-              {resultado.revinculados > 0 && <p style={{ color: 'var(--texto-tenue)', fontSize: 12.5, margin: '8px 0 0' }}>{resultado.revinculados} artículo(s) que ya estaban en el buffer ahora resolvieron su destino real.</p>}
+              {resultado.revinculados > 0 && <p style={{ color: 'var(--texto-tenue)', fontSize: 12.5, margin: '8px 0 0' }}>{resultado.revinculados} artículo(s) que ya estaban en el carrito de traslado ahora resolvieron su destino real.</p>}
               <button className="btn-secondary" onClick={reiniciarPlan} style={{ marginTop: 10, fontSize: 12 }}>Calcular otro plan</button>
             </div>
           )}
@@ -766,7 +766,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
               {deshaciendo ? 'Reiniciando…' : '⚠ Reiniciar migración desde cero'}
             </button>
             <p className="info-secundaria">
-              Borra TODO el plan de recolección actual -- se rechaza solo si ya hay algún equipo trabajando, algo en el buffer o algo recolectado (nunca a costa de perder trabajo real).
+              Borra TODO el plan de recolección actual -- se rechaza solo si ya hay algún equipo trabajando, algo en el carrito de traslado o algo recolectado (nunca a costa de perder trabajo real).
             </p>
           </div>
         </section>

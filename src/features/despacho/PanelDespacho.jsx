@@ -157,7 +157,7 @@ export default function PanelDespacho({ sesion }) {
   /** Para limpiar órdenes de PRUEBA -- a diferencia de cancelar, esto revierte también lo ya confirmado de verdad (migracion_movimientos/buffer/slots) y borra la orden entera. */
   async function deshacerLoteCompleto() {
     if (!lote) return;
-    if (!confirm(`¿Deshacer la orden #${lote.id} por completo? Esto revierte también lo que YA se confirmó (artículos recolectados vuelven a pendiente, lo depositado en el buffer se borra, el traslado del rack se borra) y elimina la orden entera. Pensado para limpiar pruebas -- no se puede deshacer esto último.`)) return;
+    if (!confirm(`¿Deshacer la orden #${lote.id} por completo? Esto revierte también lo que YA se confirmó (artículos recolectados vuelven a pendiente, lo depositado en el carrito de traslado se borra, el traslado del rack se borra) y elimina la orden entera. Pensado para limpiar pruebas -- no se puede deshacer esto último.`)) return;
     setDeshaciendoLote(true);
     setError('');
     try {
@@ -226,7 +226,7 @@ export default function PanelDespacho({ sesion }) {
    * accesorio (dejar constancia).
    */
   async function eliminarSlotActivo(s) {
-    if (!confirm(`¿Eliminar el traslado de ${rackTexto(s.mzPasillo, s.mzColumna)}? Esto libera su cupo y su buffer -- no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar el traslado de ${rackTexto(s.mzPasillo, s.mzColumna)}? Esto libera su cupo y su carrito de traslado -- no se puede deshacer.`)) return;
     setEliminandoSlotId(s.id);
     setError('');
     try {

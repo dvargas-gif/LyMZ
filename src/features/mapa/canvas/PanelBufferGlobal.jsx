@@ -30,7 +30,7 @@ export default function PanelBufferGlobal({ items, onCerrar, onDevolver, alertas
   return (
     <div className="mapa-terminal">
       <div className="mapa-terminal__header">
-        <span><i className="ti ti-package" /> Buffer de migración ({items.length})</span>
+        <span><i className="ti ti-package" /> Carrito de traslado ({items.length})</span>
         <button className="mapa-terminal__cerrar" onClick={onCerrar} title="Ocultar">Ocultar ›</button>
       </div>
 
@@ -39,7 +39,7 @@ export default function PanelBufferGlobal({ items, onCerrar, onDevolver, alertas
           {alertas.map(a => (
             <div key={`${a.mzPasillo}-${a.mzColumna}`} style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6, color: '#2E5D34' }}>
               <i className="ti ti-bell-ringing" />
-              <b>{a.mzPasillo}-C{String(a.mzColumna).padStart(3, '0')}</b> está listo -- {a.cantidad} artículo(s) esperando en el buffer, ya podés colocarlos.
+              <b>{a.mzPasillo}-C{String(a.mzColumna).padStart(3, '0')}</b> está listo -- {a.cantidad} artículo(s) esperando en el carrito de traslado, ya podés colocarlos.
             </div>
           ))}
         </div>
@@ -47,7 +47,7 @@ export default function PanelBufferGlobal({ items, onCerrar, onDevolver, alertas
 
       <div className="mapa-terminal__log">
         {items.length === 0 ? (
-          <div className="mapa-terminal__vacio">El buffer está vacío -- nada en tránsito ahora mismo.</div>
+          <div className="mapa-terminal__vacio">El carrito de traslado está vacío -- nada en tránsito ahora mismo.</div>
         ) : (
           items.map(it => (
             <div key={it.id} className="mapa-terminal__linea">

@@ -22,7 +22,7 @@ function origenRcl(tarea) {
 }
 
 function descripcion(tarea) {
-  if (tarea.tipo === 'vaciar') return `Sacar "${tarea.articulo ?? ''}" de ${origenRcl(tarea)} (rack ${rackTexto(tarea.mzPasillo, tarea.mzColumna)}) y dejarlo en el carro de buffer`;
+  if (tarea.tipo === 'vaciar') return `Sacar "${tarea.articulo ?? ''}" de ${origenRcl(tarea)} (rack ${rackTexto(tarea.mzPasillo, tarea.mzColumna)}) y dejarlo en el carrito de traslado`;
   return `Buscar "${tarea.articulo ?? ''}" en ${tarea.rclCodigo ?? '(origen sin identificar)'} y llevarlo a ${rackTexto(tarea.mzPasillo, tarea.mzColumna)}`;
 }
 

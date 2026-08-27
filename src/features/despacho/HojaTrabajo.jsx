@@ -42,7 +42,7 @@ function verbo(tarea) {
   return tarea.tipo === 'vaciar' ? 'Sacar' : 'Traer';
 }
 function imagen(tarea) {
-  return tarea.tipo === 'vaciar' ? 'Buffer' : rackTexto(tarea.mzPasillo, tarea.mzColumna);
+  return tarea.tipo === 'vaciar' ? 'Carrito de traslado' : rackTexto(tarea.mzPasillo, tarea.mzColumna);
 }
 
 function Tarea({ tarea }) {

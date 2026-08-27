@@ -261,7 +261,7 @@ function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulo
                   icono="ti-corner-down-right"
                   onClick={() => onDepositarBuffer(a.articulo, nivel, a.clase, a.tipo)}
                   deshabilitado={moviendoAlgo}
-                  etiqueta={`Mover ${a.articulo} al buffer`}
+                  etiqueta={`Mover ${a.articulo} al carrito de traslado`}
                 />
               )}
             </div>

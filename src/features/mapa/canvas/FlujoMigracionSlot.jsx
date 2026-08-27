@@ -3,7 +3,7 @@ import { useIdsEnCurso } from '../../../shared/hooks/useIdsEnCurso.js';
 import { GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO, BLANCO_HUESO_TARJETA, ESTADOS } from './paleta.js';
 
 const ETIQUETA_PASO = {
-  1: 'Vaciando -- mové cada artículo al buffer con el botón junto a él, hasta que el rack quede en 0',
+  1: 'Vaciando -- mové cada artículo al carrito de traslado con el botón junto a él, hasta que el rack quede en 0',
   2: 'Recolectando -- traé los artículos correctos desde cada origen',
   3: 'Bloqueado -- esperando confirmación del supervisor/administrador',
   4: 'Migración confirmada',
@@ -75,7 +75,7 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
       {(paso === 1 || paso === 2) && bufferDelSlot.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE, margin: '0 0 8px' }}>
-            En el buffer ({bufferDelSlot.length})
+            En el carrito de traslado ({bufferDelSlot.length})
           </p>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {bufferDelSlot.map(b => (
@@ -162,7 +162,7 @@ export default function FlujoMigracionSlot({ estado, movimientosPendientes = [],
             onClick={onCancelarTraslado}
             style={{ fontSize: 15, padding: '8px 16px', color: ESTADOS.sobrecargado }}
           >
-            {bufferDelSlot.length > 0 ? `Cancelar traslado (sacará ${bufferDelSlot.length} del buffer)` : 'Cancelar traslado'}
+            {bufferDelSlot.length > 0 ? `Cancelar traslado (sacará ${bufferDelSlot.length} del carrito de traslado)` : 'Cancelar traslado'}
           </button>
         </div>
       )}

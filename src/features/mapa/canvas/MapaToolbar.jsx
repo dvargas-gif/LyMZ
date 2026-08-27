@@ -128,7 +128,7 @@ export default function MapaToolbar({
             <div className="mapa-toolbar__separador" />
             <BotonToolbar
               icono="ti-package"
-              titulo={bufferAbierto ? 'Ocultar buffer de migración' : 'Ver buffer de migración'}
+              titulo={bufferAbierto ? 'Ocultar carrito de traslado' : 'Ver carrito de traslado'}
               onClick={() => setBufferAbierto(v => !v)}
               activo={bufferAbierto}
               badge={bufferGlobal.length > 0 ? bufferGlobal.length : null}

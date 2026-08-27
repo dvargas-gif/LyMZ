@@ -20,22 +20,31 @@ async function resolverOrigenRcl(mzPasillo, mzColumna, origenNivel) {
 }
 
 /**
- * Auto-resolución del destino por código de artículo -- el mismo artículo
- * puede tener VARIOS movimientos pendientes a la vez (destinos distintos
- * desde orígenes RCL distintos, ver generarMovimientos.js), así que si hay
- * más de un candidato se desambigua por el origen (rcl_codigo+nivel) que ya
- * se resolvió al depositar. Si sigue ambiguo (o no hay origen con qué
- * desambiguar), nunca se adivina -- devuelve null, queda "sin destino" en
- * vez de vincular a un destino posiblemente equivocado.
+ * Candidatos de movimiento pendiente para un artículo, acotados por origen
+ * (rcl_codigo+nivel) cuando se puede -- el mismo artículo puede tener VARIOS
+ * movimientos pendientes a la vez (destinos distintos desde orígenes RCL
+ * distintos, ver generarMovimientos.js). `limit(2)` alcanza para distinguir
+ * "ninguno" / "uno" / "más de uno" sin traer de más.
  */
-async function resolverMovimiento(articulo, rclCodigo, nivelNumerico) {
+async function buscarMovimientosPendientes(articulo, rclCodigo, nivelNumerico) {
   let query = supabase.from('migracion_movimientos').select('id').eq('articulo', articulo).eq('estado', 'pendiente');
   if (rclCodigo != null && nivelNumerico != null) {
     query = query.eq('rcl_codigo', rclCodigo).eq('rcl_nivel', String(nivelNumerico));
   }
   const { data, error } = await query.limit(2);
   if (error) throw error;
-  return data.length === 1 ? data[0].id : null;
+  return data;
+}
+
+/**
+ * Auto-resolución del destino a partir de los candidatos ya encontrados --
+ * si hay más de uno, se desambigua por el origen (ya acotado en la consulta)
+ * pero nunca se adivina cuál es -- devuelve null, queda "sin destino" en vez
+ * de vincular a un destino posiblemente equivocado (el operador o un
+ * supervisor lo resuelve después, ver "a revisar").
+ */
+function resolverMovimiento(candidatos) {
+  return candidatos.length === 1 ? candidatos[0].id : null;
 }
 
 /** Buffer temporal de artículos en tránsito durante un traslado (`migracion_buffer`, F1/F2). */
@@ -157,9 +166,30 @@ export const migracionBufferService = {
   },
 
   /** Paso 1: deposita UN artículo en el buffer -- resuelve el origen RCL primero (secuencial, no en paralelo: resolverMovimiento lo necesita para desambiguar si el artículo tiene más de un movimiento pendiente) y el snapshot antes de insertar. */
+  /**
+   * "El límite es el/los artículo(s) que se eligieron migrar" (2026-08-27,
+   * pedido explícito de David) -- el carrito de traslado ya no acepta
+   * CUALQUIER artículo que esté físicamente en el rack que se vacía, solo
+   * los que de verdad tienen un movimiento pendiente planeado desde este
+   * origen. Antes cualquier artículo del rack pasaba igual, aunque no
+   * tuviera ningún destino real esperándolo (quedaba con movimiento_id null
+   * "sin destino", silenciosamente). Ahora se rechaza ANTES de depositar --
+   * el mensaje le dice al operador que use "Mover" (a voluntad) si de
+   * verdad hace falta reubicarlo, en vez de dejarlo pasar sin destino.
+   *
+   * Cero candidatos = rechazado. 2+ candidatos (ambiguo, no se puede
+   * desambiguar por origen) SÍ se deja pasar como antes -- el artículo
+   * genuinamente tiene plan, solo hace falta que un supervisor decida cuál;
+   * eso no es lo que este chequeo previene.
+   */
   async depositar({ mzPasillo, mzColumna, slotId, articulo, cantidad, origenNivel, operadorId }) {
     const origenRclCodigo = await resolverOrigenRcl(mzPasillo, mzColumna, origenNivel);
-    const movimientoId = await resolverMovimiento(articulo, origenRclCodigo, nivelWmsANumero(origenNivel));
+    const nivelNumerico = nivelWmsANumero(origenNivel);
+    const candidatos = await buscarMovimientosPendientes(articulo, origenRclCodigo, nivelNumerico);
+    if (candidatos.length === 0) {
+      throw new Error(`"${articulo}" no forma parte del plan de migración desde este origen -- no se puede mover al carrito de traslado. Si de verdad hace falta reubicarlo, usá "Mover" (a voluntad).`);
+    }
+    const movimientoId = resolverMovimiento(candidatos);
     const { error } = await supabase.from('migracion_buffer').insert({
       slot_origen_id: slotId, articulo, cantidad,
       origen_nivel: origenNivel, origen_sub_nivel: String(SUBNIVEL_UNICO), origen_rcl_codigo: origenRclCodigo,

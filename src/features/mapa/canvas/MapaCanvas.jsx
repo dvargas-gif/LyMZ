@@ -1024,13 +1024,16 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       setRacks(racksActualizados);
       setBufferDelSlotActivo(await migracionBufferService.listarPorSlot(slot.id));
       refrescarBufferGlobal();
-      registrarCambioMigracion(articulo, formatoUbicacion(pasillo, columna, nivel), 'Buffer', 'buffer');
+      registrarCambioMigracion(articulo, formatoUbicacion(pasillo, columna, nivel), 'Carrito de traslado', 'buffer');
       const rackAhora = racksActualizados.get(clave);
       if (!rackAhora || nArts(rackAhora) === 0) {
         await marcarVaciadoCompleto(pasillo, columna, slot.id);
       }
-    } catch {
-      mostrarError('No se pudo mover el artículo al buffer. Revisá tu conexión e intentá de nuevo.');
+    } catch (err) {
+      // "El artículo no forma parte del plan" (ver migracionBuffer.service.js)
+      // llega como un mensaje real y específico -- mostrarlo tal cual, no
+      // taparlo con el genérico de conexión (2026-08-27).
+      mostrarError(err?.message || 'No se pudo mover el artículo al carrito de traslado. Revisá tu conexión e intentá de nuevo.');
     }
   }
 
@@ -1056,7 +1059,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       await migracionSlotsService.cancelar(slot.id);
       await migracionAuditoriaService.registrar({
         mzPasillo: pasillo, mzColumna: columna, evento: 'traslado_cancelado',
-        detalle: `Cancelado -- ${bufferDelSlot.length} artículo(s) liberados del buffer.`,
+        detalle: `Cancelado -- ${bufferDelSlot.length} artículo(s) liberados del carrito de traslado.`,
         usuarioId: sesion?.usuarioId,
       });
       setMigracionSlots(actuales => { const copia = new Map(actuales); copia.delete(clave); return copia; });
@@ -1064,7 +1067,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       refrescarBufferGlobal();
       registrarCambioMigracion(
         `Traslado ${pasillo}-C${String(columna).padStart(3, '0')}`,
-        'Buffer', `Cancelado (${bufferDelSlot.length} liberado(s))`, 'cancelado'
+        'Carrito de traslado', `Cancelado (${bufferDelSlot.length} liberado(s))`, 'cancelado'
       );
       // Recarga completa (no optimista): los artículos liberados del buffer
       // vuelven a resolverse en su rack real -- más simple y más seguro que
@@ -1101,12 +1104,12 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       }
       await migracionAuditoriaService.registrar({
         mzPasillo: slot.pasillo, mzColumna: slot.columna, evento: 'articulo_devuelto',
-        detalle: `Se devolvió ${articulo} del buffer -- depósito deshecho por error.`,
+        detalle: `Se devolvió ${articulo} del carrito de traslado -- depósito deshecho por error.`,
         usuarioId: sesion?.usuarioId,
       });
       refrescarBufferGlobal();
       if (pestanaActiva === slot.clave) setBufferDelSlotActivo(await migracionBufferService.listarPorSlot(slotId));
-      registrarCambioMigracion(articulo, 'Buffer', formatoUbicacion(slot.pasillo, slot.columna, origenNivel), 'devuelto');
+      registrarCambioMigracion(articulo, 'Carrito de traslado', formatoUbicacion(slot.pasillo, slot.columna, origenNivel), 'devuelto');
       const modelo = await obtenerWarehouseModel(escenarioId).recargarTodo();
       setRacks(modelo.racks());
     } catch {
