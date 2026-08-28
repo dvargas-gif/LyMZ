@@ -157,12 +157,21 @@ export const despachoService = {
       sinDestinoPorRack.set(clave, (sinDestinoPorRack.get(clave) ?? 0) + 1);
     }
 
-    // Recorte a "2-3 racks completos" (pedido explícito 2026-08-25: "que el
-    // cálculo de cada oleada tenga como fin dos racks completos... esto nos
-    // permite recalcular conforme vamos confirmando") -- nunca mezcla un
-    // rack que va a quedar a medias con uno que sí cierra del todo.
+    // Recorte de la oleada -- nunca mezcla un rack que va a quedar a medias
+    // con uno que sí cierra del todo (esa garantía NO se toca). El TOPE de
+    // cuántos racks completos entran sí cambió 2026-08-28 (pedido explícito
+    // de David, primer día de prueba real: "no quiero trabajos a medias...
+    // dimensiona qué es un trabajo... estarán un aproximado de 6 horas y tú
+    // les das una acción por generación") -- el tope fijo de "2-3 racks"
+    // (2026-07-25) daba oleadas demasiado chicas para un turno real: con
+    // pocos racks candidatos, algunos operadores terminaban con 1 sola
+    // tarea. Ahora escala con la cantidad de operadores de ESTA oleada --
+    // suficientes racks completos como para que cada uno tenga trabajo real
+    // para su turno, no una sola línea. Sigue acotado (nunca ilimitado) para
+    // no perder la costumbre de recalcular seguido.
+    const limiteRacks = Math.max(3, cantidadOperadores * 3);
     const { seleccionados: oleada, diferidosPorCupo, incompletos } = seleccionarRacksCompletos(
-      oleadaCandidata, sinDestinoPorRack, totalPlanificadoPorRack, totalConMovimientoPorRack
+      oleadaCandidata, sinDestinoPorRack, totalPlanificadoPorRack, totalConMovimientoPorRack, limiteRacks
     );
     if (oleada.length === 0) {
       const detalleIncompletos = incompletos
@@ -182,7 +191,7 @@ export const despachoService = {
       throw new Error(advertenciasReparto[0] ?? advertenciasSecuencia[0] ?? 'No se pudo generar ninguna tarea para esta oleada.');
     }
     if (diferidosPorCupo.length > 0) {
-      advertenciasSecuencia.unshift(`${diferidosPorCupo.length} rack(s) más también cerrarían completos, pero quedan para la próxima oleada (tope de 2-3 racks completos por oleada, pedido explícito): ${diferidosPorCupo.map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')}`).join(', ')}.`);
+      advertenciasSecuencia.unshift(`${diferidosPorCupo.length} rack(s) más también cerrarían completos, pero quedan para la próxima oleada (tope de ${limiteRacks} racks completos para ${cantidadOperadores} operador(es)): ${diferidosPorCupo.map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')}`).join(', ')}.`);
     }
     if (incompletos.length > 0) {
       const detalle = incompletos.map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')} (${r.faltanRecolectar > 0 ? `${r.faltanRecolectar} sin stock real` : ''}${r.faltanRecolectar > 0 && r.faltanVaciar > 0 ? ', ' : ''}${r.faltanVaciar > 0 ? `${r.faltanVaciar} sin destino` : ''})`).join('; ');

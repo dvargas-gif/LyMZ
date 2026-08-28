@@ -483,6 +483,23 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   }, [migracionSlots, sesion?.usuarioId]);
 
   /**
+   * "En trabajo" (2026-08-28, pedido explícito de David: "no sé cuándo el
+   * rack con el que se está trabajando... quiero un borde amarillo y
+   * negro") -- a diferencia de `clavesTareaPropia` (SOLO mi propia tarea,
+   * usado para el verde "destino"), esto es CUALQUIER slot vaciando/
+   * recolectando sea de quien sea -- lo que alguien mirando el mapa entero
+   * (David, un supervisor) necesita ver de un vistazo: "¿dónde hay gente
+   * trabajando ahora mismo?", no solo "¿dónde estoy trabajando yo?".
+   */
+  const clavesTrabajoActivo = useMemo(() => {
+    const claves = new Set();
+    for (const [clave, s] of migracionSlots) {
+      if (s.estado === 'vaciando' || s.estado === 'recolectando') claves.add(clave);
+    }
+    return claves;
+  }, [migracionSlots]);
+
+  /**
    * Orígenes de recolección (F2) -- de dónde hay que SACAR cada artículo
    * pendiente durante "Recolectando" (morado). Solo se puede calcular para
    * la pestaña ABIERTA (movimientosPendientesSlot es liviano, un solo
@@ -1415,6 +1432,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
                       : clavesSinDimension.has(clave) ? 'sin_dimension' : null
                   }
                   atenuada={!!resaltadoClase && !clavesResaltadoClase.has(clave)}
+                  enTrabajo={clavesTrabajoActivo.has(clave)}
                   bloqueada={bloqueadas.has(clave)}
                   seleccionada={seleccionArea.has(clave)}
                   arrastrable={modoEdicion && !moviendo && !soloLectura && vistaContenido === 'mz'}
@@ -1838,7 +1856,7 @@ function CajasAnimadas({ puntos }) {
  * manejarFinDrag en MapaCanvas.jsx): los datos, no la posición del nodo
  * Konva, son la fuente de verdad de dónde vive cada rack.
  */
-const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion, onHover, onClick, onDragStart, onDragEnd, descripcionDe, resaltada, resaltadoMigracion, atenuada, bloqueada, arrastrable, seleccionada, vistaContenido }) {
+const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion, onHover, onClick, onDragStart, onDragEnd, descripcionDe, resaltada, resaltadoMigracion, atenuada, enTrabajo, bloqueada, arrastrable, seleccionada, vistaContenido }) {
   const vacia = !rack || nArts(rack) === 0;
   const cantidad = vacia ? 0 : nArts(rack);
   const primerArticulo = vacia ? null : Object.values(rack.niveles)[0]?.[0];
@@ -1867,7 +1885,7 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
     nodo.cache();
     nodo.getLayer()?.batchDraw();
     return () => nodo.clearCache();
-  }, [relleno, cantidad, colorBarra, proporcionLlenura, bloqueada, seleccionada, resaltada, resaltadoMigracion, atenuada]);
+  }, [relleno, cantidad, colorBarra, proporcionLlenura, bloqueada, seleccionada, resaltada, resaltadoMigracion, atenuada, enTrabajo]);
 
   function textoHover() {
     const aviso = resaltadoMigracion === 'destino' ? ' · Tu tarea: llevar mercadería acá'
@@ -1875,8 +1893,9 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
       : resaltadoMigracion === 'sin_hogar' ? ' · Artículo(s) sin posición MZ asignada -- se puede mover libremente'
       : resaltadoMigracion === 'sin_dimension' ? ' · Artículo(s) sin volumen/dimensión importada'
       : '';
+    const avisoTrabajo = enTrabajo ? ' · ⚠ EN TRABAJO ahora mismo (vaciando/recolectando)' : '';
     const mzTexto = `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}`;
-    if (vacia) return `${mzTexto}\nVacío${bloqueada ? ' · Bloqueado' : ''}${aviso}`;
+    if (vacia) return `${mzTexto}\nVacío${bloqueada ? ' · Bloqueado' : ''}${aviso}${avisoTrabajo}`;
     const consumo = consumoTotal(rack).toFixed(2);
     const desc = primerArticulo ? descripcionDe(primerArticulo.articulo) : '';
     // En Vista RCL (2026-08-25, pedido explícito: "yo ahí lo que quiero es el
@@ -1886,7 +1905,7 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
     const encabezado = vistaContenido === 'rcl'
       ? `${[...new Set(Object.values(rack.niveles).flat().map(a => a.rackActual).filter(Boolean))].join(', ') || 'RCL desconocido'} (${mzTexto})`
       : mzTexto;
-    return `${encabezado}${bloqueada ? ' · Bloqueado' : ''}${aviso}\n${cantidad} artículo(s) · consumo ${consumo}\n${desc}`;
+    return `${encabezado}${bloqueada ? ' · Bloqueado' : ''}${aviso}${avisoTrabajo}\n${cantidad} artículo(s) · consumo ${consumo}\n${desc}`;
   }
 
   return (
@@ -1913,6 +1932,17 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
       />
       {colorResaltadoMigracion && (
         <Rect x={celda.x} y={celda.y} width={celda.ancho} height={celda.alto} fill={colorResaltadoMigracion} opacity={0.22} cornerRadius={6} listening={false} />
+      )}
+      {/* "En trabajo" -- borde cinta de precaución (2026-08-28, pedido explícito de David: "no sé cuándo el
+          rack con el que se está trabajando... la demarcación se ve nada... quiero un borde amarillo y negro")
+          -- CUALQUIER slot en vaciando/recolectando, sea de quien sea (no solo el propio, ver
+          clavesTrabajoActivo en MapaCanvas.jsx) -- negro sólido debajo + rayas amarillas encima, mismo
+          lenguaje visual que una cinta de peligro real, imposible de confundir con el resto de los colores. */}
+      {enTrabajo && (
+        <>
+          <Rect x={celda.x} y={celda.y} width={celda.ancho} height={celda.alto} stroke="#000" strokeWidth={4} cornerRadius={6} listening={false} />
+          <Rect x={celda.x} y={celda.y} width={celda.ancho} height={celda.alto} stroke="#F2C230" strokeWidth={4} dash={[7, 7]} cornerRadius={6} listening={false} />
+        </>
       )}
       {seleccionada && (
         <Rect x={celda.x} y={celda.y} width={celda.ancho} height={celda.alto} fill={ESTADOS.medio} opacity={0.22} cornerRadius={6} listening={false} />
