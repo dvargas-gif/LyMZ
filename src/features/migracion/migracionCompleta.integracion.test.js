@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generarMovimientosMigracionOptimizado } from './generarMovimientosOptimizado.js';
+import { seleccionarRacksCompletos } from '../despacho/generarLoteDespacho.js';
 
 /**
  * Prueba de integración de la SECUENCIA completa de migración a nivel de
@@ -129,5 +130,69 @@ describe('Secuencia completa de migración (calcular plan -> vaciar -> recolecta
 
     const { aceptado } = simularGateDelCarrito(movimientos, { articulo: 'SKU_SIN_STOCK', rclCodigo: 'RCL300-C010', rclNivel: 1 });
     expect(aceptado).toBe(false);
+  });
+
+  describe('la oleada (seleccionarRacksCompletos) con el motor nuevo -- hallazgo real 2026-08-28, antes de la primera prueba en vivo', () => {
+    // El motor nuevo manda 2 artículos reales a MZ01-C001 -- pero esa misma
+    // posición, en el plan VIEJO (inventario_slotting), tenía 5 artículos
+    // SIN NINGUNA relación asignados ahí a mano hace meses (un rack real
+    // que hoy vive otra vida bajo el motor nuevo). Si "cuánto planeaba este
+    // rack" se sigue leyendo del plan viejo, el rack se ve "a medias" (le
+    // faltarían 3) aunque el motor nuevo ya lo haya completado del todo.
+    const inventarioSlotting = [
+      { articulo: 'SKU_A', pasillo: 'MZ09', columna: 9, nivel: 'N01', rack_actual: 'RCL101-C001-N01-1' },
+      { articulo: 'SKU_B', pasillo: 'MZ09', columna: 9, nivel: 'N01', rack_actual: 'RCL102-C002-N01-1' },
+      // 5 filas históricas, sin relación, que el plan viejo asignaba a MZ01-C001 -- el motor nuevo nunca las toca (no tienen origen RCL parseable, así que ni siquiera son candidatos).
+      { articulo: 'VIEJO_1', pasillo: 'MZ01', columna: 1, nivel: 'N01', rack_actual: null },
+      { articulo: 'VIEJO_2', pasillo: 'MZ01', columna: 1, nivel: 'N02', rack_actual: null },
+      { articulo: 'VIEJO_3', pasillo: 'MZ01', columna: 1, nivel: 'N03', rack_actual: null },
+      { articulo: 'VIEJO_4', pasillo: 'MZ01', columna: 1, nivel: 'N04', rack_actual: null },
+      { articulo: 'VIEJO_5', pasillo: 'MZ01', columna: 1, nivel: 'N05', rack_actual: null },
+    ];
+    const inventarioRclActual = [
+      { rclCodigo: 'RCL101-C001', rclNivel: 1, rclSubnivel: 1, articulo: 'SKU_A', cantidad: 5 },
+      { rclCodigo: 'RCL102-C002', rclNivel: 1, rclSubnivel: 1, articulo: 'SKU_B', cantidad: 3 },
+    ];
+    const GEOMETRIA_UN_HUECO = { pasillos: [{ pasillo: 'MZ01', orientacion: 'horizontal', ubicaciones: [{ columna: 1, x: 1, y: 2 }] }] };
+
+    it('con la fuente VIEJA (inventario_slotting) -- se rompe: marca el rack como incompleto sin motivo real', () => {
+      const { movimientos } = generarMovimientosMigracionOptimizado(
+        inventarioSlotting, inventarioRclActual,
+        new Map([['SKU_A', 0.01], ['SKU_B', 0.01], ['VIEJO_1', 0.05], ['VIEJO_2', 0.05], ['VIEJO_3', 0.05], ['VIEJO_4', 0.05], ['VIEJO_5', 0.05]]), // volumen chico conocido -- deja hueco real para SKU_A/SKU_B, no bloquea el nivel entero como pasaría sin dimensión (ver construirOcupacionInicial)
+        GEOMETRIA_UN_HUECO
+      );
+      expect(new Set(movimientos.map(m => `${m.mzPasillo}|${m.mzColumna}`)).size).toBe(1); // ambos al mismo destino real
+
+      // Reproduce el bug real encontrado: totalPlanificadoPorRack desde inventario_slotting (comportamiento de ANTES del fix de hoy).
+      const totalPlanificadoPorRackViejo = new Map();
+      for (const fila of inventarioSlotting) totalPlanificadoPorRackViejo.set(`${fila.pasillo}|${fila.columna}`, (totalPlanificadoPorRackViejo.get(`${fila.pasillo}|${fila.columna}`) ?? 0) + 1);
+      const totalConMovimientoPorRack = new Map();
+      for (const m of movimientos) totalConMovimientoPorRack.set(`${m.mzPasillo}|${m.mzColumna}`, (totalConMovimientoPorRack.get(`${m.mzPasillo}|${m.mzColumna}`) ?? 0) + 1);
+
+      const oleada = [{ mzPasillo: 'MZ01', mzColumna: 1 }];
+      const { seleccionados, incompletos } = seleccionarRacksCompletos(oleada, new Map(), totalPlanificadoPorRackViejo, totalConMovimientoPorRack);
+      expect(seleccionados).toHaveLength(0);
+      expect(incompletos).toHaveLength(1);
+      expect(incompletos[0].faltanRecolectar).toBe(3); // el bug: 5 planeados (viejos, sin relación) - 2 reales = 3 "faltantes" que en realidad no faltan
+    });
+
+    it('con la fuente NUEVA (movimientos, el fix de hoy) -- el rack cierra completo, como corresponde', () => {
+      const { movimientos } = generarMovimientosMigracionOptimizado(
+        inventarioSlotting, inventarioRclActual,
+        new Map([['SKU_A', 0.01], ['SKU_B', 0.01], ['VIEJO_1', 0.05], ['VIEJO_2', 0.05], ['VIEJO_3', 0.05], ['VIEJO_4', 0.05], ['VIEJO_5', 0.05]]), // volumen chico conocido -- deja hueco real para SKU_A/SKU_B, no bloquea el nivel entero como pasaría sin dimensión (ver construirOcupacionInicial)
+        GEOMETRIA_UN_HUECO
+      );
+
+      // Mismo criterio que despacho.service.js después del fix: las dos Maps salen de la MISMA fuente (movimientosCualquierEstado).
+      const totalConMovimientoPorRack = new Map();
+      for (const m of movimientos) totalConMovimientoPorRack.set(`${m.mzPasillo}|${m.mzColumna}`, (totalConMovimientoPorRack.get(`${m.mzPasillo}|${m.mzColumna}`) ?? 0) + 1);
+      const totalPlanificadoPorRackNuevo = new Map(totalConMovimientoPorRack);
+
+      const oleada = [{ mzPasillo: 'MZ01', mzColumna: 1 }];
+      const { seleccionados, incompletos } = seleccionarRacksCompletos(oleada, new Map(), totalPlanificadoPorRackNuevo, totalConMovimientoPorRack);
+      expect(incompletos).toHaveLength(0);
+      expect(seleccionados).toHaveLength(1);
+      expect(seleccionados[0]).toMatchObject({ mzPasillo: 'MZ01', mzColumna: 1 });
+    });
   });
 });

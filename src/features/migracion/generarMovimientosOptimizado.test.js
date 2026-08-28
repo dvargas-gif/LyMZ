@@ -156,4 +156,52 @@ describe('generarMovimientosMigracionOptimizado', () => {
       expect(movimientos[0]).toMatchObject({ mzPasillo: 'MZ01', mzColumna: 1 });
     });
   });
+
+  describe('posiciones_actuales -- movidos a mano después del último inventario_slotting (2026-08-28, "no puede ser que esto pase")', () => {
+    const GEOMETRIA_UN_HUECO = { pasillos: [{ pasillo: 'MZ01', orientacion: 'horizontal', ubicaciones: [{ columna: 1, x: 1, y: 2 }] }] };
+
+    it('un artículo movido a mano libera su posición vieja de inventario_slotting y ocupa la nueva -- el candidato va al hueco realmente libre, no al que dice el slotting desactualizado', () => {
+      const { movimientos, respaldados } = generarMovimientosMigracionOptimizado(
+        [
+          // inventario_slotting (nunca se actualiza): YA_PUESTO figura en N01, y N03-N05 los ocupan otros artículos que nunca se movieron.
+          { articulo: 'YA_PUESTO', pasillo: 'MZ01', columna: 1, nivel: 'N01', rack_actual: null },
+          { articulo: 'FILLER_N03', pasillo: 'MZ01', columna: 1, nivel: 'N03', rack_actual: null },
+          { articulo: 'FILLER_N04', pasillo: 'MZ01', columna: 1, nivel: 'N04', rack_actual: null },
+          { articulo: 'FILLER_N05', pasillo: 'MZ01', columna: 1, nivel: 'N05', rack_actual: null },
+          { articulo: 'SKU001', pasillo: 'MZ09', columna: 99, nivel: 'N05', rack_actual: 'RCL119-C004-N05-1' },
+        ],
+        [RCL_A],
+        new Map([['YA_PUESTO', 0.42], ['FILLER_N03', 0.42], ['FILLER_N04', 0.42], ['FILLER_N05', 0.42], ['SKU001', 0.05]]),
+        GEOMETRIA_UN_HUECO,
+        // posiciones_actuales: Bairon movió YA_PUESTO de N01 a N02 a mano -- N01 quedó libre de verdad, N02 es el que está físicamente ocupado ahora.
+        [{ articulo: 'YA_PUESTO', pasillo: 'MZ01', columna: 1, nivel: 'N02' }],
+      );
+      // Sin el fix: N02 se seguía viendo "libre" (posiciones_actuales se ignoraba) y el motor se lo hubiera ofrecido a SKU001,
+      // chocando con lo que Bairon ya puso ahí físicamente. Con el fix, el único hueco realmente libre es N01.
+      expect(respaldados).toHaveLength(0);
+      expect(movimientos).toHaveLength(1);
+      expect(movimientos[0]).toMatchObject({ mzPasillo: 'MZ01', mzColumna: 1, mzNivel: 'N01' });
+    });
+
+    it('un artículo que solo existe en posiciones_actuales (sin fila en inventario_slotting, ej. carga masiva) también cuenta como ya-ocupante', () => {
+      const { movimientos, respaldados } = generarMovimientosMigracionOptimizado(
+        [
+          { articulo: 'FILLER_N02', pasillo: 'MZ01', columna: 1, nivel: 'N02', rack_actual: null },
+          { articulo: 'FILLER_N03', pasillo: 'MZ01', columna: 1, nivel: 'N03', rack_actual: null },
+          { articulo: 'FILLER_N04', pasillo: 'MZ01', columna: 1, nivel: 'N04', rack_actual: null },
+          { articulo: 'FILLER_N05', pasillo: 'MZ01', columna: 1, nivel: 'N05', rack_actual: null },
+          { articulo: 'SKU001', pasillo: 'MZ09', columna: 99, nivel: 'N05', rack_actual: 'RCL119-C004-N05-1' },
+        ],
+        [RCL_A],
+        new Map([['SOLO_MANUAL', 0.42], ['FILLER_N02', 0.42], ['FILLER_N03', 0.42], ['FILLER_N04', 0.42], ['FILLER_N05', 0.42], ['SKU001', 0.05]]),
+        GEOMETRIA_UN_HUECO,
+        // SOLO_MANUAL nunca tuvo fila en inventario_slotting -- p.ej. se agregó por carga masiva directo a posiciones_actuales.
+        [{ articulo: 'SOLO_MANUAL', pasillo: 'MZ01', columna: 1, nivel: 'N01' }],
+      );
+      // Los 5 niveles del único cuerpo quedan ocupados (4 por inventario_slotting + N01 solo por posiciones_actuales) -- SKU001 no tiene dónde ir.
+      expect(movimientos).toHaveLength(1);
+      expect(respaldados).toEqual([{ articulo: 'SKU001', motivo: 'sin_dimensiones_importadas -- se usó el destino fijo original de inventario_slotting' }]);
+      expect(movimientos[0]).toMatchObject({ mzPasillo: 'MZ09', mzColumna: 99 }); // respaldo, ningún hueco real libre
+    });
+  });
 });

@@ -4,7 +4,6 @@ import { migracionSlotsService } from './migracionSlots.service.js';
 import { migracionBufferService } from './migracionBuffer.service.js';
 import { identidadLegacyService } from './identidadLegacy.service.js';
 import { inventarioRclService } from './inventarioRcl.service.js';
-import { inventarioService } from './inventario.service.js';
 import { planificarSecuencia } from '../../features/migracion/planificarSecuencia.js';
 import { generarLoteDespacho, contenidoActualDeRacks, seleccionarRacksCompletos } from '../../features/despacho/generarLoteDespacho.js';
 
@@ -77,12 +76,11 @@ export const despachoService = {
     const activo = await this.obtenerLoteActivo();
     if (activo) throw new Error('Ya hay una orden de ejecución activa -- cerrala antes de generar la siguiente.');
 
-    const [movimientosPendientes, identidadLegacy, slotsActuales, inventarioRclActual, inventarioSlotting, movimientosCualquierEstado] = await Promise.all([
+    const [movimientosPendientes, identidadLegacy, slotsActuales, inventarioRclActual, movimientosCualquierEstado] = await Promise.all([
       migracionMovimientosService.listarPendientesParaSecuencia(),
       identidadLegacyService.listar(),
       migracionSlotsService.listar(),
       inventarioRclService.listar(),
-      inventarioService.listar(),
       migracionMovimientosService.listarTodosCualquierEstado(),
     ]);
 
@@ -115,9 +113,27 @@ export const despachoService = {
     // Para detectar racks que van a quedar A MEDIAS por falta de stock real
     // (pedido explícito 2026-07-22, caso real: vaciar 14 para recolectar 1,
     // en un rack cuyo plan pedía más de eso) -- ver generarLoteDespacho.js.
+    //
+    // CORRECCIÓN 2026-08-28 (encontrado antes de la primera prueba en vivo
+    // del motor nuevo, David: "no quiero llegar a la prueba y que sea un
+    // desastre"): `totalPlanificadoPorRack` ya NO puede salir de
+    // `inventario_slotting` -- esa tabla tiene el destino FIJO viejo, y el
+    // motor de optimización (generarMovimientosOptimizado.js) elige un
+    // destino DISTINTO según volumen/densidad. Comparar "cuántos decía el
+    // plan viejo" contra "cuántos generó el motor nuevo" para el MISMO
+    // rack compara dos cosas sin relación -- podía marcar como "a medias"
+    // (e incompleto, fuera de la oleada) un rack que en realidad el motor
+    // nuevo dejó 100% completo. Se calcula ahora del mismo lugar que
+    // `totalConMovimientoPorRack` (todo movimiento alguna vez generado,
+    // cualquier estado) -- con el motor nuevo, que ya excluye sin-stock
+    // ANTES de elegir destino (no después, como el viejo), estos dos
+    // números son siempre iguales por diseño: ya no existe la brecha
+    // "planeado pero sin stock real todavía" que este chequeo detectaba
+    // originalmente, así que el chequeo queda inofensivo en vez de dar
+    // falsos positivos.
     const totalPlanificadoPorRack = new Map();
-    for (const fila of inventarioSlotting) {
-      const clave = `${fila.pasillo}|${fila.columna}`;
+    for (const m of movimientosCualquierEstado) {
+      const clave = `${m.mzPasillo}|${m.mzColumna}`;
       totalPlanificadoPorRack.set(clave, (totalPlanificadoPorRack.get(clave) ?? 0) + 1);
     }
     const totalConMovimientoPorRack = new Map();

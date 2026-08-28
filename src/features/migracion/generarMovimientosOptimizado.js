@@ -17,6 +17,19 @@ function parsearRackActual(rackActual) {
  * que estamos re-ubicando ya está, de verdad, en su posición asignada
  * (migrado o puesto a mano) -- ese hueco no está libre para nadie más.
  *
+ * 2026-08-28, pedido explícito de David tras encontrar el hueco real: un
+ * artículo movido a mano en el mapa (`posiciones_actuales` -- "Mover a
+ * voluntad", carga masiva, aprobación del motor) puede estar en un lugar
+ * DISTINTO al que tiene fijado en `inventario_slotting` (que nunca se
+ * actualiza). Si a alguien se le ocurre recalcular el plan después de que
+ * alguien movió algo a mano, `inventario_slotting` ya está desactualizado
+ * para ESE artículo -- usarlo solo dejaría "ocupado" un hueco que ya está
+ * vacío, e "ignoraría" el hueco donde el artículo realmente está ahora,
+ * arriesgando ofrecérselo a otro. `posiciones_actuales` es la posición más
+ * reciente conocida -- gana sobre `inventario_slotting` para el mismo
+ * artículo (y también cuenta artículos que solo existen ahí, ej. carga
+ * masiva sin fila en inventario_slotting).
+ *
  * Sin volumen conocido para ese artículo ya-ocupante, no se puede calcular
  * CUÁNTO ocupa -- en vez de adivinar (o peor, ignorarlo y arriesgar un
  * choque real), se marca el hueco entero como LLENO (`volumenOcupado =
@@ -24,27 +37,37 @@ function parsearRackActual(rackActual) {
  * nunca sugiere un destino que ya tiene contenido real encima.
  *
  * @param {Array<{articulo, pasillo, columna, nivel}>} inventarioSlotting
+ * @param {Array<{articulo, pasillo, columna, nivel}>} posicionesActuales -- movidos a mano, gana sobre inventarioSlotting para el mismo artículo
  * @param {Set<string>} articulosCandidatos -- los que se están re-ubicando, se excluyen de la ocupación (no cuentan como "ya puestos")
  * @param {Map<string, number>} volumenPorArticulo
  * @returns {Map<string, {volumenOcupado:number, articulosDistintos:Set<string>}>} clave "pasillo|columna|nivel", mismo formato que espera empaquetarArticulos (estadoInicial)
  */
-function construirOcupacionInicial(inventarioSlotting, articulosCandidatos, volumenPorArticulo) {
-  const estadoInicial = new Map();
+function construirOcupacionInicial(inventarioSlotting, posicionesActuales, articulosCandidatos, volumenPorArticulo) {
+  const posicionPorArticulo = new Map();
   for (const a of inventarioSlotting) {
     if (articulosCandidatos.has(a.articulo)) continue;
-    if (!a.pasillo || a.columna == null || !a.nivel) continue;
-    const clave = `${a.pasillo}|${a.columna}|${a.nivel}`;
+    posicionPorArticulo.set(a.articulo, { pasillo: a.pasillo, columna: a.columna, nivel: a.nivel });
+  }
+  for (const p of posicionesActuales) {
+    if (articulosCandidatos.has(p.articulo)) continue;
+    posicionPorArticulo.set(p.articulo, { pasillo: p.pasillo, columna: p.columna, nivel: p.nivel }); // pisa (o agrega) la posición fija -- es la más reciente
+  }
+
+  const estadoInicial = new Map();
+  for (const [articulo, pos] of posicionPorArticulo) {
+    if (!pos.pasillo || pos.columna == null || !pos.nivel) continue;
+    const clave = `${pos.pasillo}|${pos.columna}|${pos.nivel}`;
     const existente = estadoInicial.get(clave);
     if (existente?.volumenOcupado === Infinity) continue; // ya marcado lleno, no hace falta seguir sumando
 
-    const volumen = volumenPorArticulo.get(a.articulo);
+    const volumen = volumenPorArticulo.get(articulo);
     if (volumen == null || Number.isNaN(volumen)) {
-      estadoInicial.set(clave, { volumenOcupado: Infinity, articulosDistintos: new Set([...(existente?.articulosDistintos ?? []), a.articulo]) });
+      estadoInicial.set(clave, { volumenOcupado: Infinity, articulosDistintos: new Set([...(existente?.articulosDistintos ?? []), articulo]) });
       continue;
     }
     estadoInicial.set(clave, {
       volumenOcupado: (existente?.volumenOcupado ?? 0) + volumen,
-      articulosDistintos: new Set([...(existente?.articulosDistintos ?? []), a.articulo]),
+      articulosDistintos: new Set([...(existente?.articulosDistintos ?? []), articulo]),
     });
   }
   return estadoInicial;
@@ -87,10 +110,11 @@ function construirOcupacionInicial(inventarioSlotting, articulosCandidatos, volu
  * @param {Array<{rclCodigo, rclNivel, rclSubnivel, articulo, cantidad}>} inventarioRclActual
  * @param {Map<string, number>} volumenPorArticulo -- articulo -> volumenM3 (de articulo_dimensiones), null/ausente = sin dimensión
  * @param {object} geometria -- geometriaMezanine.data.json ya validado
+ * @param {Array<{articulo, pasillo, columna, nivel}>} [posicionesActuales] -- movidos a mano (posiciones_actuales), gana sobre inventarioSlotting para la ocupación (ver construirOcupacionInicial)
  * @param {object} [opcionesMotor] -- {zonas, pesos, reglas} del motor de optimización (ver empaquetarArticulos.js)
  * @returns {{ movimientos: Array, sinStock: Array, respaldados: Array<{articulo, motivo}> }}
  */
-export function generarMovimientosMigracionOptimizado(inventarioSlotting, inventarioRclActual, volumenPorArticulo, geometria, opcionesMotor = {}) {
+export function generarMovimientosMigracionOptimizado(inventarioSlotting, inventarioRclActual, volumenPorArticulo, geometria, posicionesActuales = [], opcionesMotor = {}) {
   const cantidadPorClave = new Map();
   for (const inv of inventarioRclActual) {
     const clave = `${inv.rclCodigo}|${inv.rclNivel}|${inv.rclSubnivel}|${inv.articulo}`;
@@ -116,7 +140,7 @@ export function generarMovimientosMigracionOptimizado(inventarioSlotting, invent
 
   const cuerpos = construirUniversoDeHuecos(geometria);
   const articulosCandidatos = new Set(candidatos.map(c => c.articulo));
-  const estadoInicial = construirOcupacionInicial(inventarioSlotting, articulosCandidatos, volumenPorArticulo);
+  const estadoInicial = construirOcupacionInicial(inventarioSlotting, posicionesActuales, articulosCandidatos, volumenPorArticulo);
   const articulosParaEmpaquetar = candidatos.map(c => ({ articulo: c.articulo, volumenM3: volumenPorArticulo.get(c.articulo) ?? null }));
   const { asignaciones } = empaquetarArticulos(articulosParaEmpaquetar, cuerpos, { ...opcionesMotor, estadoInicial });
   const destinoPorArticulo = new Map(asignaciones.map(a => [a.articulo, { pasillo: a.pasillo, columna: a.columna, nivel: a.nivel }]));

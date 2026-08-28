@@ -8,6 +8,7 @@ import { identidadLegacyService } from '../../shared/services/identidadLegacy.se
 import { migracionSlotsService } from '../../shared/services/migracionSlots.service.js';
 import { usuariosService } from '../usuarios/usuarios.service.js';
 import { posicionesEliminadasService } from '../../shared/services/posicionesEliminadas.service.js';
+import { posicionesService } from '../../shared/services/posiciones.service.js';
 import { generarMovimientosMigracionOptimizado } from './generarMovimientosOptimizado.js';
 import { validarGeometria } from '../../domain/GeometriaMezanine.js';
 import geometriaCruda from '../../domain/geometriaMezanine.data.json';
@@ -182,19 +183,26 @@ export default function PanelMigracion({ sesion, onCerrar }) {
    * de zona, ocupación real de lo que ya está puesto). La salida tiene la
    * MISMA forma de siempre -- Aplicar/previa/migracion_movimientos no
    * cambiaron nada (ver generarMovimientosOptimizado.js).
+   *
+   * 2026-08-28, pedido explícito de David ("no puede ser que esto pase"):
+   * la ocupación real también tiene que contar lo que alguien movió A MANO
+   * (`posiciones_actuales`) después del último `inventario_slotting`, si
+   * no el motor puede proponerle a otro artículo un hueco que ya está
+   * físicamente ocupado por un traslado manual reciente.
    */
   async function calcular() {
     setCargandoPlan(true);
     setError('');
     try {
-      const [inventarioSlotting, inventarioRclActual, dimensiones] = await Promise.all([
+      const [inventarioSlotting, inventarioRclActual, dimensiones, posicionesActuales] = await Promise.all([
         inventarioService.listar(),
         inventarioRclService.listar(),
         articuloDimensionesService.listar(),
+        posicionesService.listar(),
       ]);
       const volumenPorArticulo = new Map(dimensiones.map(d => [d.articulo, d.volumenM3]));
       const geometria = validarGeometria(geometriaCruda);
-      setPrevia(generarMovimientosMigracionOptimizado(inventarioSlotting, inventarioRclActual, volumenPorArticulo, geometria));
+      setPrevia(generarMovimientosMigracionOptimizado(inventarioSlotting, inventarioRclActual, volumenPorArticulo, geometria, posicionesActuales));
       setPaso('previa');
     } catch (err) {
       setError(`No se pudo calcular el plan: ${err.message || err}`);
