@@ -73,6 +73,13 @@ function construirOcupacionInicial(inventarioSlotting, posicionesActuales, artic
   return estadoInicial;
 }
 
+/** Texto legible para cada motivo que reporta `empaquetarArticulos()` cuando NO puede darle un destino real a un artículo. */
+const MOTIVO_LEGIBLE = {
+  sin_dimensiones_importadas: 'Sin dimensión/volumen importado -- para el equipo de movimiento libre (Bairon), nunca una tarea secuencial',
+  excede_capacidad_maxima_de_un_cuerpo: 'El volumen del artículo no entra ni en un cuerpo completo -- necesita revisión manual',
+  sin_hueco_disponible: 'No hay ningún hueco real disponible en todo el mezanine -- necesita revisión manual',
+};
+
 /**
  * Igual que generarMovimientos.js (detección de origen RCL + cantidad real,
  * sin tocar -- ya funciona bien), pero el DESTINO se elige con el motor de
@@ -90,13 +97,30 @@ function construirOcupacionInicial(inventarioSlotting, posicionesActuales, artic
  * ningún cambio. Solo cambia CÓMO se decide el destino, nunca el contrato
  * con el resto del sistema.
  *
- * Respaldo explícito: un artículo sin volumen cargado (`articulo_dimensiones`)
- * no puede pasar por el motor nuevo (`empaquetarArticulos` lo reporta en
- * `sinAsignar` con motivo 'sin_dimensiones_importadas') -- en vez de dejarlo
- * sin destino (hoy nunca pasa, todo pendiente ya tiene uno fijo), se usa su
- * destino original de `inventario_slotting` como respaldo, marcado en
- * `respaldados` para que quede visible qué artículos NO pasaron por la
- * lógica nueva. Nunca peor que el comportamiento de hoy.
+ * 2026-08-28, corregido dos veces en el mismo día tras el primer intento en
+ * vivo real (David: "no mezclar máquina, no mezclar... no me sirve que
+ * mezcles los artículos sin volumen"). Versión anterior (mismo día, unas
+ * horas antes): un artículo sin volumen cargado usaba su destino fijo de
+ * `inventario_slotting` como "respaldo" y SÍ generaba una tarea secuencial
+ * normal -- eso mandó a un trabajador real a MZ01-C031 (una columna que ya
+ * ni existe en el mezanine real) en la primera acción de la primera prueba
+ * en vivo. La causa de fondo no era solo el dato desactualizado: es que
+ * estos artículos NUNCA deberían entrar al despacho secuencial (Órdenes de
+ * Ejecución) -- son, por decisión explícita de David, el dominio exclusivo
+ * de Bairon y su equipo, que los mueve LIBREMENTE (no sigue una secuencia
+ * de tareas) para ir corrigiendo lo que el plan automático no pudo resolver
+ * bien. Mezclar los dos mundos -- por accidente o por "mejor algo que
+ * nada" -- es exactamente lo que causó el incidente.
+ *
+ * Ahora: CUALQUIER candidato al que `empaquetarArticulos()` no pueda darle
+ * un destino real y validado (sin volumen, no entra en ningún cuerpo, o no
+ * queda hueco libre en todo el universo) NUNCA genera un movimiento --
+ * queda en `sinAsignar` con el motivo tal cual lo reporta el motor, para
+ * revisión manual del equipo de Bairon (mismo filtro "sin dimensión" del
+ * mapa, ver MapaCanvas.jsx). Ya no existe ningún camino de "respaldo" hacia
+ * el destino fijo de `inventario_slotting` -- ese destino solo se usa para
+ * DETECTAR el origen RCL (rack_actual) y para calcular ocupación inicial,
+ * nunca para ofrecerlo como destino de una tarea.
  *
  * Ocupación real (2026-08-26, cierra una limitación real que tuvo esta
  * función unas horas): el universo de huecos NO se trata como vacío -- todo
@@ -112,7 +136,7 @@ function construirOcupacionInicial(inventarioSlotting, posicionesActuales, artic
  * @param {object} geometria -- geometriaMezanine.data.json ya validado
  * @param {Array<{articulo, pasillo, columna, nivel}>} [posicionesActuales] -- movidos a mano (posiciones_actuales), gana sobre inventarioSlotting para la ocupación (ver construirOcupacionInicial)
  * @param {object} [opcionesMotor] -- {zonas, pesos, reglas} del motor de optimización (ver empaquetarArticulos.js)
- * @returns {{ movimientos: Array, sinStock: Array, respaldados: Array<{articulo, motivo}> }}
+ * @returns {{ movimientos: Array, sinStock: Array, sinAsignar: Array<{articulo, rclCodigo, rclNivel, posicionOriginal, motivo}> }}
  */
 export function generarMovimientosMigracionOptimizado(inventarioSlotting, inventarioRclActual, volumenPorArticulo, geometria, posicionesActuales = [], opcionesMotor = {}) {
   const cantidadPorClave = new Map();
@@ -134,7 +158,7 @@ export function generarMovimientosMigracionOptimizado(inventarioSlotting, invent
     }
     candidatos.push({
       articulo: a.articulo, rclCodigo: origen.rclCodigo, rclNivel: origen.rclNivel, cantidad,
-      destinoRespaldo: { pasillo: a.pasillo, columna: a.columna, nivel: a.nivel },
+      posicionOriginal: { pasillo: a.pasillo, columna: a.columna, nivel: a.nivel },
     });
   }
 
@@ -142,16 +166,21 @@ export function generarMovimientosMigracionOptimizado(inventarioSlotting, invent
   const articulosCandidatos = new Set(candidatos.map(c => c.articulo));
   const estadoInicial = construirOcupacionInicial(inventarioSlotting, posicionesActuales, articulosCandidatos, volumenPorArticulo);
   const articulosParaEmpaquetar = candidatos.map(c => ({ articulo: c.articulo, volumenM3: volumenPorArticulo.get(c.articulo) ?? null }));
-  const { asignaciones } = empaquetarArticulos(articulosParaEmpaquetar, cuerpos, { ...opcionesMotor, estadoInicial });
+  const { asignaciones, sinAsignar: motivoPorArticulo } = empaquetarArticulos(articulosParaEmpaquetar, cuerpos, { ...opcionesMotor, estadoInicial });
   const destinoPorArticulo = new Map(asignaciones.map(a => [a.articulo, { pasillo: a.pasillo, columna: a.columna, nivel: a.nivel }]));
+  const motivoSinAsignarPorArticulo = new Map(motivoPorArticulo.map(s => [s.articulo, s.motivo]));
 
-  const respaldados = [];
+  const sinAsignar = [];
   const conDestino = [];
   for (const c of candidatos) {
-    let destino = destinoPorArticulo.get(c.articulo);
+    const destino = destinoPorArticulo.get(c.articulo);
     if (!destino) {
-      destino = c.destinoRespaldo;
-      respaldados.push({ articulo: c.articulo, motivo: 'sin_dimensiones_importadas -- se usó el destino fijo original de inventario_slotting' });
+      const motivo = motivoSinAsignarPorArticulo.get(c.articulo) ?? 'sin_hueco_disponible';
+      sinAsignar.push({
+        articulo: c.articulo, rclCodigo: c.rclCodigo, rclNivel: c.rclNivel, posicionOriginal: c.posicionOriginal,
+        motivo: MOTIVO_LEGIBLE[motivo] ?? motivo,
+      });
+      continue;
     }
     conDestino.push({
       mzPasillo: destino.pasillo, mzColumna: destino.columna, mzNivel: destino.nivel,
@@ -171,5 +200,5 @@ export function generarMovimientosMigracionOptimizado(inventarioSlotting, invent
     grupo.forEach((m, i) => movimientos.push({ ...m, orden: i + 1 }));
   }
 
-  return { movimientos, sinStock, respaldados };
+  return { movimientos, sinStock, sinAsignar };
 }

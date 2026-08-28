@@ -9,6 +9,7 @@ import { migracionSlotsService } from '../../shared/services/migracionSlots.serv
 import { usuariosService } from '../usuarios/usuarios.service.js';
 import { posicionesEliminadasService } from '../../shared/services/posicionesEliminadas.service.js';
 import { posicionesService } from '../../shared/services/posiciones.service.js';
+import { migracionRealtimeService } from '../../shared/services/migracionRealtime.service.js';
 import { generarMovimientosMigracionOptimizado } from './generarMovimientosOptimizado.js';
 import { validarGeometria } from '../../domain/GeometriaMezanine.js';
 import geometriaCruda from '../../domain/geometriaMezanine.data.json';
@@ -173,6 +174,29 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   }
 
   useEffect(() => { cargar(); }, []);
+
+  /**
+   * Tiempo real (2026-08-28, pedido explícito de David: "no quiero tener que
+   * recargar pantallas... toda información correlacionada la quiero
+   * funcional y real time") -- el Resumen/Equipos/Movimientos a revisar solo
+   * cargaban una vez al abrir el panel. Mismo canal/patrón que ya usa
+   * MapaCanvas.jsx y PanelDespacho.jsx -- SOLO refresca `cargar()` (el
+   * resumen), nunca toca el asistente de "Calcular plan" (`paso`/`previa`/
+   * `resultado` son estado local del wizard, no se pisan con esto).
+   */
+  useEffect(() => {
+    let timer;
+    const debounceCargar = () => {
+      clearTimeout(timer);
+      timer = setTimeout(cargar, 400);
+    };
+    const desuscribir = migracionRealtimeService.suscribirCambios({
+      nombre: 'panel-migracion',
+      onMovimiento: debounceCargar,
+      onSlot: debounceCargar,
+    });
+    return () => { clearTimeout(timer); desuscribir(); };
+  }, []);
 
   /**
    * Plan calculado con el motor de optimización (2026-08-26, pedido
@@ -549,11 +573,27 @@ export default function PanelMigracion({ sesion, onCerrar }) {
               <div style={{ display: 'flex', gap: 14, marginBottom: 14, fontSize: 12.5, flexWrap: 'wrap' }}>
                 <span>✅ Movimientos a generar: <b>{previa.movimientos.length}</b></span>
                 <span style={{ color: 'var(--texto-tenue)' }}>⚠ {previa.sinStock.length} artículo(s) del plan sin stock real -- se excluyen (ver "Limpiar artículos sin stock real")</span>
-                {/* Motor de optimización (2026-08-26) -- artículos sin volumen cargado no pasan por la lógica nueva, usan su destino fijo original como respaldo. Visible acá para saber cuántos NO se beneficiaron de la selección inteligente. */}
-                {previa.respaldados?.length > 0 && (
-                  <span style={{ color: 'var(--texto-tenue)' }}>ℹ {previa.respaldados.length} artículo(s) sin dimensión cargada -- usaron su destino fijo original</span>
-                )}
               </div>
+
+              {/* 2026-08-28, corregido dos veces el mismo día tras el incidente en vivo (David: "no mezclar
+                  máquina, no mezclar... no me sirve que mezcles los artículos sin volumen"): un artículo que
+                  el motor no puede ubicar con confianza (sin dimensión, no entra en ningún cuerpo, o no queda
+                  hueco) NUNCA genera una tarea secuencial -- queda acá para el equipo de movimiento libre
+                  (Bairon), nunca mezclado con las Órdenes de Ejecución normales. */}
+              {previa.sinAsignar?.length > 0 && (
+                <div style={{ background: 'var(--rojo-tenue, #FBE4E1)', border: '1px solid var(--red)', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                  <b style={{ color: 'var(--red)', fontSize: 12.5, display: 'block', marginBottom: 6 }}>
+                    ⛔ {previa.sinAsignar.length} artículo(s) sin destino automático -- NO se generó ninguna tarea, van al equipo de movimiento libre:
+                  </b>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, maxHeight: 160, overflowY: 'auto' }}>
+                    {previa.sinAsignar.map((s, i) => (
+                      <li key={`${s.articulo}-${i}`} style={{ marginBottom: 2 }}>
+                        <code>{s.articulo}</code> ({s.rclCodigo}-N{s.rclNivel}) -- {s.motivo}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {previa.movimientos.length === 0 ? (
                 <p style={{ fontSize: 12.5, color: 'var(--texto-tenue)' }}>No se generó ningún movimiento -- revisá que el inventario RCL esté importado.</p>

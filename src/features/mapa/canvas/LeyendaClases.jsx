@@ -30,21 +30,42 @@ const DESCRIPCIONES = {
   D: 'Muy baja rotación',
 };
 
-function FilaClase({ clase, etiqueta, descripcion, color, cantidad, onClick }) {
+/**
+ * 2026-08-28, pedido explícito de David: "que los botones de colores cuando
+ * los presione me resalte la categoria que toque" -- tocar la fila ahora
+ * resalta esa clase en el mapa real (atenúa todo lo demás, ver
+ * `resaltadoClase`/`atenuada` en MapaCanvas.jsx) en vez de abrir la lista
+ * directamente. La lista completa (buscador incluido) sigue disponible --
+ * el ícono de flecha es un botón aparte (`stopPropagation`) que la abre sin
+ * tocar el resaltado del mapa.
+ */
+function FilaClase({ clase, etiqueta, descripcion, color, cantidad, activa, onResaltar, onVerLista }) {
   return (
-    <button className="mapa-leyenda__fila" onClick={onClick} disabled={cantidad === 0}>
+    <button
+      className={`mapa-leyenda__fila ${activa ? 'mapa-leyenda__fila--activa' : ''}`}
+      onClick={onResaltar}
+      disabled={cantidad === 0}
+      title={activa ? `Ocultar resaltado de ${etiqueta}` : `Resaltar ${etiqueta} en el mapa`}
+    >
       <span className="mapa-leyenda__color" style={{ background: color }} aria-hidden="true" />
       <span className="mapa-leyenda__texto">
         <strong>{etiqueta}</strong>
         <span>{descripcion}</span>
       </span>
       <span className="mapa-leyenda__cantidad">{cantidad}</span>
-      <i className="ti ti-chevron-right" aria-hidden="true" />
+      <span
+        role="button" tabIndex={0} className="mapa-leyenda__ver-lista"
+        title="Ver lista completa"
+        onClick={e => { e.stopPropagation(); onVerLista(); }}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onVerLista(); } }}
+      >
+        <i className="ti ti-chevron-right" aria-hidden="true" />
+      </span>
     </button>
   );
 }
 
-export default function LeyendaClases({ articulosPorClase, onCerrar }) {
+export default function LeyendaClases({ articulosPorClase, onCerrar, resaltado = null, onToggleResaltado }) {
   const [claseAbierta, setClaseAbierta] = useState(null); // null | 'A' | 'B' | 'C' | 'D' | 'CUERPO'
   const [busqueda, setBusqueda] = useState('');
 
@@ -89,7 +110,9 @@ export default function LeyendaClases({ articulosPorClase, onCerrar }) {
               descripcion={DESCRIPCIONES[clase]}
               color={COLORES_ARTICULO[clase]}
               cantidad={cantidadDe(clase)}
-              onClick={() => abrirClase(clase)}
+              activa={resaltado === clase}
+              onResaltar={() => onToggleResaltado?.(clase)}
+              onVerLista={() => abrirClase(clase)}
             />
           ))}
           <FilaClase
@@ -98,7 +121,9 @@ export default function LeyendaClases({ articulosPorClase, onCerrar }) {
             descripcion="No es una rotación -- es otra categoría aparte"
             color={COLORES_ARTICULO.CUERPO}
             cantidad={cantidadDe('CUERPO')}
-            onClick={() => abrirClase('CUERPO')}
+            activa={resaltado === 'CUERPO'}
+            onResaltar={() => onToggleResaltado?.('CUERPO')}
+            onVerLista={() => abrirClase('CUERPO')}
           />
         </div>
       </div>

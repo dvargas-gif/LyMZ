@@ -29,6 +29,7 @@ import { identidadLegacyService } from '../../../shared/services/identidadLegacy
 import { inventarioRclService } from '../../../shared/services/inventarioRcl.service.js';
 import { inventarioService } from '../../../shared/services/inventario.service.js';
 import { zonasPickService } from '../../../shared/services/zonasPick.service.js';
+import { articuloDimensionesService } from '../../../shared/services/articuloDimensiones.service.js';
 import { construirVistaRcl } from '../../migracion/vistaRcl.js';
 import { detectarArticulosSinHogar } from '../../migracion/articulosSinHogar.js';
 import { buscarSugerencias } from './buscarSugerencias.js';
@@ -105,6 +106,9 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const [zonasPick, setZonasPick] = useState([]); // ver articulosSinHogar.js
   const [inventarioSlottingPlano, setInventarioSlottingPlano] = useState([]); // lista CRUDA de inventario_slotting (quién "tiene hogar") -- distinto de `racks` (ya agrupado), ver articulosSinHogar.js
   const [filtroSinHogar, setFiltroSinHogar] = useState(false);
+  const [dimensionesCargadas, setDimensionesCargadas] = useState(new Set()); // Set<articulo> CON volumen importado (articulo_dimensiones) -- ver articulosSinDimension más abajo
+  const [filtroSinDimension, setFiltroSinDimension] = useState(false);
+  const [resaltadoClase, setResaltadoClase] = useState(null); // null | 'A' | 'B' | 'C' | 'D' | 'CUERPO' -- ver LeyendaClases.jsx
   // `cargando` (más abajo) solo mira `racks` -- por diseño, ese es el dato
   // rápido que ya alcanza para mostrar el mapa base. Vista RCL depende de
   // OTRA carga aparte (identidadLegacy/inventarioRcl, ver el efecto de
@@ -207,7 +211,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
         // inventarioRcl, que Vista RCL necesita). Con allSettled, cada
         // consulta que sí funciona se aplica igual; la que falla se loguea
         // clara en consola en vez de tumbar a las demás en silencio.
-        const NOMBRES = ['slots de migración', 'identidad legacy', 'inventario RCL', 'buffer', 'movimientos', 'bitácora', 'zonas de pick', 'inventario slotting'];
+        const NOMBRES = ['slots de migración', 'identidad legacy', 'inventario RCL', 'buffer', 'movimientos', 'bitácora', 'zonas de pick', 'inventario slotting', 'dimensiones de artículo'];
         const resultados = await Promise.allSettled([
           migracionSlotsService.listar(),
           identidadLegacyService.listar(),
@@ -217,12 +221,13 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           migracionAuditoriaService.listarRecientes(50),
           zonasPickService.listar(),
           inventarioService.listar(),
+          articuloDimensionesService.listar(),
         ]);
         resultados.forEach((r, i) => {
           if (r.status === 'rejected') console.error(`No se pudo cargar "${NOMBRES[i]}" para el mapa:`, r.reason);
         });
         if (activo) {
-          const [slots, identidad, inventario, buffer, movimientosDestinos, bitacora, zonas, inventarioSlotting] = resultados;
+          const [slots, identidad, inventario, buffer, movimientosDestinos, bitacora, zonas, inventarioSlotting, dimensiones] = resultados;
           if (slots.status === 'fulfilled') setMigracionSlots(slots.value);
           if (identidad.status === 'fulfilled') setIdentidadLegacy(identidad.value);
           if (inventario.status === 'fulfilled') setInventarioRcl(inventario.value);
@@ -231,6 +236,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           if (bitacora.status === 'fulfilled') setBitacoraMigracion(bitacora.value);
           if (zonas.status === 'fulfilled') setZonasPick(zonas.value);
           if (inventarioSlotting.status === 'fulfilled') setInventarioSlottingPlano(inventarioSlotting.value);
+          if (dimensiones.status === 'fulfilled') setDimensionesCargadas(new Set(dimensiones.value.map(d => d.articulo)));
           setCargandoMigracion(false);
         }
       }
@@ -258,6 +264,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       timers[clave] = setTimeout(fn, 400);
     };
     const desuscribir = migracionRealtimeService.suscribirCambios({
+      nombre: 'mapa',
       onMovimiento: () => debounceRefetch('movimiento', async () => {
         setMovimientosDestinoPorId(await migracionMovimientosService.listarTodos());
       }),
@@ -522,6 +529,53 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     }
     return claves;
   }, [filtroSinHogar, articulosSinHogar]);
+
+  /**
+   * Artículos "sin dimensión ni info" (2026-08-28, pedido explícito de David
+   * en el mismo espíritu que "sin hogar": un filtro visual para que Bairon
+   * -- o quien reciba la tarea -- pueda ver e ir físicamente por los
+   * artículos sin volumen importado (`articulo_dimensiones`), los ~1300 que
+   * hoy no pasan por la lógica nueva del motor y caen a "respaldados" (ver
+   * generarMovimientosOptimizado.js). Mismo cruce en memoria que ya hace ese
+   * motor -- acá solo para UBICARLOS en el mapa, no para decidir destino.
+   */
+  const articulosSinDimension = useMemo(
+    () => inventarioSlottingPlano.filter(a => !dimensionesCargadas.has(a.articulo)),
+    [inventarioSlottingPlano, dimensionesCargadas]
+  );
+  const clavesSinDimension = useMemo(() => {
+    if (!filtroSinDimension) return new Set();
+    const claves = new Set();
+    for (const a of articulosSinDimension) {
+      if (a.pasillo != null && a.columna != null) claves.add(`${a.pasillo}|${a.columna}`);
+    }
+    return claves;
+  }, [filtroSinDimension, articulosSinDimension]);
+
+  /**
+   * Resaltado por clase de rotación (2026-08-28, pedido explícito de David:
+   * "que los botones de colores cuando los presione me resalte la
+   * categoria que toque") -- LeyendaClases.jsx ya mostraba el color de cada
+   * clase y su cantidad; ahora tocar una clase también atenúa TODO lo que no
+   * sea de esa clase en el mapa real, para encontrar de un vistazo (ej.) los
+   * D con los que probablemente arranque Bairon. No es un `resaltadoMigracion`
+   * más (esos pintan un overlay sobre un color neutro) -- acá el relleno de
+   * la celda YA ES el color de la clase, lo que cambia es la OPACIDAD del
+   * resto (ver `atenuada` en CeldaRack).
+   */
+  const clavesResaltadoClase = useMemo(() => {
+    if (!resaltadoClase || !racksVisibles) return new Set();
+    const claves = new Set();
+    for (const rack of racksVisibles.values()) {
+      for (const nivel in rack.niveles) {
+        for (const a of rack.niveles[nivel]) {
+          const clave = a.tipo === 'CUERPO' ? 'CUERPO' : a.clase;
+          if (clave === resaltadoClase) { claves.add(`${rack.pasillo}|${rack.columna}`); break; }
+        }
+      }
+    }
+    return claves;
+  }, [resaltadoClase, racksVisibles]);
 
   /** Lista de pick (F1.5-C) del destino MZ de la pestaña abierta -- independiente del estado del slot (la ficha decide cuándo mostrarla, ver FlujoMigracionSlot.jsx). Vacía si escenarioId (sala) o si no hay pestaña abierta. */
   useEffect(() => {
@@ -1357,8 +1411,10 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
                   resaltadoMigracion={
                     clavesTareaPropia.has(clave) ? 'destino'
                       : clavesOrigenRecoleccion.has(clave) ? 'origen'
-                      : clavesSinHogar.has(clave) ? 'sin_hogar' : null
+                      : clavesSinHogar.has(clave) ? 'sin_hogar'
+                      : clavesSinDimension.has(clave) ? 'sin_dimension' : null
                   }
+                  atenuada={!!resaltadoClase && !clavesResaltadoClase.has(clave)}
                   bloqueada={bloqueadas.has(clave)}
                   seleccionada={seleccionArea.has(clave)}
                   arrastrable={modoEdicion && !moviendo && !soloLectura && vistaContenido === 'mz'}
@@ -1433,6 +1489,12 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
           filtroSinHogar={filtroSinHogar}
           onToggleFiltroSinHogar={() => setFiltroSinHogar(v => !v)}
           cantidadSinHogar={articulosSinHogar.length}
+          mostrarFiltroSinDimension={!escenarioId}
+          filtroSinDimension={filtroSinDimension}
+          onToggleFiltroSinDimension={() => setFiltroSinDimension(v => !v)}
+          cantidadSinDimension={articulosSinDimension.length}
+          resaltadoClase={resaltadoClase}
+          onToggleResaltadoClase={clase => setResaltadoClase(c => (c === clase ? null : clase))}
         />
       )}
 
@@ -1776,7 +1838,7 @@ function CajasAnimadas({ puntos }) {
  * manejarFinDrag en MapaCanvas.jsx): los datos, no la posición del nodo
  * Konva, son la fuente de verdad de dónde vive cada rack.
  */
-const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion, onHover, onClick, onDragStart, onDragEnd, descripcionDe, resaltada, resaltadoMigracion, bloqueada, arrastrable, seleccionada, vistaContenido }) {
+const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion, onHover, onClick, onDragStart, onDragEnd, descripcionDe, resaltada, resaltadoMigracion, atenuada, bloqueada, arrastrable, seleccionada, vistaContenido }) {
   const vacia = !rack || nArts(rack) === 0;
   const cantidad = vacia ? 0 : nArts(rack);
   const primerArticulo = vacia ? null : Object.values(rack.niveles)[0]?.[0];
@@ -1785,10 +1847,11 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
     : (primerArticulo?.tipo === 'CUERPO' ? colorDeClase(null, 'CUERPO') : colorDeClase(primerArticulo?.clase));
   const proporcionLlenura = !vacia && configuracionOcupacion ? llenura(rack, configuracionOcupacion) : 0;
   const colorBarra = !vacia && configuracionOcupacion ? colorLlenura(proporcionLlenura, configuracionOcupacion) : null;
-  // "destino" (verde, mismo tono que resaltada) -- a dónde hay que LLEVAR mercadería (F2, ver clavesTareaPropia en MapaCanvas.jsx). "origen" (morado) -- de dónde hay que SACARLA durante "Recolectando" (ver clavesOrigenRecoleccion). "sin_hogar" (amber, 2026-08-26) -- artículos sin posición MZ asignada, filtro para reacomodo manual (ver articulosSinHogar.js).
+  // "destino" (verde, mismo tono que resaltada) -- a dónde hay que LLEVAR mercadería (F2, ver clavesTareaPropia en MapaCanvas.jsx). "origen" (morado) -- de dónde hay que SACARLA durante "Recolectando" (ver clavesOrigenRecoleccion). "sin_hogar" (amber, 2026-08-26) -- artículos sin posición MZ asignada, filtro para reacomodo manual (ver articulosSinHogar.js). "sin_dimension" (rojo, 2026-08-28) -- artículos sin volumen importado, filtro para ir a levantar esa info (ver articulosSinDimension en MapaCanvas.jsx).
   const colorResaltadoMigracion = resaltadoMigracion === 'destino' ? ESTADOS.ok
     : resaltadoMigracion === 'origen' ? MIGRACION_ORIGEN
     : resaltadoMigracion === 'sin_hogar' ? ESTADOS.alerta
+    : resaltadoMigracion === 'sin_dimension' ? ESTADOS.sobrecargado
     : null;
   const grupoRef = useRef(null);
 
@@ -1804,12 +1867,13 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
     nodo.cache();
     nodo.getLayer()?.batchDraw();
     return () => nodo.clearCache();
-  }, [relleno, cantidad, colorBarra, proporcionLlenura, bloqueada, seleccionada, resaltada, resaltadoMigracion]);
+  }, [relleno, cantidad, colorBarra, proporcionLlenura, bloqueada, seleccionada, resaltada, resaltadoMigracion, atenuada]);
 
   function textoHover() {
     const aviso = resaltadoMigracion === 'destino' ? ' · Tu tarea: llevar mercadería acá'
       : resaltadoMigracion === 'origen' ? ' · Sacar artículo(s) de acá para tu tarea'
       : resaltadoMigracion === 'sin_hogar' ? ' · Artículo(s) sin posición MZ asignada -- se puede mover libremente'
+      : resaltadoMigracion === 'sin_dimension' ? ' · Artículo(s) sin volumen/dimensión importada'
       : '';
     const mzTexto = `${celda.pasillo} · C${String(celda.columna).padStart(3, '0')}`;
     if (vacia) return `${mzTexto}\nVacío${bloqueada ? ' · Bloqueado' : ''}${aviso}`;
@@ -1829,6 +1893,7 @@ const CeldaRack = memo(function CeldaRack({ celda, rack, configuracionOcupacion,
     <Group
       ref={grupoRef}
       x={0} y={0}
+      opacity={atenuada ? 0.16 : 1}
       draggable={arrastrable && !vacia && !bloqueada}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}

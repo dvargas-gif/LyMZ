@@ -4,6 +4,7 @@ import { despachoService } from '../../shared/services/despacho.service.js';
 import { migracionSlotsService } from '../../shared/services/migracionSlots.service.js';
 import { migracionBufferService } from '../../shared/services/migracionBuffer.service.js';
 import { migracionAuditoriaService } from '../../shared/services/migracionAuditoria.service.js';
+import { migracionRealtimeService } from '../../shared/services/migracionRealtime.service.js';
 import { puede } from '../auth/roles.js';
 import { entradaConStagger } from '../../ui/motion/variants.js';
 import { useReducedMotion } from '../../ui/motion/prefersReducedMotion.js';
@@ -78,6 +79,32 @@ export default function PanelDespacho({ sesion }) {
   }
 
   useEffect(() => { cargar(); }, []);
+
+  /**
+   * Tiempo real (2026-08-28, pedido explícito de David: "no quiero tener que
+   * recargar pantallas... toda información correlacionada la quiero
+   * funcional y real time") -- antes esta pantalla solo cargaba una vez al
+   * abrir; si un trabajador confirmaba una tarea desde otra sesión/pestaña
+   * (o el mapa cambiaba algo que afecta el cupo de equipos), quien tenía
+   * Órdenes de Ejecución abierto no se enteraba hasta cerrar y volver a
+   * abrir. Mismo canal/patrón que ya usa MapaCanvas.jsx (debounce corto para
+   * no disparar un refetch por cada fila cuando una operación toca varias a
+   * la vez) -- acá alcanza con un solo refetch de `cargar()`, que ya trae
+   * junto el lote activo + los slots activos.
+   */
+  useEffect(() => {
+    let timer;
+    const debounceCargar = () => {
+      clearTimeout(timer);
+      timer = setTimeout(cargar, 400);
+    };
+    const desuscribir = migracionRealtimeService.suscribirCambios({
+      nombre: 'despacho',
+      onSlot: debounceCargar,
+      onDespacho: debounceCargar,
+    });
+    return () => { clearTimeout(timer); desuscribir(); };
+  }, []);
 
   async function generar() {
     setGenerando(true);

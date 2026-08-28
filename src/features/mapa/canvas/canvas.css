@@ -249,6 +249,12 @@
 .mapa-leyenda__texto span { color: #B9B3A8; font-size: 11px; }
 .mapa-leyenda__cantidad { color: #F2EDE4; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .mapa-leyenda__fila i.ti-chevron-right { color: #5F5E5A; font-size: 13px; flex-shrink: 0; }
+/* Resaltado activo (2026-08-28) -- fila que hoy está resaltada en el mapa real, mismo cian en las dos superficies. */
+.mapa-leyenda__fila--activa { background: rgba(47, 211, 217, .14); border-radius: 8px; }
+.mapa-leyenda__fila--activa .mapa-leyenda__color { border-color: #2FD3D9; box-shadow: 0 0 0 2px rgba(47, 211, 217, .35); }
+.mapa-leyenda__ver-lista { display: flex; align-items: center; padding: 4px; border-radius: 6px; flex-shrink: 0; }
+.mapa-leyenda__ver-lista:hover { background: rgba(255,255,255,.12); }
+.mapa-leyenda__ver-lista i.ti-chevron-right { color: #5F5E5A; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) {
   .mapa-leyenda__fila { transition: none; }
 }

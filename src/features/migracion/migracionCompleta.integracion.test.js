@@ -60,11 +60,11 @@ describe('Secuencia completa de migración (calcular plan -> vaciar -> recolecta
     const volumenPorArticulo = new Map([['SKU_A', 0.01], ['SKU_B', 0.01], ['SKU_C', 0.01]]);
 
     // --- Paso 1: Calcular plan ---
-    const { movimientos, sinStock, respaldados } = generarMovimientosMigracionOptimizado(
+    const { movimientos, sinStock, sinAsignar } = generarMovimientosMigracionOptimizado(
       inventarioSlotting, inventarioRclActual, volumenPorArticulo, GEOMETRIA
     );
     expect(sinStock).toHaveLength(0);
-    expect(respaldados).toHaveLength(0);
+    expect(sinAsignar).toHaveLength(0);
     expect(movimientos).toHaveLength(3);
 
     // Los 3 SÍ quedaron en el MISMO destino físico -- confirma el escenario real de David.
@@ -101,21 +101,32 @@ describe('Secuencia completa de migración (calcular plan -> vaciar -> recolecta
     expect(recolectados.every(m => m.mzPasillo === movimientos[0].mzPasillo && m.mzColumna === movimientos[0].mzColumna)).toBe(true);
   });
 
-  it('un artículo con volumen desconocido cae al destino fijo original -- el gate del carrito lo acepta igual (el plan SÍ lo incluye, solo con otro destino)', () => {
+  /**
+   * 2026-08-28, corregido dos veces el mismo día tras el incidente en vivo
+   * (David: "no mezclar máquina, no mezclar") -- versión anterior de este
+   * test esperaba que un artículo sin volumen SÍ generara un movimiento
+   * (con su destino fijo original como respaldo) y que el carrito lo
+   * aceptara. Eso es justo lo que mandó a un trabajador real a buscar un
+   * rack inexistente. Ahora: sin volumen, CERO movimiento -- el gate del
+   * carrito lo rechaza como cualquier otro artículo sin plan, queda para el
+   * equipo de movimiento libre (Bairon), nunca para Órdenes de Ejecución.
+   */
+  it('un artículo con volumen desconocido -- NUNCA genera movimiento, el gate del carrito lo rechaza (queda para el equipo de movimiento libre)', () => {
     const inventarioSlotting = [
-      { articulo: 'SKU_SIN_DIM', pasillo: 'MZ09', columna: 99, nivel: 'N05', rack_actual: 'RCL200-C005-N05-1' },
+      { articulo: 'SKU_SIN_DIM', pasillo: 'MZ02', columna: 1, nivel: 'N05', rack_actual: 'RCL200-C005-N05-1' },
     ];
     const inventarioRclActual = [
       { rclCodigo: 'RCL200-C005', rclNivel: 5, rclSubnivel: 1, articulo: 'SKU_SIN_DIM', cantidad: 2 },
     ];
-    const { movimientos, respaldados } = generarMovimientosMigracionOptimizado(
+    const { movimientos, sinAsignar } = generarMovimientosMigracionOptimizado(
       inventarioSlotting, inventarioRclActual, new Map(), GEOMETRIA
     );
-    expect(respaldados).toHaveLength(1);
-    expect(movimientos).toHaveLength(1);
+    expect(movimientos).toHaveLength(0);
+    expect(sinAsignar).toHaveLength(1);
+    expect(sinAsignar[0].articulo).toBe('SKU_SIN_DIM');
 
     const { aceptado } = simularGateDelCarrito(movimientos, { articulo: 'SKU_SIN_DIM', rclCodigo: 'RCL200-C005', rclNivel: 5 });
-    expect(aceptado).toBe(true);
+    expect(aceptado).toBe(false);
   });
 
   it('un artículo sin stock real hoy -- nunca genera movimiento, el gate del carrito lo rechaza si alguien igual intenta moverlo', () => {

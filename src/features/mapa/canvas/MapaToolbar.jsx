@@ -34,6 +34,8 @@ export default function MapaToolbar({
   mostrarReporte = false,
   articulosPorClase,
   mostrarFiltroSinHogar = false, filtroSinHogar = false, onToggleFiltroSinHogar, cantidadSinHogar = 0,
+  mostrarFiltroSinDimension = false, filtroSinDimension = false, onToggleFiltroSinDimension, cantidadSinDimension = 0,
+  resaltadoClase = null, onToggleResaltadoClase,
 }) {
   const [buscarEnfocado, setBuscarEnfocado] = useState(false);
   const [terminalAbierta, setTerminalAbierta] = useState(false);
@@ -156,6 +158,24 @@ export default function MapaToolbar({
           </>
         )}
 
+        {/*
+          Filtro "sin dimensión ni info" (2026-08-28, pedido explícito de
+          David: poder ver e ir físicamente por los artículos sin volumen
+          importado, ~1300) -- mismo patrón exacto que "sin hogar" arriba.
+        */}
+        {mostrarFiltroSinDimension && (
+          <>
+            <div className="mapa-toolbar__separador" />
+            <BotonToolbar
+              icono="ti-ruler-off"
+              titulo={filtroSinDimension ? 'Ocultar artículos sin dimensión/volumen importado' : 'Ver artículos sin dimensión/volumen importado'}
+              onClick={onToggleFiltroSinDimension}
+              activo={filtroSinDimension}
+              badge={cantidadSinDimension > 0 ? cantidadSinDimension : null}
+            />
+          </>
+        )}
+
         {/* Reporte de posiciones (2026-07-22, antes vivía en el sidebar, ver
             Sidebar.jsx) -- movido acá adentro: es una vista de datos del
             mapa, no una herramienta administrativa aparte. Mismo componente,
@@ -208,7 +228,14 @@ export default function MapaToolbar({
         <ReportePanel onCerrar={() => setReporteAbierto(false)} />
       )}
 
-      {leyendaAbierta && <LeyendaClases articulosPorClase={articulosPorClase} onCerrar={() => setLeyendaAbierta(false)} />}
+      {leyendaAbierta && (
+        <LeyendaClases
+          articulosPorClase={articulosPorClase}
+          onCerrar={() => setLeyendaAbierta(false)}
+          resaltado={resaltadoClase}
+          onToggleResaltado={onToggleResaltadoClase}
+        />
+      )}
     </div>
   );
 }
