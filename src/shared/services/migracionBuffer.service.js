@@ -159,6 +159,27 @@ export const migracionBufferService = {
     if (error) throw error;
   },
 
+  /**
+   * Purga TODO lo que quede sin purgar del carrito de traslado de UN slot
+   * (2026-08-27, pedido explícito de David: "no están físicamente, por eso
+   * no debería estar" -- las filas seguían contando en el carrito para
+   * siempre, aunque el traslado ya estuviera cerrado). Se llama justo
+   * cuando el slot pasa a 'bloqueado' (recolectando -> bloqueado, ver
+   * marcarListoMigracion en MapaCanvas.jsx) -- en ese momento, por diseño
+   * del flujo guiado, YA se confirmó que todo lo planeado se recolectó
+   * (puedeMarcarListo exige `todoRecolectado`), así que nada real sigue en
+   * tránsito desde este origen. Mismo soft-delete que purgarSinStock --
+   * nunca se borra la fila, solo deja de contar como "en curso".
+   */
+  async purgarPorSlot(slotId) {
+    const { error } = await supabase
+      .from('migracion_buffer')
+      .update({ purgado: true, purgado_en: new Date().toISOString() })
+      .eq('slot_origen_id', slotId)
+      .eq('purgado', false);
+    if (error) throw error;
+  },
+
   /** "Devolver" UN artículo puntual del buffer (deshace un depósito hecho por error, sin cancelar todo el traslado) -- mismo principio que eliminarPorSlot: la posición real nunca se tocó, borrar esta fila alcanza para que el artículo vuelva a verse donde estaba. */
   async eliminarUno(id) {
     const { error } = await supabase.from('migracion_buffer').delete().eq('id', id);

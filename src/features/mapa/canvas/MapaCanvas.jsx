@@ -1149,6 +1149,12 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       await migracionSlotsService.marcarBloqueado(slot.id, sesion?.usuarioId);
       setMigracionSlots(actuales => new Map(actuales).set(clave, { ...slot, estado: 'bloqueado' }));
       registrarCambioMigracion(`Traslado ${pasillo}-C${String(columna).padStart(3, '0')}`, 'Recolectando', 'Bloqueado', 'bloqueado');
+      // Ya no queda nada real "en tránsito" desde este origen -- puedeMarcarListo
+      // ya exigió que todo lo planeado esté recolectado (ver FlujoMigracionSlot.jsx).
+      // Purga el carrito de este slot para que deje de contar (2026-08-27, ver
+      // migracionBuffer.service.js/purgarPorSlot).
+      await migracionBufferService.purgarPorSlot(slot.id);
+      refrescarBufferGlobal();
     } catch {
       mostrarError('No se pudo marcar como listo. Revisá tu conexión e intentá de nuevo.');
     }
@@ -1163,6 +1169,9 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       await migracionSlotsService.confirmar(slot.id, sesion?.usuarioId);
       setMigracionSlots(actuales => new Map(actuales).set(clave, { ...slot, estado: 'confirmado' }));
       registrarCambioMigracion(`Traslado ${pasillo}-C${String(columna).padStart(3, '0')}`, 'Bloqueado', 'Confirmado', 'confirmado');
+      // Red de seguridad -- ya se purgó al marcar "listo" (ver marcarListoMigracion), esto solo cubre el caso de que algo se haya colado sin pasar por ahí.
+      await migracionBufferService.purgarPorSlot(slot.id);
+      refrescarBufferGlobal();
     } catch {
       mostrarError('No se pudo confirmar -- revisá tu rol o tu conexión.');
     }
