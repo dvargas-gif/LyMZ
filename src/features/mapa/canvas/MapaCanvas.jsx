@@ -854,7 +854,28 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     try {
       const articulos = [...new Set(entradas.map(e => e.articulo))];
       const pendientes = await migracionMovimientosService.buscarPendientesPorArticulos(articulos);
-      conflictos = detectarConflictoMigracion(articulos, pendientes);
+      const candidatos = detectarConflictoMigracion(articulos, pendientes);
+
+      // 2026-08-29, pedido explícito de David (equipos moviendo artículos
+      // libremente, "ahora los tengo a todos haciendo movimientos sin
+      // registro ni planificación"): si el destino real de ESTE movimiento
+      // manual coincide con el destino que el plan YA tenía para ese mismo
+      // artículo, no es un conflicto -- es que alguien cumplió el plan a
+      // mano. Se resuelve solo (mismo camino que "Marcar recolectado" del
+      // flujo guiado, ver marcarRecolectadoMovimiento), nunca queda mudo ni
+      // manda a un Supervisor a revisar algo que en realidad está bien.
+      // Solo lo que de verdad contradice el plan (destino distinto) sigue
+      // pidiendo confirmación explícita.
+      const cumplenElPlan = [];
+      for (const c of candidatos) {
+        const entrada = entradas.find(e => e.articulo === c.articulo);
+        const mismoDestino = entrada?.destino?.pasillo === c.mzPasillo && Number(entrada?.destino?.columna) === Number(c.mzColumna);
+        if (mismoDestino) cumplenElPlan.push(c);
+        else conflictos.push(c);
+      }
+      if (cumplenElPlan.length > 0) {
+        await Promise.all(cumplenElPlan.map(c => migracionMovimientosService.marcarRecolectado(c.id, sesion?.usuarioId)));
+      }
     } catch (err) {
       console.error('No se pudo revisar conflictos de migración antes de mover -- se deja pasar el movimiento.', err);
     }
