@@ -274,6 +274,14 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       onBuffer: () => debounceRefetch('buffer', async () => {
         setBufferGlobal(await migracionBufferService.listarTodo());
       }),
+      // 2026-08-29, bug real encontrado por David: "Mover a voluntad" (posiciones_actuales)
+      // no estaba en este canal -- un movimiento libre hecho desde otra sesión no se
+      // veía acá hasta recargar la página a mano. Recarga completa de racks (mismo
+      // camino que recargarTodo() en cancelarTraslado/devolverDelBuffer más abajo).
+      onPosiciones: () => debounceRefetch('posiciones', async () => {
+        const modelo = await obtenerWarehouseModel(escenarioId).recargarTodo();
+        setRacks(modelo.racks());
+      }),
       onAuditoria: payload => {
         const d = payload.new;
         setBitacoraMigracion(actual => [{
@@ -917,6 +925,32 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
     });
   }
 
+  /**
+   * Atajo -- mover DIRECTO al destino planeado, sin tocar el rack en el mapa
+   * (2026-08-29, pedido explícito de David: "el inventario tendrá ambas
+   * nomenclaturas mezcladas" -- con RCL y MZ conviviendo en el mismo rack
+   * durante la migración, encontrar a ojo el destino real en el canvas es
+   * lento y se presta a error. Si ya se sabe el destino exacto (mismo texto
+   * que ya se mostraba en "Destino planeado"), un solo click alcanza en vez
+   * de tocar el rack + elegir nivel). Nunca disponible si el destino es
+   * ambiguo (más de un movimiento pendiente distinto, ver destinoPlaneado en
+   * iniciarMoverArticulo) -- ahí sí hace falta que una persona decida.
+   */
+  function confirmarDestinoPlaneado() {
+    if (!moviendo?.destinoPlaneado || moviendo.destinoPlaneado.ambiguo) return;
+    const { articulo, clase, tipo, origen, destinoPlaneado } = moviendo;
+    const entrada = {
+      articulo, clase, tipo, origen,
+      destino: { pasillo: destinoPlaneado.mzPasillo, columna: destinoPlaneado.mzColumna, nivel: destinoPlaneado.mzNivel },
+    };
+    prepararYAplicarLote([entrada], {
+      articuloEtiqueta: articulo,
+      desde: formatoUbicacion(origen.pasillo, origen.columna, origen.nivel),
+      hacia: formatoUbicacion(destinoPlaneado.mzPasillo, destinoPlaneado.mzColumna, destinoPlaneado.mzNivel),
+      tipoMovimiento: 'individual',
+    });
+  }
+
   /** Mover TODO un cuerpo -- mismas validaciones que soltarCuerpoEn() legacy: no al mismo origen, destino vacío, destino no bloqueado. Un solo camino para el botón del panel y el drag-and-drop de Modo edición. */
   function ejecutarMoverCuerpo(origenPasillo, origenColumna, destinoPasillo, destinoColumna) {
     const claveOrigen = `${origenPasillo}|${origenColumna}`;
@@ -1551,6 +1585,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
         guardando={guardando}
         nivelesDisponibles={nivelesDisponibles}
         onElegirNivel={confirmarNivelIndividual}
+        onConfirmarDestinoPlaneado={confirmarDestinoPlaneado}
         onCancelar={cancelarMovimiento}
       />
 

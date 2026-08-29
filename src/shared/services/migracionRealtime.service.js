@@ -26,7 +26,7 @@ import { supabase } from './supabaseClient.js';
  * escenario_id -- solo tiene sentido en las vistas del mapa/operación real.
  */
 export const migracionRealtimeService = {
-  suscribirCambios({ onMovimiento, onSlot, onBuffer, onAuditoria, onDespacho, nombre }) {
+  suscribirCambios({ onMovimiento, onSlot, onBuffer, onAuditoria, onDespacho, onPosiciones, nombre }) {
     let canal = supabase.channel(`migracion-en-vivo${nombre ? `-${nombre}` : ''}`);
     if (onMovimiento) canal = canal.on('postgres_changes', { event: '*', schema: 'public', table: 'migracion_movimientos' }, onMovimiento);
     if (onSlot) canal = canal.on('postgres_changes', { event: '*', schema: 'public', table: 'migracion_slots' }, onSlot);
@@ -37,6 +37,12 @@ export const migracionRealtimeService = {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'despacho_lotes' }, onDespacho)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'despacho_tareas' }, onDespacho);
     }
+    // 2026-08-29, bug real encontrado por David: "Mover a voluntad" escribe en
+    // `posiciones_actuales`, pero esta tabla nunca estuvo en este canal --
+    // un movimiento libre de OTRA sesión/pestaña no aparecía solo en el mapa,
+    // solo con un recargo manual. Mismo patrón que el resto: refetch completo
+    // por tabla, con debounce, del lado de quien llama (ver MapaCanvas.jsx).
+    if (onPosiciones) canal = canal.on('postgres_changes', { event: '*', schema: 'public', table: 'posiciones_actuales' }, onPosiciones);
     canal.subscribe();
     return () => supabase.removeChannel(canal);
   },

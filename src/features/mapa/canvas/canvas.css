@@ -272,6 +272,13 @@
   padding: 3px 10px; border-radius: 999px; background: rgba(58, 99, 88, .55); border: 1px solid #3A6358;
   font-weight: 600; font-size: 11.5px;
 }
+/* Atajo clickeable (2026-08-29) -- mismo look que el badge de solo-lectura, pero interactivo. */
+.mapa-movebar__destino-planeado--boton {
+  display: inline-flex; align-items: center; gap: 5px; font-family: inherit; color: #F2EDE4;
+  cursor: pointer; transition: background .15s var(--ease-ios);
+}
+.mapa-movebar__destino-planeado--boton:hover { background: rgba(58, 99, 88, .8); }
+.mapa-movebar__destino-planeado--boton i { font-size: 12px; }
 /* Neutro a propósito (gris, no verde/amber) -- no es un dato ni una alerta,
    es la ausencia explícita de uno (2026-08-26, ver BarraMovimiento.jsx). */
 .mapa-movebar__sin-plan {

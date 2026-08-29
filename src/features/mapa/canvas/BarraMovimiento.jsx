@@ -5,7 +5,7 @@
  * (solo mover individual) "elegí el nivel". Toda la lógica vive en
  * MapaCanvas.jsx, esto es pura presentación del estado `moviendo`.
  */
-export default function BarraMovimiento({ moviendo, guardando, nivelesDisponibles, onElegirNivel, onCancelar }) {
+export default function BarraMovimiento({ moviendo, guardando, nivelesDisponibles, onElegirNivel, onConfirmarDestinoPlaneado, onCancelar }) {
   if (!moviendo) return null;
 
   const origenTexto = `${moviendo.origen.pasillo}-C${String(moviendo.origen.columna).padStart(3, '0')}${moviendo.origen.nivel ? `-${moviendo.origen.nivel}` : ''}`;
@@ -52,7 +52,22 @@ export default function BarraMovimiento({ moviendo, guardando, nivelesDisponible
   return (
     <div className="mapa-movebar">
       <span>{mensaje}</span>
-      {!guardando && destinoPlaneadoTexto && <span className="mapa-movebar__destino-planeado">{destinoPlaneadoTexto}</span>}
+      {!guardando && destinoPlaneadoTexto && (
+        moviendo.destinoPlaneado.ambiguo ? (
+          <span className="mapa-movebar__destino-planeado">{destinoPlaneadoTexto}</span>
+        ) : (
+          // Atajo (2026-08-29, pedido explícito de David: con RCL y MZ mezclados en
+          // el mismo rack, tocar el destino real a ojo en el canvas es lento y se
+          // presta a error) -- un solo click aplica el movimiento directo a este
+          // destino, sin tener que tocar el rack en el mapa ni elegir nivel aparte.
+          <button
+            type="button" className="mapa-movebar__destino-planeado mapa-movebar__destino-planeado--boton"
+            onClick={onConfirmarDestinoPlaneado} title="Mover directo a este destino, sin tocar el rack en el mapa"
+          >
+            {destinoPlaneadoTexto} <i className="ti ti-arrow-right" aria-hidden="true" />
+          </button>
+        )
+      )}
       {!guardando && sinPlan && <span className="mapa-movebar__sin-plan">Sin destino planificado -- moviendo libremente.</span>}
       {!guardando && moviendo.modo === 'individual' && moviendo.destino && (
         <div className="mapa-movebar__niveles">
