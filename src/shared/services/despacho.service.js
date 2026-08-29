@@ -147,33 +147,44 @@ export const despachoService = {
     // "el motor está fallando... las acciones serán el apoyo de lo generado
     // humanamente"): con equipos moviendo artículos LIBREMENTE por el mapa,
     // "vaciar" (mandar a alguien a sacar algo puntual de un RCL) ya no tiene
-    // sentido -- eso ya lo hace la gente por su cuenta, sin que una tarea se
-    // lo pida. Las Órdenes de Ejecución dejan de generar tareas "vaciar" --
-    // "recolectar" ya no significa "andá a buscarlo", significa "cerrá el
-    // trámite de esto que alguien YA depositó en el carrito de traslado".
+    // sentido para lo COMPLEJO -- eso ya lo hace la gente por su cuenta.
+    // "Recolectar" en esos casos ya no significa "andá a buscarlo", significa
+    // "cerrá el trámite de esto que alguien YA depositó en el carrito".
     //
-    // Por eso acá ya NO se llama contenidoActualDeRacks() para armar tareas
-    // de vaciado (sí se sigue usando más arriba, sin tocar, para el cupo de
-    // equipos de planificarSecuencia -- eso no cambió). En su lugar: un
-    // movimiento pendiente solo se ofrece como tarea "recolectar" si YA
-    // existe un depósito real en migracion_buffer con su mismo movimiento_id
-    // (`migracionBufferService.depositar()` ya resuelve ese vínculo solo,
-    // tanto si lo depositó alguien del flujo guiado como si fue un
-    // coordinador moviendo libremente). El que todavía no tiene depósito
-    // real queda "sin depositar" -- mismo criterio de "no cerrar racks a
-    // medias" que ya existía, solo que ahora la condición es "¿ya lo trajo
-    // alguien?" en vez de "¿tenía stock al calcular el plan?".
+    // MISMO DÍA, aclaración explícita: "los movimientos que sean fáciles...
+    // se migran de manera inteligente porque esos artículos ya tienen un
+    // lugar... se debe generar todo" -- un rack "fácil" (ver
+    // clasificarDificultad en planificarSecuencia.js: 1 origen que alimenta
+    // a lo sumo 1 destino, un solo nivel de contenido -- SIN ambigüedad
+    // real) sigue yendo de punta a punta automatizado, como siempre: vaciar
+    // Y recolectar, ambos generados directo, sin depender de que alguien lo
+    // deposite antes a mano. El gate nuevo (depósito real primero) es SOLO
+    // para "normal"/"difícil" -- ahí sí puede haber más de una fuente
+    // alimentando el mismo destino, y ahí es donde el criterio humano
+    // importa más que dejarlo 100% a la máquina.
+    const clavesRacksFaciles = new Set(oleadaCandidata.filter(r => r.dificultad === 'facil').map(r => `${r.mzPasillo}|${r.mzColumna}`));
+    const racksFaciles = oleadaCandidata.filter(r => clavesRacksFaciles.has(`${r.mzPasillo}|${r.mzColumna}`));
+    const articulosConDestinoReal = new Set(movimientosCualquierEstado.map(m => m.articulo));
+    const { contenido: contenidoFaciles, sinDestino: sinDestinoFaciles } = contenidoActualDeRacks(racksFaciles, identidadLegacy, inventarioRclActual, articulosConDestinoReal);
+
     const movimientoIdsDepositados = new Set(bufferActual.filter(b => b.movimientoId != null).map(b => b.movimientoId));
     const clavesOleadaCandidata = new Set(oleadaCandidata.map(r => `${r.mzPasillo}|${r.mzColumna}`));
     const movimientosListosParaRecolectar = [];
-    const sinDepositarPorRack = new Map();
+    const sinResolverPorRack = new Map();
+    for (const a of sinDestinoFaciles) {
+      const clave = `${a.mzPasillo}|${a.mzColumna}`;
+      sinResolverPorRack.set(clave, (sinResolverPorRack.get(clave) ?? 0) + 1);
+    }
     for (const m of movimientosPendientes) {
       const clave = `${m.mzPasillo}|${m.mzColumna}`;
       if (!clavesOleadaCandidata.has(clave)) continue;
-      if (movimientoIdsDepositados.has(m.id)) {
+      if (clavesRacksFaciles.has(clave)) {
+        // Fácil -- automatización completa, no hace falta depósito previo.
+        movimientosListosParaRecolectar.push(m);
+      } else if (movimientoIdsDepositados.has(m.id)) {
         movimientosListosParaRecolectar.push(m);
       } else {
-        sinDepositarPorRack.set(clave, (sinDepositarPorRack.get(clave) ?? 0) + 1);
+        sinResolverPorRack.set(clave, (sinResolverPorRack.get(clave) ?? 0) + 1);
       }
     }
 
@@ -191,19 +202,23 @@ export const despachoService = {
     // no perder la costumbre de recalcular seguido.
     const limiteRacks = Math.max(3, cantidadOperadores * 3);
     const { seleccionados: oleada, diferidosPorCupo, incompletos } = seleccionarRacksCompletos(
-      oleadaCandidata, sinDepositarPorRack, totalPlanificadoPorRack, totalConMovimientoPorRack, limiteRacks
+      oleadaCandidata, sinResolverPorRack, totalPlanificadoPorRack, totalConMovimientoPorRack, limiteRacks
     );
     if (oleada.length === 0) {
       const detalleIncompletos = incompletos
-        .map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')} (faltan ${r.faltanRecolectar} por recolectar, ${r.faltanVaciar} sin depositar en el carrito todavía)`)
+        .map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')} (faltan ${r.faltanRecolectar} por recolectar, ${r.faltanVaciar} sin resolver)`)
         .join('; ');
-      throw new Error(`Ningún rack de los candidatos de hoy cierra completo -- ${incompletos.length} quedarían a medias: ${detalleIncompletos}. Falta que alguien deposite el resto en el carrito de traslado, o recalculá el plan.`);
+      throw new Error(`Ningún rack de los candidatos de hoy cierra completo -- ${incompletos.length} quedarían a medias: ${detalleIncompletos}. Falta que alguien deposite el resto en el carrito (racks complejos), resuelva destinos (racks fáciles), o recalculá el plan.`);
     }
 
-    // Sin contenido de vaciado (segundo argumento en []) -- ver el comentario
-    // de más arriba, esta oleada ya no genera tareas "vaciar".
+    // Contenido de vaciado SOLO para los racks "fácil" de esta oleada final
+    // (ver el comentario de más arriba) -- los "normal"/"difícil" nunca
+    // generan tarea "vaciar".
+    const clavesOleada = new Set(oleada.map(r => `${r.mzPasillo}|${r.mzColumna}`));
+    const contenidoParaVaciar = contenidoFaciles.filter(c => clavesOleada.has(`${c.mzPasillo}|${c.mzColumna}`));
+
     const { trabajadores, advertencias: advertenciasReparto } = generarLoteDespacho(
-      oleada, [], movimientosListosParaRecolectar, cantidadOperadores,
+      oleada, contenidoParaVaciar, movimientosListosParaRecolectar, cantidadOperadores,
       { totalPlanificadoPorRack, totalConMovimientoPorRack }
     );
     if (trabajadores.length === 0) {
@@ -213,8 +228,8 @@ export const despachoService = {
       advertenciasSecuencia.unshift(`${diferidosPorCupo.length} rack(s) más también cerrarían completos, pero quedan para la próxima oleada (tope de ${limiteRacks} racks completos para ${cantidadOperadores} operador(es)): ${diferidosPorCupo.map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')}`).join(', ')}.`);
     }
     if (incompletos.length > 0) {
-      const detalle = incompletos.map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')} (${r.faltanRecolectar > 0 ? `${r.faltanRecolectar} sin stock real` : ''}${r.faltanRecolectar > 0 && r.faltanVaciar > 0 ? ', ' : ''}${r.faltanVaciar > 0 ? `${r.faltanVaciar} sin depositar en el carrito todavía` : ''})`).join('; ');
-      advertenciasSecuencia.unshift(`⚠ ${incompletos.length} rack(s) candidatos NO entraron en esta oleada porque quedarían a medias: ${detalle}. No se resuelven solos -- necesitan que alguien deposite el resto en el carrito, o recalcular el plan.`);
+      const detalle = incompletos.map(r => `${r.mzPasillo}-C${String(r.mzColumna).padStart(3, '0')} (${r.faltanRecolectar > 0 ? `${r.faltanRecolectar} sin stock real` : ''}${r.faltanRecolectar > 0 && r.faltanVaciar > 0 ? ', ' : ''}${r.faltanVaciar > 0 ? `${r.faltanVaciar} sin resolver` : ''})`).join('; ');
+      advertenciasSecuencia.unshift(`⚠ ${incompletos.length} rack(s) candidatos NO entraron en esta oleada porque quedarían a medias: ${detalle}. No se resuelven solos -- necesitan que alguien deposite el resto en el carrito (complejos), resuelva destinos (fáciles), o recalcular el plan.`);
     }
     // Transparencia sobre POR QUÉ la oleada trajo estos racks y no más --
     // pedido explícito (2026-07-22, sesión de pruebas antes del jueves):
@@ -265,13 +280,16 @@ export const despachoService = {
       for (const rack of oleada) {
         const { id, estado } = await migracionSlotsService.iniciar({ mzPasillo: rack.mzPasillo, mzColumna: rack.mzColumna, usuarioId: generadoPor });
         iniciados.push(id);
-        // 2026-08-29: esta oleada ya no trae tareas "vaciar" (ver arriba) --
-        // el slot no tiene nada que esperar en "vaciando", pasa derecho a
-        // "recolectando" (mismo evento real que ya dispara "Marcar vaciado
-        // completo" en el flujo guiado del mapa). Si el trigger de cupo
-        // devolvió 'esperando_aprobacion' en vez de 'vaciando', se deja tal
-        // cual -- todavía no hay nada que "completar".
-        if (estado === 'vaciando') await migracionSlotsService.marcarVaciadoCompleto(id);
+        // 2026-08-29: los racks "normal"/"difícil" de esta oleada ya no
+        // traen tareas "vaciar" (ver arriba) -- el slot no tiene nada que
+        // esperar en "vaciando", pasa derecho a "recolectando" (mismo evento
+        // real que ya dispara "Marcar vaciado completo" en el flujo guiado
+        // del mapa). Los "fácil" SÍ siguen trayendo tareas "vaciar" reales
+        // -- esos slots se quedan en "vaciando" como siempre, esperando que
+        // se confirmen. Si el trigger de cupo devolvió 'esperando_aprobacion'
+        // en vez de 'vaciando', se deja tal cual -- todavía no hay nada que "completar".
+        const esFacil = clavesRacksFaciles.has(`${rack.mzPasillo}|${rack.mzColumna}`);
+        if (!esFacil && estado === 'vaciando') await migracionSlotsService.marcarVaciadoCompleto(id);
       }
     } catch (err) {
       await Promise.allSettled(iniciados.map(async id => {

@@ -1046,11 +1046,20 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
       migracionMovimientosService.listarPendientesParaSecuencia(),
       identidadLegacyService.listar(),
     ]);
+    // 2026-08-29, pedido explícito de David: con equipos moviendo artículos
+    // libremente por su cuenta (fuera de este flujo guiado), la realidad
+    // física puede ir ADELANTE de lo que este chequeo de dependencias asume
+    // -- David necesita poder REGISTRAR en el sistema un traslado que la
+    // gente ya empezó a mover en la práctica, aunque el grafo de
+    // dependencias todavía no lo vea "listo" en el papel. Ya no bloquea
+    // solo -- avisa igual (la info sigue siendo real y útil) pero deja
+    // confirmar y seguir, mismo patrón que "confirmarConConflicto" más abajo
+    // en este archivo (advertir, nunca impedir, cuando quien confirma ya
+    // sabe algo que el modelo no sabe).
     const { listo, bloqueadoPor } = evaluarListoParaIniciar(pasillo, columna, movimientosVigentes, identidadVigente, migracionSlots);
     if (!listo) {
       const racks = bloqueadoPor.map(b => `${b.mzPasillo}-C${String(b.mzColumna).padStart(3, '0')}`).join(', ');
-      mostrarError(`Todavía no podés iniciar ${etiqueta} -- depende de que se vacíe(n) primero: ${racks}.`);
-      return;
+      if (!confirm(`${etiqueta} todavía depende, en el papel, de que se vacíe(n) primero: ${racks}. Si ya sabés que esto se movió en la práctica, ¿confirmás igual?`)) return;
     }
     try {
       const { id: slotId, estado } = await migracionSlotsService.iniciar({ mzPasillo: pasillo, mzColumna: columna, usuarioId: sesion?.usuarioId });
