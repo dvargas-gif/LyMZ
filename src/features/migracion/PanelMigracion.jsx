@@ -126,6 +126,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [destinosDesactualizados, setDestinosDesactualizados] = useState(null); // [{articulo, rclCodigo, rclNivel, rclSubnivel, destinoImportado, destinoReal}] | null
   const [revisandoDestinos, setRevisandoDestinos] = useState(false);
   const [exportandoLibres, setExportandoLibres] = useState(false);
+  const [exportandoPlan, setExportandoPlan] = useState(false);
   const [mostrarReporteImprimible, setMostrarReporteImprimible] = useState(false);
 
   // -- Equipos + resumen --
@@ -356,6 +357,69 @@ export default function PanelMigracion({ sesion, onCerrar }) {
       setError(`No se pudo exportar las posiciones libres: ${err.message || err}`);
     } finally {
       setExportandoLibres(false);
+    }
+  }
+
+  /**
+   * Hoja de referencia completa (2026-09-01, pedido explícito de David): el
+   * destino MZ que cada artículo DEBERÍA tener según el plan, con su
+   * ubicación real si ya se movió a mano, y aparte los artículos sin ningún
+   * plan que igual ya tienen una posición registrada (ubicados por criterio,
+   * ver "sin hogar"). Pensada para alguien que no sabe SQL -- Excel legible,
+   * en español, sin nombres de columnas técnicos.
+   */
+  async function exportarPlanCompleto() {
+    setExportandoPlan(true);
+    setError('');
+    try {
+      const [movimientos, posiciones] = await Promise.all([
+        migracionMovimientosService.listarPlanCompleto(),
+        posicionesService.listar(),
+      ]);
+      const posicionPorArticulo = new Map(posiciones.map(p => [p.articulo, p]));
+      const ubicacionTexto = p => (p ? `${p.pasillo}-C${String(p.columna).padStart(3, '0')}-${p.nivel}` : '');
+      // 2026-09-01, pedido explícito de David tras confundir un dato viejo (carga
+      // masiva de hace tiempo) con "esto se movió ahora" -- quién y cuándo, para
+      // distinguir de un vistazo un movimiento real de esta semana de un dato
+      // que ya estaba cargado desde antes.
+      // posicionesService.listar() trae la fila cruda de Supabase (select('*')) -- snake_case, sin mapear.
+      const cuandoTexto = p => (p?.actualizado_en ? new Date(p.actualizado_en).toLocaleString() : '');
+      const quienTexto = p => nombreDe(usuarios, p?.actualizado_por);
+      const ESTADO_LEGIBLE = { pendiente: 'Pendiente', recolectado: 'Recolectado', a_revisar: 'A revisar', descartado: 'Descartado' };
+
+      const filasPlan = movimientos.map(m => {
+        const real = posicionPorArticulo.get(m.articulo);
+        return {
+          'Artículo': m.articulo,
+          'Destino planeado (MZ)': `${m.mzPasillo}-C${String(m.mzColumna).padStart(3, '0')}-${m.mzNivel}`,
+          'Origen (RCL)': `${m.rclCodigo}-N${m.rclNivel}`,
+          'Cantidad': m.cantidad,
+          'Estado': ESTADO_LEGIBLE[m.estado] ?? m.estado,
+          'Ubicación real actual (si ya se movió)': ubicacionTexto(real),
+          'Movido cuándo': cuandoTexto(real),
+          'Movido por quién': real ? quienTexto(real) : '',
+        };
+      });
+
+      const articulosConPlan = new Set(movimientos.map(m => m.articulo));
+      const filasSinPlan = posiciones
+        .filter(p => !articulosConPlan.has(p.articulo))
+        .map(p => ({
+          'Artículo': p.articulo,
+          'Destino planeado (MZ)': '(sin plan -- ubicado por criterio)',
+          'Origen (RCL)': '',
+          'Cantidad': '',
+          'Estado': 'Sin plan',
+          'Ubicación real actual (si ya se movió)': ubicacionTexto(p),
+          'Movido cuándo': cuandoTexto(p),
+          'Movido por quién': quienTexto(p),
+        }));
+
+      exportarExcel([...filasPlan, ...filasSinPlan], `Plan_completo_MZ_${new Date().toISOString().slice(0, 10)}.xlsx`, 'Plan MZ');
+    } catch (err) {
+      setError(`No se pudo exportar el plan completo: ${err.message || err}`);
+    } finally {
+      setExportandoPlan(false);
     }
   }
 
@@ -797,6 +861,15 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             </button>
             <p className="info-secundaria">
               Descarga un Excel con todos los cuerpos MZ01-MZ08 que tienen algún nivel SIN un RCL asignado en <code>identidad_legacy</code> (no importa si hay mercadería real puesta ahí en <code>inventario_slotting</code>) -- una fila por cuerpo, con las nomenclaturas de sus 5 niveles (N01-N05) en columnas separadas, vacío el nivel que no está libre.
+            </p>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={exportandoPlan} onClick={exportarPlanCompleto} style={{ fontSize: 12 }}>
+              <i className="ti ti-file-export" /> {exportandoPlan ? 'Exportando…' : 'Exportar plan completo (MZ)'}
+            </button>
+            <p className="info-secundaria">
+              Descarga un Excel legible (sin SQL) con una fila por artículo: destino planeado, origen RCL, cantidad, estado, y su ubicación real actual si ya se movió a mano -- más, aparte, los artículos sin ningún plan que igual ya tienen una posición registrada (ubicados por criterio).
             </p>
           </div>
 

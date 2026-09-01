@@ -89,6 +89,16 @@ export const migracionMovimientosService = {
     return data.map(d => ({ mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna, articulo: d.articulo }));
   },
 
+  /** Plan completo con TODAS las columnas que hacen falta para una hoja de referencia legible fuera de la app (ver "Exportar plan completo" en PanelMigracion.jsx) -- a diferencia de listarTodosCualquierEstado(), acá sí hace falta nivel/origen/cantidad/estado. */
+  async listarPlanCompleto() {
+    const data = await seleccionarPaginado((desde, hasta) =>
+      supabase.from('migracion_movimientos').select('articulo, mz_pasillo, mz_columna, mz_nivel, rcl_codigo, rcl_nivel, cantidad, estado').range(desde, hasta));
+    return data.map(d => ({
+      articulo: d.articulo, mzPasillo: d.mz_pasillo, mzColumna: d.mz_columna, mzNivel: d.mz_nivel,
+      rclCodigo: d.rcl_codigo, rclNivel: d.rcl_nivel, cantidad: d.cantidad, estado: d.estado,
+    }));
+  },
+
   /** TODOS los movimientos pendientes, con su origen RCL -- lo que necesita planificarSecuencia.js para armar el grafo de dependencias entre racks (a diferencia de listarTodos(), acá sí hace falta rcl_codigo/rcl_nivel). */
   async listarPendientesParaSecuencia() {
     const data = await seleccionarPaginado((desde, hasta) =>
