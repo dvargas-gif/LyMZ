@@ -441,9 +441,15 @@ export default function PanelMigracion({ sesion, onCerrar }) {
     setExportandoSinHogar(true);
     setError('');
     try {
+      // zonasPickService.listar() puede fallar (404 real visto en producción --
+      // la tabla zonas_pick no está disponible hoy) -- mismo criterio de
+      // resiliencia que ya usa MapaCanvas.jsx para esta misma fuente: se
+      // degrada a lista vacía en vez de tirar abajo TODO el export por una
+      // fuente opcional (detectarArticulosSinHogar sigue funcionando solo
+      // con inventario_rcl_actual).
       const [inventarioRcl, zonasPick, slotting, identidad, descripciones] = await Promise.all([
         inventarioRclService.listar(),
-        zonasPickService.listar(),
+        zonasPickService.listar().catch(err => { console.error('No se pudo cargar "zonas de pick" para el export -- se sigue sin esa fuente.', err); return []; }),
         inventarioService.listar(),
         identidadLegacyService.listar(),
         articulosService.listarDescripciones(),
