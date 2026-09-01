@@ -19,6 +19,9 @@ import { detectarCuerposParaAjustarNiveles } from '../../domain/reglasAsignacion
 import { detectarSobrecarga } from '../../domain/detectarSobrecargaRacks.js';
 import { detectarDestinosDesactualizados } from '../../domain/detectarDestinosDesactualizados.js';
 import { detectarPosicionesLibresDeIdentidad, agruparPosicionesLibresPorCuerpo } from '../../domain/detectarPosicionesLibres.js';
+import { detectarArticulosSinHogar } from './articulosSinHogar.js';
+import { zonasPickService } from '../../shared/services/zonasPick.service.js';
+import { articulosService } from '../../shared/services/articulos.service.js';
 import { exportarExcel } from '../../shared/utils/exportExcel.js';
 import ModalBase from '../../shared/components/ModalBase.jsx';
 import PanelCargando from '../../shared/components/PanelCargando.jsx';
@@ -127,6 +130,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [revisandoDestinos, setRevisandoDestinos] = useState(false);
   const [exportandoLibres, setExportandoLibres] = useState(false);
   const [exportandoPlan, setExportandoPlan] = useState(false);
+  const [exportandoSinHogar, setExportandoSinHogar] = useState(false);
   const [mostrarReporteImprimible, setMostrarReporteImprimible] = useState(false);
 
   // -- Equipos + resumen --
@@ -420,6 +424,45 @@ export default function PanelMigracion({ sesion, onCerrar }) {
       setError(`No se pudo exportar el plan completo: ${err.message || err}`);
     } finally {
       setExportandoPlan(false);
+    }
+  }
+
+  /**
+   * Hoja de referencia de "sin hogar" (2026-09-01, pedido explícito de
+   * David: "los artículos que no tienen un MZ donde ir, y que estén fuera
+   * del plan de trabajo") -- MISMA función que ya usa el filtro "Sin hogar"
+   * del mapa (`detectarArticulosSinHogar`, nunca se reimplementa el
+   * criterio), solo que acá se exporta a Excel legible. Son artículos con
+   * stock real (en `inventario_rcl_actual` o en zona de pick) que NUNCA
+   * tuvieron una fila en `inventario_slotting` -- jamás se les asignó un
+   * destino MZ en ningún plan.
+   */
+  async function exportarSinHogar() {
+    setExportandoSinHogar(true);
+    setError('');
+    try {
+      const [inventarioRcl, zonasPick, slotting, identidad, descripciones] = await Promise.all([
+        inventarioRclService.listar(),
+        zonasPickService.listar(),
+        inventarioService.listar(),
+        identidadLegacyService.listar(),
+        articulosService.listarDescripciones(),
+      ]);
+      const descPorArticulo = new Map(descripciones.map(d => [d.articulo, d.descripcion]));
+      const sinHogar = detectarArticulosSinHogar(inventarioRcl, zonasPick, slotting, identidad);
+
+      const filas = sinHogar.map(a => ({
+        'Artículo': a.articulo,
+        'Descripción': descPorArticulo.get(a.articulo) || 'Sin descripción disponible',
+        'Ubicación física actual': a.mzPasillo != null ? `${a.mzPasillo}-C${String(a.mzColumna).padStart(3, '0')}` : '(sin resolver -- revisar identidad RCL)',
+        'De dónde sale': a.fuente === 'inventario_rcl' ? 'Inventario RCL' : 'Zona de pick',
+      }));
+
+      exportarExcel(filas, `Sin_hogar_${new Date().toISOString().slice(0, 10)}.xlsx`, 'Sin hogar');
+    } catch (err) {
+      setError(`No se pudo exportar los artículos sin hogar: ${err.message || err}`);
+    } finally {
+      setExportandoSinHogar(false);
     }
   }
 
@@ -870,6 +913,15 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             </button>
             <p className="info-secundaria">
               Descarga un Excel legible (sin SQL) con una fila por artículo: destino planeado, origen RCL, cantidad, estado, y su ubicación real actual si ya se movió a mano -- más, aparte, los artículos sin ningún plan que igual ya tienen una posición registrada (ubicados por criterio).
+            </p>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={exportandoSinHogar} onClick={exportarSinHogar} style={{ fontSize: 12 }}>
+              <i className="ti ti-file-export" /> {exportandoSinHogar ? 'Exportando…' : 'Exportar sin hogar (sin MZ, fuera del plan)'}
+            </button>
+            <p className="info-secundaria">
+              Descarga un Excel con los artículos que tienen stock real (en inventario RCL o zona de pick) pero NUNCA tuvieron un destino MZ asignado en ningún plan -- los que quedan fuera del plan de trabajo por completo. Mismo criterio que el filtro "Sin hogar" del mapa.
             </p>
           </div>
 
