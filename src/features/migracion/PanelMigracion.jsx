@@ -19,7 +19,7 @@ import { detectarCuerposParaAjustarNiveles } from '../../domain/reglasAsignacion
 import { detectarSobrecarga } from '../../domain/detectarSobrecargaRacks.js';
 import { detectarDestinosDesactualizados } from '../../domain/detectarDestinosDesactualizados.js';
 import { detectarPosicionesLibresDeIdentidad, agruparPosicionesLibresPorCuerpo } from '../../domain/detectarPosicionesLibres.js';
-import { detectarPosicionesSinDestinoPlan, agruparPosicionesSinDestinoPorCuerpo } from '../../domain/detectarPosicionesSinDestinoPlan.js';
+import { detectarPosicionesSinDestinoPlan } from '../../domain/detectarPosicionesSinDestinoPlan.js';
 import { detectarArticulosSinHogar } from './articulosSinHogar.js';
 import { zonasPickService } from '../../shared/services/zonasPick.service.js';
 import { articulosService } from '../../shared/services/articulos.service.js';
@@ -368,22 +368,28 @@ export default function PanelMigracion({ sesion, onCerrar }) {
 
   /**
    * "Exportar MZ sin destino planificado" (2026-09-02, pedido explícito de
-   * David: "quiero saber qué ubicaciones en el plan del reacomodo estarán
-   * libres" -- no si hay mercadería real hoy, no si identidad_legacy tiene
-   * un RCL asignado, sino si el PLAN (migracion_movimientos) tiene planeado
-   * poner algo ahí, sin importar el estado actual de esa posición). Ver
+   * David: "una vez que todo esté acomodado, qué ubicaciones no tendrán
+   * artículos -- podría meter otros artículos donde no habrá" -- no mira si
+   * hay mercadería real hoy, ni si identidad_legacy tiene un RCL asignado,
+   * sino si el PLAN (migracion_movimientos) tiene planeado poner algo ahí,
+   * sin importar el estado actual de esa posición). Ver
    * detectarPosicionesSinDestinoPlan() en
    * src/domain/detectarPosicionesSinDestinoPlan.js -- distinto a propósito
    * de "Exportar MZ libres" de arriba (esa mira el pasado/presente, esta
    * mira el plan hacia adelante).
+   *
+   * Una fila por ubicación individual (pedido explícito, no agrupado por
+   * rack) -- agruparPosicionesSinDestinoPorCuerpo() queda en el dominio, con
+   * test, por si hace falta el formato agrupado a futuro.
    */
   async function exportarPosicionesSinDestino() {
     setExportandoSinDestino(true);
     setError('');
     try {
       const movimientos = await migracionMovimientosService.listarPlanCompleto();
-      const sinDestino = agruparPosicionesSinDestinoPorCuerpo(detectarPosicionesSinDestinoPlan(movimientos));
-      exportarExcel(sinDestino, `MZ_sin_destino_planificado_${new Date().toISOString().slice(0, 10)}.xlsx`, 'MZ sin destino');
+      const filas = detectarPosicionesSinDestinoPlan(movimientos)
+        .map(s => ({ 'Ubicación MZ': `${s.pasillo}-C${String(s.columna).padStart(3, '0')}-${s.nivel}` }));
+      exportarExcel(filas, `MZ_sin_destino_planificado_${new Date().toISOString().slice(0, 10)}.xlsx`, 'MZ sin destino');
     } catch (err) {
       setError(`No se pudo exportar las posiciones sin destino planificado: ${err.message || err}`);
     } finally {
@@ -945,7 +951,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
               <i className="ti ti-file-export" /> {exportandoSinDestino ? 'Exportando…' : 'Exportar MZ sin destino planificado'}
             </button>
             <p className="info-secundaria">
-              Distinto al de arriba: no mira lo que hay HOY (ni mercadería real ni <code>identidad_legacy</code>) -- mira el PLAN (<code>migracion_movimientos</code>) y descarga todos los cuerpos, de los 12 pasillos completos, donde ningún artículo tiene planeado terminar. Un movimiento descartado no cuenta como destino reservado.
+              Distinto al de arriba: no mira lo que hay HOY (ni mercadería real ni <code>identidad_legacy</code>) -- mira el PLAN (<code>migracion_movimientos</code>) y descarga, una fila por ubicación exacta, todas las posiciones de los 12 pasillos completos donde ningún artículo tiene planeado terminar. Un movimiento descartado no cuenta como destino reservado.
             </p>
           </div>
 
