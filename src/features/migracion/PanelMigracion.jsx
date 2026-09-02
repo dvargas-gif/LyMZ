@@ -19,6 +19,7 @@ import { detectarCuerposParaAjustarNiveles } from '../../domain/reglasAsignacion
 import { detectarSobrecarga } from '../../domain/detectarSobrecargaRacks.js';
 import { detectarDestinosDesactualizados } from '../../domain/detectarDestinosDesactualizados.js';
 import { detectarPosicionesLibresDeIdentidad, agruparPosicionesLibresPorCuerpo } from '../../domain/detectarPosicionesLibres.js';
+import { detectarPosicionesSinDestinoPlan, agruparPosicionesSinDestinoPorCuerpo } from '../../domain/detectarPosicionesSinDestinoPlan.js';
 import { detectarArticulosSinHogar } from './articulosSinHogar.js';
 import { zonasPickService } from '../../shared/services/zonasPick.service.js';
 import { articulosService } from '../../shared/services/articulos.service.js';
@@ -129,6 +130,7 @@ export default function PanelMigracion({ sesion, onCerrar }) {
   const [destinosDesactualizados, setDestinosDesactualizados] = useState(null); // [{articulo, rclCodigo, rclNivel, rclSubnivel, destinoImportado, destinoReal}] | null
   const [revisandoDestinos, setRevisandoDestinos] = useState(false);
   const [exportandoLibres, setExportandoLibres] = useState(false);
+  const [exportandoSinDestino, setExportandoSinDestino] = useState(false);
   const [exportandoPlan, setExportandoPlan] = useState(false);
   const [exportandoSinHogar, setExportandoSinHogar] = useState(false);
   const [mostrarReporteImprimible, setMostrarReporteImprimible] = useState(false);
@@ -361,6 +363,31 @@ export default function PanelMigracion({ sesion, onCerrar }) {
       setError(`No se pudo exportar las posiciones libres: ${err.message || err}`);
     } finally {
       setExportandoLibres(false);
+    }
+  }
+
+  /**
+   * "Exportar MZ sin destino planificado" (2026-09-02, pedido explícito de
+   * David: "quiero saber qué ubicaciones en el plan del reacomodo estarán
+   * libres" -- no si hay mercadería real hoy, no si identidad_legacy tiene
+   * un RCL asignado, sino si el PLAN (migracion_movimientos) tiene planeado
+   * poner algo ahí, sin importar el estado actual de esa posición). Ver
+   * detectarPosicionesSinDestinoPlan() en
+   * src/domain/detectarPosicionesSinDestinoPlan.js -- distinto a propósito
+   * de "Exportar MZ libres" de arriba (esa mira el pasado/presente, esta
+   * mira el plan hacia adelante).
+   */
+  async function exportarPosicionesSinDestino() {
+    setExportandoSinDestino(true);
+    setError('');
+    try {
+      const movimientos = await migracionMovimientosService.listarPlanCompleto();
+      const sinDestino = agruparPosicionesSinDestinoPorCuerpo(detectarPosicionesSinDestinoPlan(movimientos));
+      exportarExcel(sinDestino, `MZ_sin_destino_planificado_${new Date().toISOString().slice(0, 10)}.xlsx`, 'MZ sin destino');
+    } catch (err) {
+      setError(`No se pudo exportar las posiciones sin destino planificado: ${err.message || err}`);
+    } finally {
+      setExportandoSinDestino(false);
     }
   }
 
@@ -910,6 +937,15 @@ export default function PanelMigracion({ sesion, onCerrar }) {
             </button>
             <p className="info-secundaria">
               Descarga un Excel con todos los cuerpos MZ01-MZ08 que tienen algún nivel SIN un RCL asignado en <code>identidad_legacy</code> (no importa si hay mercadería real puesta ahí en <code>inventario_slotting</code>) -- una fila por cuerpo, con las nomenclaturas de sus 5 niveles (N01-N05) en columnas separadas, vacío el nivel que no está libre.
+            </p>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--borde-claro)', marginTop: 18, paddingTop: 14 }}>
+            <button className="btn-secondary" disabled={exportandoSinDestino} onClick={exportarPosicionesSinDestino} style={{ fontSize: 12 }}>
+              <i className="ti ti-file-export" /> {exportandoSinDestino ? 'Exportando…' : 'Exportar MZ sin destino planificado'}
+            </button>
+            <p className="info-secundaria">
+              Distinto al de arriba: no mira lo que hay HOY (ni mercadería real ni <code>identidad_legacy</code>) -- mira el PLAN (<code>migracion_movimientos</code>) y descarga todos los cuerpos, de los 12 pasillos completos, donde ningún artículo tiene planeado terminar. Un movimiento descartado no cuenta como destino reservado.
             </p>
           </div>
 
