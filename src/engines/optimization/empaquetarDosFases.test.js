@@ -55,7 +55,6 @@ describe('empaquetarDosFases', () => {
     const claseA = Array.from({ length: 200 }, (_, i) => articulo(`A${i}`, 0.001, 'A', 1 - i / 200));
     const otros = Array.from({ length: 50 }, (_, i) => articulo(`X${i}`, 0.001, 'D', 0));
     const { asignaciones } = empaquetarDosFases([...claseA, ...otros], cuerpos);
-    const aEnOptima = asignaciones.filter(a => a.clase === undefined && claseA.some(x => x.articulo === a.articulo));
     // la reserva llena las 45 niveles x 4 = 180 con clase A antes de que nadie más compita
     const totalAAsignados = asignaciones.filter(a => claseA.some(x => x.articulo === a.articulo)).length;
     expect(totalAAsignados).toBe(180);

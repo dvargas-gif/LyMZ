@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
-import { CuboIso, PosicionVacia, PALETA_CUBO_OPTIMO } from './loginIlustraciones.jsx';
+import { CuboIso, PosicionVacia } from './loginIlustraciones.jsx';
+import { PALETA_CUBO_OPTIMO } from './loginPaletas.js';
 import { DURACION, EASING } from '../../ui/motion/tokens.js';
+import { ANCLAS_HUD } from './anclasHud.js';
 
 /**
  * "Digital twin" isométrico del almacén -- reemplaza a las 3 tarjetas de
@@ -24,19 +26,6 @@ import { DURACION, EASING } from '../../ui/motion/tokens.js';
 
 export const ESCENA_ANCHO = 400;
 export const ESCENA_ALTO = 260;
-
-// Punto del panel HUD (hud) + punto de la escena al que apunta (escena) --
-// Login.jsx importa esto mismo para posicionar los paneles en `%`, nunca
-// hay dos copias de estas coordenadas.
-export const ANCLAS_HUD = {
-  slotting: { hud: { x: 46, y: 40 }, escena: { x: 150, y: 96 } },
-  // Antes en (262,64) -- pegado arriba, dejaba todo el hueco a la izquierda
-  // de los racks vacío (feedback real, captura con óvalo señalando ese
-  // espacio muerto). Se baja al hueco entre las 2 filas de racks, así el
-  // marcador + su ruta ocupan ese lugar en vez de dejarlo en blanco.
-  trazabilidad: { hud: { x: 354, y: 40 }, escena: { x: 26, y: 128 } },
-  inventario: { hud: { x: 354, y: 222 }, escena: { x: 322, y: 194 } },
-};
 
 // Columnas separadas 42px (antes 34px, se veían "pegadas" -- feedback
 // real del usuario) para que las cajas respiren entre sí.
@@ -112,6 +101,7 @@ function RutaConParticula({ d, puntos, colorParticula, quieto, demora = 0 }) {
       {!quieto && (
         <motion.circle
           r={3} fill={colorParticula}
+          initial={{ cx: puntos[0].x, cy: puntos[0].y, opacity: 0 }}
           animate={{ cx: puntos.map(p => p.x), cy: puntos.map(p => p.y), opacity: [0, 1, 1, 1, 0] }}
           transition={{ duration: DURACION.trazadoRuta, repeat: Infinity, repeatDelay: DURACION.pausaCorta, ease: 'linear', delay: demora }}
         />

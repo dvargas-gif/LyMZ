@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
+// Imports nombrados (no `import * as THREE`) a propósito -- namespace import
+// bloquea el tree-shaking de Rollup y mete toda la superficie de three.js
+// (loaders, física, post-procesado...) en el chunk aunque solo se usen estos
+// 19 símbolos. Mismo principio ya aplicado a Zod/Framer Motion en el dominio.
+import {
+  AmbientLight, BoxGeometry, CanvasTexture, DirectionalLight, DoubleSide,
+  FogExp2, MathUtils, Mesh, MeshStandardMaterial, PCFSoftShadowMap,
+  PerspectiveCamera, PlaneGeometry, PointLight, Raycaster, RepeatWrapping,
+  Scene, Vector2, Vector3, WebGLRenderer,
+} from 'three';
 import { crearRack, disposeRack, agregarAncla, DIMENSIONES, obtenerAlturaNivel, CANTIDAD_NIVELES } from './RackModel.js';
 import { CAPACIDADES_NIVEL } from './capacidadesNivel.js';
 import { INFO_MERCADERIA } from './infoMercaderia.js';
@@ -41,9 +50,9 @@ const ROTACION_INICIAL = -0.45;
 // texto angosta en Login.jsx -- .login-visual__bloque-superior/-inferior
 // ahora tienen max-width, así que hay una zona de texto real a la
 // izquierda y el rack puede vivir del todo a la derecha sin competir).
-const CAMARA_POS_DEFECTO = new THREE.Vector3(-1.5, 2.15, 9.5);
-const CAMARA_MIRA_DEFECTO = new THREE.Vector3(-1.5, 2.05, 0);
-const DESPLAZAMIENTO_ZOOM = new THREE.Vector3(0, 0.15, 1.8); // "cámara" cerca del punto al hacer zoom
+const CAMARA_POS_DEFECTO = new Vector3(-1.5, 2.15, 9.5);
+const CAMARA_MIRA_DEFECTO = new Vector3(-1.5, 2.05, 0);
+const DESPLAZAMIENTO_ZOOM = new Vector3(0, 0.15, 1.8); // "cámara" cerca del punto al hacer zoom
 const DURACION_ZOOM_MS = 700;
 
 // Intro cinemática (2026-07-27, pedido explícito): al montar, el rack gira
@@ -110,7 +119,7 @@ const TAMANO_PISO = 60;
 // (con la excepción ya documentada para el Login, ver MASTER-PROMPT.md), a
 // diferencia del auto-rotate anterior (giro completo) esto es una
 // oscilación chica alrededor del ángulo donde quedó el rack, no un giro.
-const AMPLITUD_BASCULACION = THREE.MathUtils.degToRad(3.5);
+const AMPLITUD_BASCULACION = MathUtils.degToRad(3.5);
 const FRECUENCIA_BASCULACION = 0.35; // rad/s de la fase del seno
 
 function easeInOutCubic(t) {
@@ -143,8 +152,8 @@ function crearTexturaPisoConcretoColor() {
     ctx.beginPath(); ctx.moveTo(i * paso, 0); ctx.lineTo(i * paso, tam); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, i * paso); ctx.lineTo(tam, i * paso); ctx.stroke();
   }
-  const textura = new THREE.CanvasTexture(canvas);
-  textura.wrapS = textura.wrapT = THREE.RepeatWrapping;
+  const textura = new CanvasTexture(canvas);
+  textura.wrapS = textura.wrapT = RepeatWrapping;
   // El plano de piso es mucho más grande que el rack a propósito (ver
   // TAMANO_PISO más abajo) para que el borde del degradé de alphaMap nunca
   // quede dentro del encuadre visible -- el repeat se escala igual, para
@@ -197,26 +206,26 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     const contenedor = contenedorRef.current;
     if (!contenedor) return;
 
-    const escena = new THREE.Scene();
+    const escena = new Scene();
     // Niebla exponencial -- el piso (un plano gigante, ver TAMANO_PISO) se
     // ve perfecto de cerca, pero un plano horizontal visto desde una cámara
     // elevada SIEMPRE tiene un horizonte real en perspectiva (no es un bug
     // de borde/alpha, ya se descartó esa hipótesis) -- reportado en vivo
     // como "se nota un recuadro". La niebla, con un color cercano al fondo
     // real de la página, funde ese horizonte en vez de cortarlo en seco.
-    escena.fog = new THREE.FogExp2(0x082420, 0.07);
+    escena.fog = new FogExp2(0x082420, 0.07);
     // Cámara retirada + FOV angosto a propósito: da bastante aire arriba y
     // abajo del rack (~25% de margen) para que nunca se corte contra el
     // borde de la caja, sea cual sea el tamaño de pantalla.
-    const camara = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
+    const camara = new PerspectiveCamera(28, 1, 0.1, 100);
     camara.position.copy(CAMARA_POS_DEFECTO);
     const miraActual = CAMARA_MIRA_DEFECTO.clone();
     camara.lookAt(miraActual);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = PCFSoftShadowMap;
     contenedor.appendChild(renderer.domElement);
 
     // Nota: se probó un environment map acá (RoomEnvironment + PMREM, con
@@ -225,19 +234,19 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     // "demasiado blanco" (reportado en vivo). Descartado definitivamente --
     // el rig de luces directas de abajo ya da el volumen/realismo que hace
     // falta sin ese riesgo.
-    const key = new THREE.DirectionalLight(0xffffff, 1.15);
+    const key = new DirectionalLight(0xffffff, 1.15);
     key.position.set(2, 4.5, 3);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
     Object.assign(key.shadow.camera, { left: -3, right: 3, top: 4, bottom: -1, near: 0.5, far: 15 });
     escena.add(key);
-    const fill = new THREE.DirectionalLight(0xbcdfff, 0.35);
+    const fill = new DirectionalLight(0xbcdfff, 0.35);
     fill.position.set(-3, 1.5, -2);
     escena.add(fill);
-    const rim = new THREE.DirectionalLight(0x9fd8ff, 0.22);
+    const rim = new DirectionalLight(0x9fd8ff, 0.22);
     rim.position.set(-1.5, 2.2, -4);
     escena.add(rim);
-    escena.add(new THREE.AmbientLight(0xffffff, 0.28));
+    escena.add(new AmbientLight(0xffffff, 0.28));
 
     // Piso de concreto con grid (pedido explícito: "como un centro de
     // distribución real", reemplaza al piso "solo sombra" de antes).
@@ -247,9 +256,9 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     // cuadro; sin fade de por medio no hay ningún borde que se pueda leer
     // mal.
     const texturaPisoColor = crearTexturaPisoConcretoColor();
-    const piso = new THREE.Mesh(
-      new THREE.PlaneGeometry(TAMANO_PISO, TAMANO_PISO),
-      new THREE.MeshStandardMaterial({ map: texturaPisoColor, roughness: 0.9, metalness: 0.05 }),
+    const piso = new Mesh(
+      new PlaneGeometry(TAMANO_PISO, TAMANO_PISO),
+      new MeshStandardMaterial({ map: texturaPisoColor, roughness: 0.9, metalness: 0.05 }),
     );
     piso.rotation.x = -Math.PI / 2;
     piso.receiveShadow = true;
@@ -257,7 +266,7 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     // Luz turquesa rasante (pedido explícito: "está genial, no la saques")
     // -- ilumina las patas/perfiles bajos del rack como un reflector de
     // piso. No depende del material del piso de arriba, sigue intacta.
-    const luzPiso = new THREE.PointLight(0x4fe0d1, 0.6, 4.5);
+    const luzPiso = new PointLight(0x4fe0d1, 0.6, 4.5);
     luzPiso.position.set(0, 0.4, 1.6);
     escena.add(luzPiso);
 
@@ -284,10 +293,10 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     // que viaje con el rack si el usuario arrastra mientras tanto.
     const nivelTransferencia = Math.min(NIVEL_TRANSFERENCIA, CANTIDAD_NIVELES - 1);
     const yEstanteTransferencia = obtenerAlturaNivel(nivelTransferencia) + 0.02;
-    const origenTransferencia = new THREE.Vector3(-DIMENSIONES.ANCHO * 1.7, yEstanteTransferencia + 0.15, 0.1);
-    const destinoTransferencia = new THREE.Vector3(0.05, yEstanteTransferencia + 0.15, 0);
-    const materialTransferencia = new THREE.MeshStandardMaterial({ color: 0x4fe0d1, roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0 });
-    const cajaTransferencia = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.32), materialTransferencia);
+    const origenTransferencia = new Vector3(-DIMENSIONES.ANCHO * 1.7, yEstanteTransferencia + 0.15, 0.1);
+    const destinoTransferencia = new Vector3(0.05, yEstanteTransferencia + 0.15, 0);
+    const materialTransferencia = new MeshStandardMaterial({ color: 0x4fe0d1, roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0 });
+    const cajaTransferencia = new Mesh(new BoxGeometry(0.32, 0.3, 0.32), materialTransferencia);
     cajaTransferencia.visible = false;
     cajaTransferencia.castShadow = true;
     grupoRack.add(cajaTransferencia);
@@ -297,15 +306,15 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     // este producto'") -- una malla emissive aparte SOBRE el estante, no se
     // toca el material compartido de la estructura (perfiles/estantes/patas
     // usan el mismo material; mutarlo de golpe destellaría todo el rack).
-    const materialDestello = new THREE.MeshStandardMaterial({ color: 0x4fe0d1, emissive: 0x4fe0d1, emissiveIntensity: 0, transparent: true, opacity: 0, side: THREE.DoubleSide });
-    const mallaDestello = new THREE.Mesh(new THREE.PlaneGeometry(DIMENSIONES.ANCHO * 0.94, DIMENSIONES.PROFUNDIDAD * 0.88), materialDestello);
+    const materialDestello = new MeshStandardMaterial({ color: 0x4fe0d1, emissive: 0x4fe0d1, emissiveIntensity: 0, transparent: true, opacity: 0, side: DoubleSide });
+    const mallaDestello = new Mesh(new PlaneGeometry(DIMENSIONES.ANCHO * 0.94, DIMENSIONES.PROFUNDIDAD * 0.88), materialDestello);
     mallaDestello.rotation.x = -Math.PI / 2;
     mallaDestello.position.set(0, obtenerAlturaNivel(nivelTransferencia) + 0.02, 0);
     grupoRack.add(mallaDestello);
 
-    const raycaster = new THREE.Raycaster();
-    const puntero = new THREE.Vector2();
-    const vectorProyeccion = new THREE.Vector3();
+    const raycaster = new Raycaster();
+    const puntero = new Vector2();
+    const vectorProyeccion = new Vector3();
 
     function proyectarA(div, objeto3D) {
       if (!div) return;
@@ -365,7 +374,7 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     // `camara`, un solo requestAnimationFrame para todo. --
     let velocidadInercia = 0;
     let girandoIntro = false; // gira solo durante la fase 1 de la intro -- bypassea inercia/fricción, corte limpio al terminar
-    const animacionCamara = { activo: false, desdePos: new THREE.Vector3(), hastaPos: new THREE.Vector3(), desdeMira: new THREE.Vector3(), hastaMira: new THREE.Vector3(), inicio: 0, duracionMs: DURACION_ZOOM_MS };
+    const animacionCamara = { activo: false, desdePos: new Vector3(), hastaPos: new Vector3(), desdeMira: new Vector3(), hastaMira: new Vector3(), inicio: 0, duracionMs: DURACION_ZOOM_MS };
     const animacionTransferencia = { activo: false, inicio: 0 };
     let destelloDisparado = false;
     const destelloEstante = { activo: false, inicio: 0, material: materialDestello };
@@ -397,7 +406,6 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     function paso(ahora) {
       const dt = Math.min((ahora - ultimoTiempoBucle) / 1000, 0.1);
       ultimoTiempoBucle = ahora;
-      let necesitaOtroFrame = false;
 
       if (girandoIntro) {
         grupoRack.rotation.y += VELOCIDAD_INTRO_RAD_S * dt;
@@ -522,7 +530,7 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
       notificarEnfoque();
       const ancla = anclasInfo.find(a => a.id === id);
       if (!ancla) return;
-      const mundo = new THREE.Vector3();
+      const mundo = new Vector3();
       ancla.objeto.getWorldPosition(mundo);
       animarCamaraHacia(mundo.clone().add(DESPLAZAMIENTO_ZOOM), mundo);
     }
@@ -544,7 +552,7 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
       notificarEnfoque();
       const ancla = anclasNivel[nivel];
       if (!ancla) return;
-      const mundo = new THREE.Vector3();
+      const mundo = new Vector3();
       ancla.borde.getWorldPosition(mundo);
       animarCamaraHacia(mundo.clone().add(DESPLAZAMIENTO_ZOOM), mundo);
     }
@@ -659,8 +667,8 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
     function alRueda(e) {
       e.preventDefault();
       animacionCamara.activo = false;
-      const direccion = new THREE.Vector3().subVectors(camara.position, miraActual);
-      const distancia = THREE.MathUtils.clamp(direccion.length() + e.deltaY * 0.0035, DISTANCIA_ZOOM_MIN, DISTANCIA_ZOOM_MAX);
+      const direccion = new Vector3().subVectors(camara.position, miraActual);
+      const distancia = MathUtils.clamp(direccion.length() + e.deltaY * 0.0035, DISTANCIA_ZOOM_MIN, DISTANCIA_ZOOM_MAX);
       direccion.setLength(distancia);
       camara.position.copy(miraActual).add(direccion);
       renderizar();

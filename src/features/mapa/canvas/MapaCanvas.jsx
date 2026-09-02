@@ -1146,7 +1146,7 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
    * dispara automáticamente la confirmación en lote (ver
    * marcarVaciadoCompleto abajo) -- no es un botón aparte.
    */
-  async function depositarEnBuffer(pasillo, columna, articulo, nivel, clase, tipo) {
+  async function depositarEnBuffer(pasillo, columna, articulo, nivel) {
     const clave = `${pasillo}|${columna}`;
     const slot = migracionSlots.get(clave);
     if (!slot) return;

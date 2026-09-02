@@ -3,7 +3,7 @@ import { usuariosService } from './usuarios.service.js';
 import { miPerfilService } from './miPerfil.service.js';
 import { permisosRolService } from '../auth/permisosRol.service.js';
 import { ROLES, TODAS_LAS_ACCIONES, ETIQUETAS_ACCIONES, puede } from '../auth/roles.js';
-import { useAuth } from '../auth/AuthContext.jsx';
+import { useAuth } from '../auth/useAuth.js';
 import PanelCargando from '../../shared/components/PanelCargando.jsx';
 
 const TODOS_LOS_ROLES = Object.values(ROLES);

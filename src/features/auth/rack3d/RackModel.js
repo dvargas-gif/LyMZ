@@ -1,4 +1,8 @@
-import * as THREE from 'three';
+// Imports nombrados (no `import * as THREE`) -- ver nota en Rack3DEscena.jsx.
+import {
+  BoxGeometry, CanvasTexture, CylinderGeometry, Group, InstancedMesh,
+  Matrix4, Mesh, MeshStandardMaterial, Object3D, SphereGeometry,
+} from 'three';
 
 /**
  * Geometría/materiales del rack decorativo del Login -- todo primitivas de
@@ -45,11 +49,11 @@ function crearMaterialEstructura() {
   // hace falta sin ese riesgo.
   // fog:false -- la niebla de la escena (ver Rack3DEscena.jsx) es para que
   // el piso se desvanezca en el horizonte, no para apagar el rack en sí.
-  return new THREE.MeshStandardMaterial({ color: COLOR_ESTRUCTURA, roughness: 0.45, metalness: 0.45, fog: false });
+  return new MeshStandardMaterial({ color: COLOR_ESTRUCTURA, roughness: 0.45, metalness: 0.45, fog: false });
 }
 
 function crearPerfiles(grupo, material) {
-  const geometria = new THREE.BoxGeometry(GROSOR_PERFIL, ALTO, GROSOR_PERFIL);
+  const geometria = new BoxGeometry(GROSOR_PERFIL, ALTO, GROSOR_PERFIL);
   const posiciones = [
     [-ANCHO / 2, ALTO / 2, -PROFUNDIDAD / 2],
     [ANCHO / 2, ALTO / 2, -PROFUNDIDAD / 2],
@@ -57,7 +61,7 @@ function crearPerfiles(grupo, material) {
     [ANCHO / 2, ALTO / 2, PROFUNDIDAD / 2],
   ];
   for (const [x, y, z] of posiciones) {
-    const perfil = new THREE.Mesh(geometria, material);
+    const perfil = new Mesh(geometria, material);
     perfil.position.set(x, y, z);
     perfil.castShadow = true;
     grupo.add(perfil);
@@ -75,12 +79,12 @@ function crearAgujeros(grupo, posicionesPerfiles) {
   const cantidadPorPerfil = Math.floor((ALTO - margen * 2) / espaciado);
   const total = cantidadPorPerfil * posicionesPerfiles.length;
 
-  const geometria = new THREE.CylinderGeometry(0.018, 0.018, GROSOR_PERFIL * 1.4, 8);
+  const geometria = new CylinderGeometry(0.018, 0.018, GROSOR_PERFIL * 1.4, 8);
   geometria.rotateX(Math.PI / 2);
-  const material = new THREE.MeshStandardMaterial({ color: COLOR_AGUJERO, roughness: 0.8, metalness: 0, fog: false });
+  const material = new MeshStandardMaterial({ color: COLOR_AGUJERO, roughness: 0.8, metalness: 0, fog: false });
 
-  const instancia = new THREE.InstancedMesh(geometria, material, total);
-  const matriz = new THREE.Matrix4();
+  const instancia = new InstancedMesh(geometria, material, total);
+  const matriz = new Matrix4();
   let indice = 0;
   for (const [x, , z] of posicionesPerfiles) {
     for (let i = 0; i < cantidadPorPerfil; i++) {
@@ -98,14 +102,14 @@ function crearCruzLateral(grupo, material, xLado) {
   const dz = PROFUNDIDAD;
   const largo = Math.sqrt(dy * dy + dz * dz);
   const angulo = Math.atan2(dz, dy);
-  const geometria = new THREE.BoxGeometry(0.035, largo, 0.035);
+  const geometria = new BoxGeometry(0.035, largo, 0.035);
 
-  const diagonal1 = new THREE.Mesh(geometria, material);
+  const diagonal1 = new Mesh(geometria, material);
   diagonal1.position.set(xLado, ALTO / 2, 0);
   diagonal1.rotation.x = angulo;
   grupo.add(diagonal1);
 
-  const diagonal2 = new THREE.Mesh(geometria, material);
+  const diagonal2 = new Mesh(geometria, material);
   diagonal2.position.set(xLado, ALTO / 2, 0);
   diagonal2.rotation.x = -angulo;
   grupo.add(diagonal2);
@@ -114,10 +118,10 @@ function crearCruzLateral(grupo, material, xLado) {
 function crearEstantes(grupo, material) {
   const anchoEstante = ANCHO + GROSOR_PERFIL * 0.6;
   const profundidadEstante = PROFUNDIDAD + GROSOR_PERFIL * 0.6;
-  const geometria = new THREE.BoxGeometry(anchoEstante, ESPESOR_ESTANTE, profundidadEstante);
+  const geometria = new BoxGeometry(anchoEstante, ESPESOR_ESTANTE, profundidadEstante);
 
   for (let nivel = 0; nivel < CANTIDAD_NIVELES; nivel++) {
-    const estante = new THREE.Mesh(geometria, material);
+    const estante = new Mesh(geometria, material);
     estante.position.set(0, obtenerAlturaNivel(nivel), 0);
     estante.castShadow = true;
     estante.receiveShadow = true;
@@ -129,9 +133,9 @@ function crearEstantes(grupo, material) {
 }
 
 function crearPatas(grupo, material, posicionesPerfiles) {
-  const geometria = new THREE.CylinderGeometry(0.09, 0.09, ALTURA_PATA, 12);
+  const geometria = new CylinderGeometry(0.09, 0.09, ALTURA_PATA, 12);
   for (const [x, , z] of posicionesPerfiles) {
-    const pata = new THREE.Mesh(geometria, material);
+    const pata = new Mesh(geometria, material);
     pata.position.set(x, ALTURA_PATA / 2, z);
     grupo.add(pata);
   }
@@ -204,7 +208,7 @@ function crearTexturaCajaFrente(colorBase) {
     x += anchoBarra + (1 + Math.random() * 2.5) * (tam / 256);
   }
 
-  return new THREE.CanvasTexture(canvas);
+  return new CanvasTexture(canvas);
 }
 
 // Textura de la tapa (cinta cruzando el centro) -- misma técnica, misma
@@ -219,7 +223,7 @@ function crearTexturaCajaSuperior(colorBase) {
   ctx.fillRect(0, 0, tam, tam);
   pintarFibraCarton(ctx, tam);
   pintarCinta(ctx, tam, tam * 0.42, tam * 0.16);
-  return new THREE.CanvasTexture(canvas);
+  return new CanvasTexture(canvas);
 }
 
 // Una caja de cartón con tapa articulada (pedido explícito: "que las cajas
@@ -227,16 +231,16 @@ function crearTexturaCajaSuperior(colorBase) {
 // (en el borde trasero-superior) -> tapa (gira alrededor del pivote). El
 // pivote es lo que anima Rack3DEscena.jsx al clickear la caja.
 function crearCajaCarton(ancho, alto, profundidad, colorBase) {
-  const grupo = new THREE.Group();
+  const grupo = new Group();
   const espesorTapa = Math.min(0.045, alto * 0.18);
 
-  const materialLateral = new THREE.MeshStandardMaterial({ color: colorBase, roughness: 0.9, metalness: 0, fog: false });
-  const materialFrente = new THREE.MeshStandardMaterial({ map: crearTexturaCajaFrente(colorBase), roughness: 0.85, metalness: 0, fog: false });
-  const materialSuperior = new THREE.MeshStandardMaterial({ map: crearTexturaCajaSuperior(colorBase), roughness: 0.85, metalness: 0, fog: false });
+  const materialLateral = new MeshStandardMaterial({ color: colorBase, roughness: 0.9, metalness: 0, fog: false });
+  const materialFrente = new MeshStandardMaterial({ map: crearTexturaCajaFrente(colorBase), roughness: 0.85, metalness: 0, fog: false });
+  const materialSuperior = new MeshStandardMaterial({ map: crearTexturaCajaSuperior(colorBase), roughness: 0.85, metalness: 0, fog: false });
 
   const altoCuerpo = alto - espesorTapa;
-  const cuerpo = new THREE.Mesh(
-    new THREE.BoxGeometry(ancho, altoCuerpo, profundidad),
+  const cuerpo = new Mesh(
+    new BoxGeometry(ancho, altoCuerpo, profundidad),
     // Orden de caras de BoxGeometry: +x,-x,+y,-y,+z,-z (derecha,izq,arriba,abajo,frente,atrás).
     [materialLateral, materialLateral, materialLateral, materialLateral, materialFrente, materialLateral],
   );
@@ -245,9 +249,9 @@ function crearCajaCarton(ancho, alto, profundidad, colorBase) {
   cuerpo.receiveShadow = true;
   grupo.add(cuerpo);
 
-  const pivote = new THREE.Group();
+  const pivote = new Group();
   pivote.position.set(0, altoCuerpo, -profundidad / 2);
-  const tapa = new THREE.Mesh(new THREE.BoxGeometry(ancho, espesorTapa, profundidad), materialSuperior);
+  const tapa = new Mesh(new BoxGeometry(ancho, espesorTapa, profundidad), materialSuperior);
   tapa.position.set(0, espesorTapa / 2, profundidad / 2);
   tapa.castShadow = true;
   pivote.add(tapa);
@@ -257,8 +261,8 @@ function crearCajaCarton(ancho, alto, profundidad, colorBase) {
 }
 
 function crearBin(ancho, alto, profundidad, color) {
-  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.05, fog: false });
-  const bin = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, profundidad), material);
+  const material = new MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.05, fog: false });
+  const bin = new Mesh(new BoxGeometry(ancho, alto, profundidad), material);
   bin.castShadow = true;
   bin.receiveShadow = true;
   return bin;
@@ -266,8 +270,8 @@ function crearBin(ancho, alto, profundidad, color) {
 
 function crearPallet(ancho, profundidad, color) {
   const alto = 0.1;
-  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0, fog: false });
-  const pallet = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, profundidad), material);
+  const material = new MeshStandardMaterial({ color, roughness: 0.8, metalness: 0, fog: false });
+  const pallet = new Mesh(new BoxGeometry(ancho, alto, profundidad), material);
   pallet.castShadow = true;
   pallet.receiveShadow = true;
   return { mesh: pallet, alto };
@@ -277,8 +281,8 @@ function crearPallet(ancho, profundidad, color) {
 // esfera emissive chica, sin luz real asociada (emissive ya la hace leer
 // como encendida, sin gastar otro PointLight).
 function crearIndicadorLed(color) {
-  const material = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: 0.3, metalness: 0, fog: false });
-  return new THREE.Mesh(new THREE.SphereGeometry(0.032, 12, 12), material);
+  const material = new MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: 0.3, metalness: 0, fog: false });
+  return new Mesh(new SphereGeometry(0.032, 12, 12), material);
 }
 
 // Mercadería mixta (pedido explícito: "que los niveles se sientan vivos, no
@@ -346,20 +350,20 @@ function crearMercaderia(grupo) {
 
 /** Agrega un ancla invisible (sin geometría, no interfiere con el raycasting de niveles) como hijo del grupo -- rota/se mueve junto con el rack para que Rack3DEscena.jsx pueda proyectar su posición en pantalla. */
 export function agregarAncla(grupo, x, y, z) {
-  const ancla = new THREE.Object3D();
+  const ancla = new Object3D();
   ancla.position.set(x, y, z);
   grupo.add(ancla);
   return ancla;
 }
 
 /**
- * Arma el grupo completo del rack, listo para agregar a una THREE.Scene.
+ * Arma el grupo completo del rack, listo para agregar a una Scene.
  * Devuelve también `cajas` (una por mercadería: {pivote, cuerpo}) para que
  * Rack3DEscena.jsx detecte el click (`cuerpo.userData.indiceCaja`) y anime
  * la tapa (`pivote.rotation`) al abrir/cerrar cada una.
  */
 export function crearRack() {
-  const grupo = new THREE.Group();
+  const grupo = new Group();
   const material = crearMaterialEstructura();
 
   const posicionesPerfiles = crearPerfiles(grupo, material);

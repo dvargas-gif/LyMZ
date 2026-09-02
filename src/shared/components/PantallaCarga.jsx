@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import Logo from './Logo.jsx';
-import { CuboIso, PALETA_CUBO_OPTIMO } from '../../features/auth/loginIlustraciones.jsx';
+import { CuboIso } from '../../features/auth/loginIlustraciones.jsx';
+import { PALETA_CUBO_OPTIMO } from '../../features/auth/loginPaletas.js';
 import { useReducedMotion } from '../../ui/motion/prefersReducedMotion.js';
 import { DURACION, EASING } from '../../ui/motion/tokens.js';
 

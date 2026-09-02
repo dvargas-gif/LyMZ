@@ -28,7 +28,7 @@ const NIVELES = ['N01', 'N02', 'N03', 'N04', 'N05'];
 function claveBin(a) { return `${a.pasillo}|${a.columna}|${a.nivel}`; }
 function capacidadDe(nivel) { return nivel === 'CUERPO' ? CAPACIDAD_UTIL_CUERPO_M3 : CAPACIDAD_UTIL_NIVEL_M3; }
 
-function construirBins(asignaciones, volumenPorArticulo) {
+function construirBins(asignaciones) {
   const bins = new Map();
   for (const a of asignaciones) {
     const clave = claveBin(a);
@@ -81,7 +81,7 @@ function nivelesDeZona(cuerpos, predicadoZona, bins, cuerposComoCuerpoEntero) {
 function recalcularCamposDerivados(asignaciones, articulos, zonas, pesos, reglas) {
   const infoPorArticulo = new Map(articulos.map(a => [a.articulo, a]));
   const volumenPorArticulo = new Map(articulos.map(a => [a.articulo, a.volumenM3]));
-  const bins = construirBins(asignaciones, volumenPorArticulo);
+  const bins = construirBins(asignaciones);
 
   return asignaciones.map(a => {
     const bin = bins.get(claveBin(a));
@@ -133,7 +133,7 @@ export function mejorarPorSwaps(asignaciones, articulos, cuerpos, opciones) {
   const auditoria = [];
 
   for (let pasada = 0; pasada < MAX_PASADAS; pasada++) {
-    const bins = construirBins(actuales, volumenPorArticulo);
+    const bins = construirBins(actuales);
     const cuerposComoCuerpoEntero = new Set(actuales.filter(a => a.nivel === 'CUERPO').map(a => `${a.pasillo}|${a.columna}`));
     const nivelesOptima = nivelesDeZona(cuerpos, enZonaOptima, bins, cuerposComoCuerpoEntero);
     const nivelesAccesible = nivelesDeZona(cuerpos, enZonaAccesibleSolo, bins, cuerposComoCuerpoEntero);

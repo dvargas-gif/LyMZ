@@ -6,8 +6,7 @@
  * los racks/pallets de la escena -- nada de librerías nuevas, nada de fotos.
  */
 
-export const PALETA_CUBO = { top: '#4FE0D1', izq: '#2A9E92', der: '#1B6C63' };
-export const PALETA_CUBO_OPTIMO = { top: '#F5C065', izq: '#E0A23D', der: '#B87D22' };
+import { PALETA_CUBO } from './loginPaletas.js';
 
 /**
  * Un cubo isométrico centrado en (cx,cy) -- ancho: mitad de la diagonal

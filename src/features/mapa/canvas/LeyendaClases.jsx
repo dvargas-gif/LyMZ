@@ -39,7 +39,7 @@ const DESCRIPCIONES = {
  * el ícono de flecha es un botón aparte (`stopPropagation`) que la abre sin
  * tocar el resaltado del mapa.
  */
-function FilaClase({ clase, etiqueta, descripcion, color, cantidad, activa, onResaltar, onVerLista }) {
+function FilaClase({ etiqueta, descripcion, color, cantidad, activa, onResaltar, onVerLista }) {
   return (
     <button
       className={`mapa-leyenda__fila ${activa ? 'mapa-leyenda__fila--activa' : ''}`}

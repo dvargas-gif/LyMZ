@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { AuthContext } from './authContextObject.js';
 import { authService } from './auth.service.js';
 import { useCierreSesionPorInactividad } from './useCierreSesionPorInactividad.js';
 import { suscribirPresenciaGlobal } from '../../shared/services/presencia.service.js';
@@ -6,7 +7,6 @@ import { permisosRolService } from './permisosRol.service.js';
 import { establecerPermisosPersonalizados } from './roles.js';
 import PantallaCarga from '../../shared/components/PantallaCarga.jsx';
 
-const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [sesion, setSesion] = useState(null);
@@ -81,8 +81,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

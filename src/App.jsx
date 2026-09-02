@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './features/auth/AuthContext.jsx';
+import { useAuth } from './features/auth/useAuth.js';
 import ProtectedRoute from './features/auth/ProtectedRoute.jsx';
 import Header from './shared/components/Header.jsx';
 import Sidebar from './shared/components/Sidebar.jsx';

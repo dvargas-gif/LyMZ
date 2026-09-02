@@ -204,7 +204,6 @@ export function calcularLayoutEsquematico() {
 /** Devuelve {pasillo, x, y, ancho, alto} -- un marcador "PASILLO" por cada corte real dentro de una fila (ver cortesDe()), para dibujarlo en el hueco que calcularLayoutEsquematico() ya dejó. */
 export function calcularCortesPasillo() {
   const cortes = [];
-  const FILA_ALTO = CELDA_ALTO + GAP;
   const COL_ANCHO = CELDA_ANCHO + GAP;
   const anchoBloqueVertical = limitesBloqueVertical();
   const xInicioHorizontal = anchoBloqueVertical + ETIQUETA_ANCHO;
