@@ -30,6 +30,18 @@ describe('detectarPosicionesSinDestinoPlan', () => {
     expect(sinDestino.find(s => s.pasillo === 'MZ02' && s.columna === 10 && s.nivel === 'N01')).toBeDefined();
   });
 
+  it('un movimiento con mzNivel="CUERPO" bloquea los 5 niveles enteros de esa columna -- caso real encontrado por el usuario: MZ01-C022, artículo 3525004, mz_nivel=CUERPO', () => {
+    const sinDestino = detectarPosicionesSinDestinoPlan([movimiento('MZ01', 22, 'CUERPO')]);
+    const deEsaColumna = sinDestino.filter(s => s.pasillo === 'MZ01' && s.columna === 22);
+    expect(deEsaColumna).toHaveLength(0);
+  });
+
+  it('un CUERPO descartado libera los 5 niveles igual que cualquier otro movimiento descartado', () => {
+    const sinDestino = detectarPosicionesSinDestinoPlan([movimiento('MZ01', 22, 'CUERPO', 'descartado')]);
+    const deEsaColumna = sinDestino.filter(s => s.pasillo === 'MZ01' && s.columna === 22);
+    expect(deEsaColumna).toHaveLength(5);
+  });
+
   it('incluye MZ09-MZ12 -- a diferencia de detectarPosicionesLibres.js, el plan puede apuntar a cualquier pasillo real', () => {
     const sinDestino = detectarPosicionesSinDestinoPlan([]);
     expect(sinDestino.some(s => s.pasillo === 'MZ09')).toBe(true);

@@ -16,6 +16,16 @@
  * explícita del usuario (2026-09-02): un movimiento descartado ya no es
  * parte del plan vigente, esa posición se reporta como sin destino.
  *
+ * CORRECCIÓN EN VIVO (2026-09-03): `mz_nivel` no es siempre N01-N05 -- un
+ * movimiento puede tener destino el CUERPO entero (mismo concepto que ya usa
+ * detectarPosicionesLibres.js con `cuerposOcupados`), y en datos reales del
+ * plan NO es un caso raro (46 de 2227 movimientos en un export real). La
+ * primera versión de esta función solo comparaba contra N01-N05 -- un
+ * destino CUERPO nunca hacía match contra ningún nivel, así que los 5
+ * niveles de esa columna quedaban reportados como "sin destino" por error,
+ * aunque el cuerpo entero ya tuviera un artículo real asignado (caso real
+ * encontrado por el usuario: MZ01-C022, artículo 3525004, mz_nivel=CUERPO).
+ *
  * Función pura, sin Supabase -- SOLO detecta y reporta, no cambia nada.
  */
 import { COLUMNAS_POR_PASILLO } from '../features/mapa/canvas/posicionesEsquematicas.js';
@@ -23,22 +33,25 @@ import { COLUMNAS_POR_PASILLO } from '../features/mapa/canvas/posicionesEsquemat
 const NIVELES_WMS = ['N01', 'N02', 'N03', 'N04', 'N05'];
 
 /**
- * @param {Array<{mzPasillo, mzColumna, mzNivel, estado}>} movimientos -- migracionMovimientosService.listarPlanCompleto()
+ * @param {Array<{mzPasillo, mzColumna, mzNivel, estado}>} movimientos -- migracionMovimientosService.listarPlanCompleto(), mzNivel es 'N01'..'N05' o 'CUERPO'
  * @returns {Array<{pasillo, columna, nivel}>} posiciones sin ningún destino planeado activo, ordenadas por pasillo/columna/nivel.
  */
 export function detectarPosicionesSinDestinoPlan(movimientos) {
-  const conDestino = new Set(); // "pasillo|columna|nivel"
+  const cuerposConDestino = new Set(); // "pasillo|columna" -- un CUERPO reserva los 5 niveles enteros
+  const nivelesConDestino = new Set(); // "pasillo|columna|nivel" -- un destino normal reserva solo su nivel puntual
   for (const m of movimientos) {
     if (m.estado === 'descartado') continue; // ya no es parte del plan vigente
-    conDestino.add(`${m.mzPasillo}|${m.mzColumna}|${m.mzNivel}`);
+    if (m.mzNivel === 'CUERPO') cuerposConDestino.add(`${m.mzPasillo}|${m.mzColumna}`);
+    else nivelesConDestino.add(`${m.mzPasillo}|${m.mzColumna}|${m.mzNivel}`);
   }
 
   const sinDestino = [];
   for (const pasillo of Object.keys(COLUMNAS_POR_PASILLO)) {
     const columnas = COLUMNAS_POR_PASILLO[pasillo];
     for (let columna = 1; columna <= columnas; columna++) {
+      if (cuerposConDestino.has(`${pasillo}|${columna}`)) continue; // cuerpo entero reservado -- ningún nivel sin destino acá
       for (const nivel of NIVELES_WMS) {
-        if (conDestino.has(`${pasillo}|${columna}|${nivel}`)) continue;
+        if (nivelesConDestino.has(`${pasillo}|${columna}|${nivel}`)) continue;
         sinDestino.push({ pasillo, columna, nivel });
       }
     }
