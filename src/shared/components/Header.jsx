@@ -26,7 +26,7 @@ export default function Header({ sesion, onLogout }) {
     <header className="app-header">
       <div className="app-header__brand" />
       <div className="app-header__user">
-        <button className="btn-logout" onClick={alternarTema} title={tema === 'oscuro' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
+        <button className="btn-logout btn-tema" onClick={alternarTema} title={tema === 'oscuro' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
           <i className={`ti ${tema === 'oscuro' ? 'ti-sun' : 'ti-moon'}`} />
         </button>
         <div className="app-header__user-info">

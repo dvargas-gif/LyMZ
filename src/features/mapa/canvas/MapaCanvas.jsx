@@ -686,7 +686,8 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
 
   /** El usuario tocó una sugerencia -- mismo salto de cámara + resaltado que antes tenía el substring automático, ahora disparado a propósito. */
   function seleccionarSugerencia(sug) {
-    const celda = { pasillo: sug.pasillo, columna: sug.columna };
+    const celda = celdas.find(c => c.pasillo === sug.pasillo && c.columna === sug.columna);
+    if (!celda) return;
     const escalaDestino = Math.max(vistaActualRef.current.escala, ESCALA_BUSQUEDA_MIN);
     animarVistaA(calcularVistaCentradaEnCelda(celda, tamano, escalaDestino));
     abrirPestana(`${sug.pasillo}|${sug.columna}`);

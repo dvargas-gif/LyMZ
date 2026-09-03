@@ -14,7 +14,14 @@ const PanelMigracion = lazy(() => import('../../features/migracion/PanelMigracio
 // montado), así que si se importara Framer Motion acá arriba, se coalescería
 // en el bundle principal en vez de en su propio chunk -- medido: +131 kB
 // (+43 kB gzip) en el bundle principal si se hace mal.
-const NombreSistema = lazy(() => import('./SidebarNombreSistema.jsx'));
+// Precarga inmediata (no bloqueante) apenas se monta el Sidebar -- así el
+// chunk ya está en caché cuando el usuario expande el menú la primera vez,
+// en vez del hueco vacío que dejaba Suspense mientras recién empezaba a
+// bajar por red justo al hacer click (reportado como "el logo desaparece
+// unos segundos" al expandir/contraer).
+const cargarNombreSistema = () => import('./SidebarNombreSistema.jsx');
+const NombreSistema = lazy(cargarNombreSistema);
+cargarNombreSistema();
 
 /**
  * Secciones por familia de acción (pedido explícito del usuario, ver

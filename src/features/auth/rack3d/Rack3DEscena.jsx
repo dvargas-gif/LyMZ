@@ -487,10 +487,39 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
       bucleId = requestAnimationFrame(paso);
     }
 
+    function cerrarCajaAbierta() {
+      if (cajaAbiertaActual === null) return;
+      const anim = animacionesCaja[cajaAbiertaActual];
+      anim.abierta = false;
+      anim.desde = cajasInfo[cajaAbiertaActual].pivote.rotation.x;
+      anim.hasta = 0;
+      anim.inicio = performance.now();
+      anim.activo = true;
+      cajaAbiertaActual = null;
+      setCajaAbierta(null);
+      asegurarBucle();
+    }
+
+    // Solo una caja (y una sola burbuja de punto/nivel) puede estar abierta
+    // a la vez -- al abrir esta, cerrar cualquier otra caja y cualquier
+    // burbuja de información que hubiera quedado abierta, para que no se
+    // mezclen visualmente.
     function alternarCaja(indice) {
       const anim = animacionesCaja[indice];
       if (!anim) return;
       anim.abierta = !anim.abierta;
+      if (anim.abierta) {
+        animacionesCaja.forEach((otraAnim, otroIndice) => {
+          if (otroIndice === indice || !otraAnim.abierta) return;
+          otraAnim.abierta = false;
+          otraAnim.desde = cajasInfo[otroIndice].pivote.rotation.x;
+          otraAnim.hasta = 0;
+          otraAnim.inicio = performance.now();
+          otraAnim.activo = true;
+        });
+        if (puntoEnfocadoActual !== null) { puntoEnfocadoActual = null; setPuntoEnfocado(null); }
+        if (nivelEnfocadoActual !== null) { nivelEnfocadoActual = null; setNivelEnfocado(null); }
+      }
       anim.desde = cajasInfo[indice].pivote.rotation.x;
       anim.hasta = anim.abierta ? -ANGULO_APERTURA_CAJA : 0;
       anim.inicio = performance.now();
@@ -527,6 +556,7 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
         return;
       }
       if (nivelEnfocadoActual !== null) { nivelEnfocadoActual = null; setNivelEnfocado(null); }
+      cerrarCajaAbierta();
       notificarEnfoque();
       const ancla = anclasInfo.find(a => a.id === id);
       if (!ancla) return;
@@ -549,6 +579,7 @@ export default function Rack3DEscena({ puntosInfo = [], onEnfoqueCambio, intro =
         return;
       }
       if (puntoEnfocadoActual !== null) { puntoEnfocadoActual = null; setPuntoEnfocado(null); }
+      cerrarCajaAbierta();
       notificarEnfoque();
       const ancla = anclasNivel[nivel];
       if (!ancla) return;
