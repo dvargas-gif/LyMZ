@@ -38,6 +38,7 @@
   --accent-hover: #0F373B;
   --fondo-sutil-hover: #E4E0D3;
   --borde-hover: #D5D9DE;
+  --fila-hover-alpha: .07;
 }
 
 /* ---- Modo oscuro (2026-07-22, pedido explícito: "Editar croquis" tenía un
@@ -79,6 +80,7 @@
   --accent-hover: #4FC2C7;
   --fondo-sutil-hover: #2C4548;
   --borde-hover: #3D5457;
+  --fila-hover-alpha: .2;
 }
 /* Sin preferencia explícita guardada (ver theme.js): seguir el tema del
    sistema operativo -- mismo bloque de tokens, para no duplicar la lista. */
@@ -92,7 +94,7 @@
     --fondo-sutil: #22383B; --ink-oscuro: #D7F0EC; --verde-tenue: #1C332B;
     --rojo-tenue: #3A2224; --amber-tenue: #3A2E18; --naranja-sala: #E8935A;
     --naranja-sala-tenue: #3A2A1C; --kpi-bg: #1B2C2E; --accent-hover: #4FC2C7;
-    --fondo-sutil-hover: #2C4548; --borde-hover: #3D5457;
+    --fondo-sutil-hover: #2C4548; --borde-hover: #3D5457; --fila-hover-alpha: .2;
   }
 }
 
@@ -126,6 +128,12 @@ body {
   cursor: pointer; color: var(--muted); font-size: 15px; transition: background .15s ease;
 }
 .btn-logout:hover { background: var(--fondo-sutil-hover); }
+/* Distinto del resto de .btn-logout (pedido explícito: "más notable sin
+   cambiar el tamaño") -- mismo tamaño/forma, pero con el tinte de acento
+   permanente en vez de --fondo-sutil, que en oscuro casi se confundía con
+   el fondo del header. */
+.btn-tema { background: rgba(var(--accent-rgb), .14); color: var(--accent); }
+.btn-tema:hover { background: rgba(var(--accent-rgb), .24); }
 .app-main { flex: 1; padding: 24px; max-width: 1500px; margin: 0 auto; width: 100%; }
 
 /* ---- ErrorBoundary (fallback si un chunk lazy no carga) ---- */
@@ -1049,6 +1057,16 @@ body {
 .filtros-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
 .filtros-bar input, .filtros-bar select { font-size: 13px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; font-family: inherit; }
 
+/* "×" para quitar el filtro de fecha sin tener que borrar el valor a mano
+   (pedido explícito: era confuso para un usuario nuevo). */
+.filtros-bar__fecha { position: relative; display: flex; align-items: center; }
+.filtros-bar__fecha input { padding-right: 28px; }
+.filtros-bar__fecha-limpiar {
+  position: absolute; right: 4px; width: 20px; height: 20px; border: none; border-radius: 50%;
+  background: transparent; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.filtros-bar__fecha-limpiar:hover { background: var(--fondo-sutil-hover); color: var(--ink); }
+
 /* Select elegante (2026-07-28, pedido explícito) -- el <select> nativo del
    navegador (flechita cuadrada por defecto, sin radio) desentonaba contra
    todo lo demás ya pulido. `appearance:none` + una flecha propia en SVG
@@ -1159,7 +1177,7 @@ body {
 .tabla td { padding: 9px 10px; border-bottom: 1px solid var(--line); }
 .tabla tbody tr { transition: background .12s ease; }
 .tabla tbody tr:nth-child(even) { background: var(--fondo-sutil); }
-.tabla tbody tr:hover { background: rgba(var(--accent-rgb), .07); }
+.tabla tbody tr:hover { background: rgba(var(--accent-rgb), var(--fila-hover-alpha)); }
 .estado-badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
 .estado-badge--ok { background: var(--verde-tenue); color: var(--green); }
 .estado-badge--warn { background: var(--rojo-tenue); color: var(--red); }

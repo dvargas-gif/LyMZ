@@ -37,8 +37,12 @@ export default function AuditoriaView({ sesion }) {
   const [registros, setRegistros] = useState([]);
   const [totalLog, setTotalLog] = useState(0);
   const [paginaLog, setPaginaLog] = useState(1);
-  const [filtros, setFiltros] = useState({ usuarioNombre: '', fecha: '', rack: '', articulo: '', tipoMovimiento: '', estado: '' });
-  const [disparador, setDisparador] = useState(0); // fuerza una recarga aunque `paginaLog` no cambie, ver aplicarFiltros
+  const FILTROS_VACIOS = { usuarioNombre: '', fecha: '', rack: '', articulo: '', tipoMovimiento: '', estado: '' };
+  const [filtros, setFiltros] = useState(FILTROS_VACIOS);
+  // Versión "confirmada" de `filtros`, la que de verdad dispara la consulta
+  // -- separada para poder debouncear (pedido explícito: que el filtro se
+  // active solo, sin botón, pero sin golpear la base de datos en cada tecla).
+  const [filtrosAplicados, setFiltrosAplicados] = useState(FILTROS_VACIOS);
   const [exportando, setExportando] = useState(false);
 
   // -- Seguridad (solo Admin/Supervisor) --
@@ -51,13 +55,27 @@ export default function AuditoriaView({ sesion }) {
   // Paginado en el SERVIDOR (ver audit.service.js.listarPaginado) -- nunca
   // descarga más que la página actual, a diferencia de antes que traía TODA
   // la auditoría (una tabla que solo crece, sin techo natural).
+  // Debounce: 350ms después del último cambio en cualquier campo (tecleo o
+  // selección), `filtros` se "confirma" a `filtrosAplicados` -- reactivo,
+  // ningún botón que tocar para aplicar NI para quitar el filtro (limpiar un
+  // campo y esperar basta). `setPaginaLog(1)` viaja en el mismo callback para
+  // que ambos cambios se batcheen en un solo re-render (si no, el efecto de
+  // abajo dispararía dos veces: una con la página vieja y otra con la 1).
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setPaginaLog(1);
+      setFiltrosAplicados(filtros);
+    }, 350);
+    return () => clearTimeout(id);
+  }, [filtros]);
+
   useEffect(() => {
     (async () => {
-      const { filas, total } = await auditService.listarPaginado(filtros, { pagina: paginaLog, porPagina: POR_PAGINA_LOG });
+      const { filas, total } = await auditService.listarPaginado(filtrosAplicados, { pagina: paginaLog, porPagina: POR_PAGINA_LOG });
       setRegistros(filas);
       setTotalLog(total);
     })();
-  }, [paginaLog, disparador]); // eslint-disable-line
+  }, [paginaLog, filtrosAplicados]);
 
   useEffect(() => {
     if (!puedeVerSeguridad) return;
@@ -83,22 +101,15 @@ export default function AuditoriaView({ sesion }) {
     setFiltros(f => ({ ...f, [campo]: valor }));
   }
 
-  // Un filtro nuevo siempre vuelve a la página 1 -- si no, "página 3" podría
-  // quedar vacía con el filtro nuevo. `disparador` garantiza una recarga real
-  // aunque `paginaLog` ya fuera 1 (setPaginaLog(1) no dispararía el efecto
-  // por sí solo en ese caso -- mismo bug evitado que ya resolvía Historial.jsx).
-  function aplicarFiltros() {
-    setPaginaLog(1);
-    setDisparador(d => d + 1);
-  }
-
   // El export sigue exportando TODO lo que matchea el filtro (no solo la
   // página en pantalla) -- usa listar() (trae todo, sin paginar), la misma
-  // fuente completa de siempre, independiente de qué página esté mirando el usuario.
+  // fuente completa de siempre, independiente de qué página esté mirando el
+  // usuario. Usa `filtrosAplicados` (no `filtros`) para exportar lo mismo
+  // que se ve en pantalla, no un tecleo a medio confirmar.
   async function handleExportar() {
     setExportando(true);
     try {
-      const todos = await auditService.listar(filtros);
+      const todos = await auditService.listar(filtrosAplicados);
       exportarExcel(todos.map(r => ({
         Fecha: r.fecha, Hora: r.hora, Usuario: r.usuarioNombre, Accion: r.accion,
         RackOrigen: r.rackOrigen, NivelOrigen: r.nivelOrigen,
@@ -155,7 +166,14 @@ export default function AuditoriaView({ sesion }) {
 
       <div className="filtros-bar">
         <input placeholder="Usuario" value={filtros.usuarioNombre} onChange={e => onFiltroChange('usuarioNombre', e.target.value)} />
-        <input type="date" value={filtros.fecha} onChange={e => onFiltroChange('fecha', e.target.value)} />
+        <div className="filtros-bar__fecha">
+          <input type="date" value={filtros.fecha} onChange={e => onFiltroChange('fecha', e.target.value)} />
+          {filtros.fecha && (
+            <button type="button" className="filtros-bar__fecha-limpiar" onClick={() => onFiltroChange('fecha', '')} title="Quitar filtro de fecha" aria-label="Quitar filtro de fecha">
+              <i className="ti ti-x" />
+            </button>
+          )}
+        </div>
         <input placeholder="Rack (ej. MZ01-C016)" value={filtros.rack} onChange={e => onFiltroChange('rack', e.target.value)} />
         <input placeholder="Artículo" value={filtros.articulo} onChange={e => onFiltroChange('articulo', e.target.value)} />
         <select value={filtros.tipoMovimiento} onChange={e => onFiltroChange('tipoMovimiento', e.target.value)}>
@@ -164,7 +182,6 @@ export default function AuditoriaView({ sesion }) {
         <select value={filtros.estado} onChange={e => onFiltroChange('estado', e.target.value)}>
           {ESTADOS_OPC.map(o => <option key={o} value={o}>{o || 'Todos los estados'}</option>)}
         </select>
-        <button className="btn-secondary" onClick={aplicarFiltros}><i className="ti ti-filter" /> Filtrar</button>
       </div>
 
       <table className="tabla">

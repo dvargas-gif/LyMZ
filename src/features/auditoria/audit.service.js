@@ -66,9 +66,13 @@ export const auditService = {
   async listar(filtros = {}) {
     const todos = await storage.getAll('auditoria');
     return todos.filter(r => {
-      if (filtros.usuarioNombre && r.usuarioNombre !== filtros.usuarioNombre) return false;
+      if (filtros.usuarioNombre && !String(r.usuarioNombre || '').toLowerCase().includes(filtros.usuarioNombre.toLowerCase())) return false;
       if (filtros.fecha && r.fecha !== filtros.fecha) return false;
-      if (filtros.rack && r.rackOrigen !== filtros.rack && r.rackDestino !== filtros.rack) return false;
+      if (filtros.rack) {
+        const buscado = filtros.rack.toLowerCase();
+        const coincide = String(r.rackOrigen || '').toLowerCase().includes(buscado) || String(r.rackDestino || '').toLowerCase().includes(buscado);
+        if (!coincide) return false;
+      }
       if (filtros.articulo && !String(r.articulo || '').toLowerCase().includes(filtros.articulo.toLowerCase())) return false;
       if (filtros.tipoMovimiento && r.tipoMovimiento !== filtros.tipoMovimiento) return false;
       if (filtros.estado && r.estado !== filtros.estado) return false;
@@ -93,20 +97,27 @@ export const auditService = {
    * del proyecto sin techo natural (crece con cada login/movimiento), así
    * que era la candidata real a volverse lenta con el tiempo.
    *
-   * `filtros.articulo` usa `ilike` (substring, igual que el filtro en
-   * memoria que reemplaza) -- el resto son igualdad exacta, mismo criterio
-   * que ya tenía listar().
+   * `filtros.articulo` y `filtros.usuarioNombre` usan `ilike` (substring,
+   * insensible a mayúsculas -- pedido explícito: no exigir el nombre
+   * completo ni las mayúsculas exactas) -- el resto son igualdad exacta,
+   * mismo criterio que ya tenía listar().
    */
   async listarPaginado(filtros = {}, { pagina = 1, porPagina = 50 } = {}) {
     let query = supabase.from('auditoria').select('*', { count: 'exact' });
-    if (filtros.usuarioNombre) query = query.eq('usuarioNombre', filtros.usuarioNombre);
+    if (filtros.usuarioNombre) {
+      const usuarioEscapado = filtros.usuarioNombre.replace(/[\\%_]/g, m => `\\${m}`);
+      query = query.ilike('usuarioNombre', `%${usuarioEscapado}%`);
+    }
     if (filtros.fecha) query = query.eq('fecha', filtros.fecha);
-    // Comillas dobles (con el propio " escapado) -- sintaxis de PostgREST
-    // para tratar el valor como literal, sin que una coma o paréntesis
-    // tipeados en el input rompan o alteren la estructura del filtro .or().
+    // ilike (substring, insensible a mayúsculas -- mismo pedido que usuario)
+    // en vez de eq -- comodines propios de LIKE escapados primero, y el
+    // resultado envuelto en comillas dobles (con el " propio escapado) para
+    // que una coma o paréntesis tipeados en el input no rompan la estructura
+    // del filtro .or().
     if (filtros.rack) {
-      const rackEscapado = `"${String(filtros.rack).replace(/"/g, '\\"')}"`;
-      query = query.or(`rackOrigen.eq.${rackEscapado},rackDestino.eq.${rackEscapado}`);
+      const rackEscapado = String(filtros.rack).replace(/[\\%_]/g, m => `\\${m}`).replace(/"/g, '\\"');
+      const valor = `"%${rackEscapado}%"`;
+      query = query.or(`rackOrigen.ilike.${valor},rackDestino.ilike.${valor}`);
     }
     // Escapa los comodines propios de LIKE/ILIKE (%, _) y la barra de escape
     // -- si no, un código de artículo con "_" (convención común de SKU) hace

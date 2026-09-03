@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     authService.getSesion().then(s => {
-      setSesion(s); setListo(true);
+      setSesion(s);
       // Precarga del chunk pesado de Three.js (536kB) del rack 3D del Login
       // -- ANTES de que Login.jsx siquiera se monte. Sin esto, el usuario ve
       // brevemente el fallback 2D (EscenaAlmacen, "el diseño antiguo")
@@ -32,7 +32,11 @@ export function AuthProvider({ children }) {
       // que usa el lazy() de Login.jsx -- Vite cachea por URL de chunk, así
       // que ese lazy() resuelve al toque en vez de esperar la red. Solo
       // tiene sentido sin sesión (a Shell nunca se le muestra el rack).
-      if (!s) import('./rack3d/Rack3DEscena.jsx').catch(() => {});
+      // `listo` (y con él el fin del splash) espera esta precarga cuando no
+      // hay sesión, para que el splash no termine antes de que el chunk
+      // esté listo -- si no, Login.jsx sigue cayendo al fallback 2D.
+      if (s) { setListo(true); return; }
+      import('./rack3d/Rack3DEscena.jsx').catch(() => {}).finally(() => setListo(true));
     });
     const { data: sub } = authService.onAuthStateChange(setSesion);
     return () => sub.subscription.unsubscribe();
