@@ -43,6 +43,14 @@ export default function PanelDetalle({
   const niveles = ORDEN_NIVELES.filter(n => rack.niveles[n]?.length);
   const llenuraTotal = configuracionOcupacion ? llenura(rack, configuracionOcupacion) : 0;
   const nivelesOcupados = niveles.length;
+  // Cuál burbuja "Cómo se calculó" (ChipPorcentaje/BurbujaFormula) está
+  // abierta -- UNA para todo el panel, no una por chip (antes cada
+  // ChipPorcentaje tenía su propio useState local: abrir la de un artículo
+  // no cerraba la de otro, podían quedar varias abiertas a la vez apiladas
+  // sobre otros botones del panel, y con varias burbujas animando junto con
+  // el resto del mapa se sentía lento/trabado). Guarda un id único
+  // `${nivel}|${articulo}` -- null si ninguna está abierta.
+  const [chipAbierto, setChipAbierto] = useState(null);
 
   return (
     <div
@@ -53,6 +61,25 @@ export default function PanelDetalle({
         boxShadow: '0 20px 60px rgba(0,0,0,.22)', overflowY: 'auto', flex: 1,
       }}
     >
+      {/* Mientras una burbuja "Cómo se calculó" está abierta (ChipPorcentaje
+          más abajo), un scrim atenúa y bloquea el resto del panel -- antes,
+          al estar cada burbuja anclada a su propio chip (posición absoluta,
+          angosta), se solapaba a medias con la fila siguiente sin taparla
+          del todo: se veían pedazos de otro chip/botón por los bordes, y a
+          veces ese otro elemento hasta se quedaba con el click en vez de la
+          burbuja (reportado como "tapa otros botones"). `position:fixed`
+          adentro de este panel ancla al propio .mapa-panel, no al viewport
+          -- tiene `backdropFilter`, que por spec de CSS crea el "containing
+          block" para hijos fixed (mismo mecanismo ya documentado más abajo
+          en ChipPorcentaje, para el cierre por click afuera). Así cubre
+          SIEMPRE el panel completo tal como se ve, sin importar el scroll. */}
+      {chipAbierto && (
+        <div
+          onClick={() => setChipAbierto(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(28, 58, 62, .12)' }}
+        />
+      )}
+
       <div style={{ padding: '16px 16px 12px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
@@ -137,6 +164,8 @@ export default function PanelDetalle({
               onMoverArticulo={soloLectura ? null : onMoverArticulo}
               moviendoAlgo={moviendoAlgo}
               onDepositarBuffer={migracionEstado === 'vaciando' ? onDepositarBuffer : null}
+              chipAbierto={chipAbierto}
+              onCambiarChipAbierto={setChipAbierto}
             />
           ) : (
             <EstanteVacio key={nivel} nivel={nivel} />
@@ -213,7 +242,7 @@ function TarjetaKpi({ icono, etiqueta, valor }) {
 }
 
 /** Un nivel del rack como tarjeta propia -- barra de llenado en vez de solo el número, mismo cálculo de llenura()/colorLlenura() del dominio, aplicado a este nivel solo (no al rack entero). */
-function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer }) {
+function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer, chipAbierto, onCambiarChipAbierto }) {
   const rackDeEsteNivel = { niveles: { [nivel]: articulos } };
   const proporcion = configuracionOcupacion ? llenura(rackDeEsteNivel, configuracionOcupacion) : 0;
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : VERDE_ESTRUCTURA;
@@ -247,6 +276,8 @@ function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulo
               <ChipPorcentaje
                 etiqueta="Rack" proporcion={llenuraRack} configuracionOcupacion={configuracionOcupacion}
                 rack={rackCompleto} descripcionDe={descripcionDe}
+                idUnico={`${nivel}|${a.articulo}`} abierta={chipAbierto === `${nivel}|${a.articulo}`}
+                onCambiarAbierta={onCambiarChipAbierto}
               />
               {onMoverArticulo && (
                 <BotonMoverArticulo
@@ -394,12 +425,24 @@ function BotonMoverArticulo({ onClick, deshabilitado, etiqueta, icono = 'ti-arro
  * artículo del rack + capacidad útil) -- así el número deja de ser una caja
  * negra. Sin `rack`/`descripcionDe` (ej. el chip de nivel, si algún día
  * existiera) el clic no hace nada -- degrada a chip informativo simple.
+ *
+ * `abierta`/`onCambiarAbierta` viven en PanelDetalle (no acá adentro) --
+ * antes cada chip tenía su propio useState, así que abrir la burbuja de un
+ * artículo no cerraba la de otro: podían quedar varias abiertas a la vez,
+ * apiladas sobre botones de otras filas del panel (reportado como "tapa
+ * otros botones"), y con varias animando juntas (cada una con su propio
+ * anillo de progreso + entrada de Framer Motion) se sentía lenta/trabada.
+ * Con un solo id "abierto" para todo el panel, nunca hay más de una
+ * BurbujaFormula montada a la vez.
  */
-function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, descripcionDe }) {
-  const [abierta, setAbierta] = useState(false);
+function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, descripcionDe, idUnico, abierta, onCambiarAbierta }) {
   const contenedorRef = useRef(null);
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : GRIS_TEXTO_TENUE;
   const puedeExplicar = !!(rack && configuracionOcupacion);
+
+  function alternar() {
+    onCambiarAbierta(actual => (actual === idUnico ? null : idUnico));
+  }
 
   // Clic afuera cierra la burbuja -- listener en document en vez del truco
   // del fondo invisible `position:fixed` que tenía antes: ese fondo asumía
@@ -414,16 +457,16 @@ function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, de
   useEffect(() => {
     if (!abierta) return;
     function alClickearFuera(e) {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) setAbierta(false);
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) onCambiarAbierta(null);
     }
     document.addEventListener('mousedown', alClickearFuera);
     return () => document.removeEventListener('mousedown', alClickearFuera);
-  }, [abierta]);
+  }, [abierta, onCambiarAbierta]);
 
   return (
-    <div ref={contenedorRef} style={{ position: 'relative' }}>
+    <div ref={contenedorRef} style={{ position: 'relative', zIndex: abierta ? 42 : 'auto' }}>
       <div
-        onClick={puedeExplicar ? () => setAbierta(v => !v) : undefined}
+        onClick={puedeExplicar ? alternar : undefined}
         title={puedeExplicar ? 'Ver cómo se calculó este %' : undefined}
         style={{
           display: 'inline-flex', alignItems: 'baseline', gap: 4, padding: '2px 7px', borderRadius: 999,
@@ -438,7 +481,7 @@ function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, de
         {abierta && puedeExplicar && (
           <BurbujaFormula
             proporcion={proporcion} color={color} configuracionOcupacion={configuracionOcupacion} rack={rack} descripcionDe={descripcionDe}
-            onCerrar={() => setAbierta(false)}
+            onCerrar={() => onCambiarAbierta(null)}
           />
         )}
       </AnimatePresence>
