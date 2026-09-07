@@ -123,9 +123,17 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
   const animacionRafRef = useRef(null);
   const resaltadoTimeoutRef = useRef(null);
   const arrastrandoRef = useRef(false); // true durante un drag de Konva -- evita que el hover de OTRAS celdas dispare setHover (y por lo tanto un re-render completo) mientras el puntero pasa por encima al arrastrar, que es lo que hacía sentir el arrastre "pegado"
+  // Retraso chico SOLO para ocultar el tooltip de hover, nunca para mostrarlo
+  // -- dos celdas Konva contiguas están borde con borde (sin gap), así que
+  // el mouseleave de una y el mouseenter de la siguiente pueden llegar en
+  // cualquier orden/con timing distinto según el navegador, y sin esto el
+  // tooltip se apagaba y prendía de nuevo en el mismo instante (reportado
+  // como "parpadea"). Si un mouseenter nuevo llega antes de que se cumplan
+  // los 60ms, este timeout se cancela y el tooltip nunca llega a ocultarse.
+  const hoverOcultarTimeoutRef = useRef(null);
 
   useEffect(() => { vistaActualRef.current = { x: pos.x, y: pos.y, escala }; }, [pos, escala]);
-  useEffect(() => () => { cancelAnimationFrame(animacionRafRef.current); clearTimeout(resaltadoTimeoutRef.current); }, []);
+  useEffect(() => () => { cancelAnimationFrame(animacionRafRef.current); clearTimeout(resaltadoTimeoutRef.current); clearTimeout(hoverOcultarTimeoutRef.current); }, []);
 
   // Se apaga sola cuando modoSeleccionArea pasa a false, sin importar quién
   // la apagó (el botón externo de SalasView, o limpiarAreaSeleccionada() al
@@ -1400,7 +1408,11 @@ const MapaCanvas = forwardRef(function MapaCanvas({ escenarioId = null, sesion, 
         onClick: () => manejarClickCeldaRef.current(c, racksRef.current.get(clave)),
         onHover: (info) => {
           if (arrastrandoRef.current) return; // ver arrastrandoRef -- ninguna otra celda debe re-renderizar el árbol mientras se arrastra
-          if (!info) { setHover(null); return; }
+          if (!info) {
+            hoverOcultarTimeoutRef.current = setTimeout(() => setHover(null), 60);
+            return;
+          }
+          clearTimeout(hoverOcultarTimeoutRef.current); // ver hoverOcultarTimeoutRef -- llegó un mouseenter nuevo antes de ocultar, no parpadea
           const pantalla = celdaEnPantallaRef.current(c);
           setHover({ x: pantalla.x + pantalla.ancho / 2, y: pantalla.y, texto: info });
         },
