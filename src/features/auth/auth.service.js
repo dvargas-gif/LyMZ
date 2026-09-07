@@ -89,4 +89,20 @@ export const authService = {
     const { error } = await supabase.auth.updateUser({ password: nuevaPassword });
     if (error) throw new Error(error.message);
   },
+
+  /**
+   * "Olvidaste tu contraseña" (Login.jsx) -- manda un link de recuperación
+   * al correo dado. Supabase no distingue en la respuesta si el correo
+   * existe o no (para no filtrar qué cuentas son reales), así que el
+   * mensaje al usuario es siempre el mismo tipo "si existe, te llega el
+   * correo" independientemente del resultado acá. Al clickear el link, el
+   * usuario vuelve a `redirectTo` con una sesión de recuperación ya activa
+   * (ver RestablecerPassword.jsx, que llama a cambiarPassword de arriba).
+   */
+  async pedirReseteoPassword(email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/restablecer-password`,
+    });
+    if (error) throw new Error(error.message);
+  },
 };
