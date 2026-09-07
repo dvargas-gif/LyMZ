@@ -5,6 +5,7 @@ import { permisosRolService } from '../auth/permisosRol.service.js';
 import { ROLES, TODAS_LAS_ACCIONES, ETIQUETAS_ACCIONES, puede } from '../auth/roles.js';
 import { useAuth } from '../auth/useAuth.js';
 import PanelCargando from '../../shared/components/PanelCargando.jsx';
+import ResetearPasswordModal from './ResetearPasswordModal.jsx';
 
 const TODOS_LOS_ROLES = Object.values(ROLES);
 
@@ -16,6 +17,7 @@ function TablaUsuarios({ sesion }) {
   const [nombreTemp, setNombreTemp] = useState('');
   const [editandoApodoId, setEditandoApodoId] = useState(null);
   const [apodoTemp, setApodoTemp] = useState('');
+  const [resetearUsuario, setResetearUsuario] = useState(null);
 
   async function cargar() {
     setCargando(true);
@@ -73,6 +75,7 @@ function TablaUsuarios({ sesion }) {
   if (cargando) return <PanelCargando />;
 
   return (
+    <>
     <table className="tabla">
       <thead>
         <tr>
@@ -81,6 +84,7 @@ function TablaUsuarios({ sesion }) {
           <th>Cómo me saluda</th>
           <th>Rol</th>
           <th>Estado</th>
+          <th>Contraseña</th>
         </tr>
       </thead>
       <tbody>
@@ -146,10 +150,24 @@ function TablaUsuarios({ sesion }) {
                 {u.activo ? 'Activo' : 'Inactivo'}
               </button>
             </td>
+            <td>
+              {u.id !== sesion.usuarioId ? (
+                <button className="btn-secondary" onClick={() => setResetearUsuario(u)} disabled={guardandoId === u.id}>
+                  <i className="ti ti-key" /> Resetear
+                </button>
+              ) : (
+                <span className="muted" style={{ fontSize: 12 }} title="Usá &quot;Olvidaste tu contraseña&quot; en el Login para la tuya propia">—</span>
+              )}
+            </td>
           </tr>
         ))}
       </tbody>
     </table>
+
+    {resetearUsuario && (
+      <ResetearPasswordModal usuario={resetearUsuario} sesion={sesion} onCerrar={() => setResetearUsuario(null)} />
+    )}
+    </>
   );
 }
 

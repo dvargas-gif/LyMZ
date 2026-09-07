@@ -32,4 +32,25 @@ export const usuariosService = {
     const { error } = await supabase.from('profiles').update({ nombre }).eq('id', id);
     if (error) throw error;
   },
+
+  /**
+   * Resetea la contraseña de OTRO usuario sin pasar por correo (ver
+   * supabase/functions/admin-reset-password) -- pensado para cuando el
+   * mailer compartido de Supabase está al límite de envíos, o el usuario no
+   * tiene acceso a su casilla. La Edge Function vuelve a chequear "solo
+   * Administrador" del lado del servidor -- acá no alcanza con que el botón
+   * esté oculto en la UI.
+   */
+  async resetearPassword(userId, nuevaPassword) {
+    const { error } = await supabase.functions.invoke('admin-reset-password', {
+      body: { userId, password: nuevaPassword },
+    });
+    if (error) {
+      let mensaje = error.message;
+      if (error.context?.json) {
+        try { mensaje = (await error.context.json()).error || mensaje; } catch { /* deja el mensaje genérico */ }
+      }
+      throw new Error(mensaje);
+    }
+  },
 };
