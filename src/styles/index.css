@@ -216,6 +216,16 @@ body {
   font-weight: 700; font-size: 14px; letter-spacing: .3px; color: #fff;
   white-space: nowrap; overflow: hidden;
 }
+/* El isotipo OLO (Logo.jsx, sin clase propia -- no se toca, se usa también
+   en Header/Login) se encogía por unos instantes al expandir/contraer el
+   menú -- reportado como "la imagen desaparece". Causa real: durante los
+   200ms de transición de `width` del sidebar, SidebarNombreSistema.jsx
+   (Framer Motion) recién anima opacidad/x, no ancho, así que el span de
+   texto sigue reclamando su ancho completo en este flex-row mientras el
+   contenedor se angosta -- sin flex-shrink:0 acá, el algoritmo de flexbox
+   comprime también al SVG (el otro flex item) para hacerle lugar al texto
+   que se está yendo, no solo al texto mismo. */
+.sidebar__logo > svg { flex-shrink: 0; }
 /* Disparador de expandir/contraer -- mismos 150ms/curva ease-out que
    src/ui/motion/tokens.js (DURACION.micro/EASING.entrada), repetidos como
    valor literal en vez de Framer Motion: el Sidebar es parte del shell
