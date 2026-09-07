@@ -56,7 +56,23 @@ export default function PanelDetalle({
     <div
       className={`mapa-panel${oculto ? ' mapa-panel--oculto' : ''}`}
       style={{
-        background: 'rgba(247, 243, 234, .96)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        // Antes tenía backdrop-filter:blur(12px) -- reportado en vivo como
+        // "la burbuja de Cómo se calculó parpadea al pasar el mouse por
+        // encima, incluso quieto". El blur es la única razón real para que
+        // este panel necesite recalcular su compositing en cada frame que
+        // haya CUALQUIER cosa animándose en el mapa detrás (otro rack "en
+        // trabajo" pulsando en cualquier parte de la pantalla, aunque no sea
+        // este) -- caro para la GPU, y en una máquina sin aceleración de
+        // hardware puede manifestarse como parpadeo justo donde el usuario
+        // tiene la vista fija. El fondo ya era 96% opaco -- sacar el blur
+        // cambia casi nada visualmente (un pelín menos translúcido) pero
+        // saca ese costo de encima. `contain:'layout'` reemplaza al
+        // backdrop-filter en su otro trabajo (ver comentario de más abajo y
+        // en ChipPorcentaje): seguir siendo el "containing block" de los
+        // hijos `position:fixed` de acá adentro (el scrim, el listener de
+        // click afuera) -- mismo efecto que backdrop-filter en el spec de
+        // CSS, sin el costo de un blur real.
+        background: 'rgba(247, 243, 234, .97)', contain: 'layout',
         color: GRIS_TEXTO, borderRadius: '0 0 12px 12px', border: `1px solid ${BORDE_CLARO}`, borderTop: 'none',
         boxShadow: '0 20px 60px rgba(0,0,0,.22)', overflowY: 'auto', flex: 1,
       }}
@@ -69,10 +85,11 @@ export default function PanelDetalle({
           veces ese otro elemento hasta se quedaba con el click en vez de la
           burbuja (reportado como "tapa otros botones"). `position:fixed`
           adentro de este panel ancla al propio .mapa-panel, no al viewport
-          -- tiene `backdropFilter`, que por spec de CSS crea el "containing
-          block" para hijos fixed (mismo mecanismo ya documentado más abajo
-          en ChipPorcentaje, para el cierre por click afuera). Así cubre
-          SIEMPRE el panel completo tal como se ve, sin importar el scroll. */}
+          -- tiene `contain:'layout'` (ver estilo de arriba), que por spec de
+          CSS crea el "containing block" para hijos fixed (mismo mecanismo
+          ya documentado más abajo en ChipPorcentaje, para el cierre por
+          click afuera). Así cubre SIEMPRE el panel completo tal como se ve,
+          sin importar el scroll. */}
       {chipAbierto && (
         <div
           onClick={() => setChipAbierto(null)}
@@ -447,11 +464,13 @@ function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, de
   // Clic afuera cierra la burbuja -- listener en document en vez del truco
   // del fondo invisible `position:fixed` que tenía antes: ese fondo asumía
   // que "fixed" se ancla siempre al viewport, pero .mapa-panel (el
-  // contenedor de este chip) tiene `backdrop-filter`, y eso crea un nuevo
-  // "containing block" para hijos fixed (spec CSS) -- el fondo quedaba
-  // recortado al tamaño del panel, no de la pantalla, así que un clic en el
-  // canvas de atrás nunca cerraba la burbuja (bug real, encontrado 2026-08-12
-  // verificando este mismo rediseño con Playwright). Este patrón no depende
+  // contenedor de este chip) tiene `contain:'layout'` (antes backdrop-filter,
+  // sacado por un parpadeo real reportado en vivo -- ver estilo de
+  // .mapa-panel más arriba), y eso crea un nuevo "containing block" para
+  // hijos fixed (spec CSS) -- el fondo quedaba recortado al tamaño del
+  // panel, no de la pantalla, así que un clic en el canvas de atrás nunca
+  // cerraba la burbuja (bug real, encontrado 2026-08-12 verificando este
+  // mismo rediseño con Playwright). Este patrón no depende
   // de ningún contexto de posicionamiento -- solo mira si el clic cayó
   // dentro del contenedor del chip+burbuja.
   useEffect(() => {
