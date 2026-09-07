@@ -43,60 +43,16 @@ export default function PanelDetalle({
   const niveles = ORDEN_NIVELES.filter(n => rack.niveles[n]?.length);
   const llenuraTotal = configuracionOcupacion ? llenura(rack, configuracionOcupacion) : 0;
   const nivelesOcupados = niveles.length;
-  // Cuál burbuja "Cómo se calculó" (ChipPorcentaje/BurbujaFormula) está
-  // abierta -- UNA para todo el panel, no una por chip (antes cada
-  // ChipPorcentaje tenía su propio useState local: abrir la de un artículo
-  // no cerraba la de otro, podían quedar varias abiertas a la vez apiladas
-  // sobre otros botones del panel, y con varias burbujas animando junto con
-  // el resto del mapa se sentía lento/trabado). Guarda un id único
-  // `${nivel}|${articulo}` -- null si ninguna está abierta.
-  const [chipAbierto, setChipAbierto] = useState(null);
 
   return (
     <div
       className={`mapa-panel${oculto ? ' mapa-panel--oculto' : ''}`}
       style={{
-        // Antes tenía backdrop-filter:blur(12px) -- reportado en vivo como
-        // "la burbuja de Cómo se calculó parpadea al pasar el mouse por
-        // encima, incluso quieto". El blur es la única razón real para que
-        // este panel necesite recalcular su compositing en cada frame que
-        // haya CUALQUIER cosa animándose en el mapa detrás (otro rack "en
-        // trabajo" pulsando en cualquier parte de la pantalla, aunque no sea
-        // este) -- caro para la GPU, y en una máquina sin aceleración de
-        // hardware puede manifestarse como parpadeo justo donde el usuario
-        // tiene la vista fija. El fondo ya era 96% opaco -- sacar el blur
-        // cambia casi nada visualmente (un pelín menos translúcido) pero
-        // saca ese costo de encima. `contain:'layout'` reemplaza al
-        // backdrop-filter en su otro trabajo (ver comentario de más abajo y
-        // en ChipPorcentaje): seguir siendo el "containing block" de los
-        // hijos `position:fixed` de acá adentro (el scrim, el listener de
-        // click afuera) -- mismo efecto que backdrop-filter en el spec de
-        // CSS, sin el costo de un blur real.
-        background: 'rgba(247, 243, 234, .97)', contain: 'layout',
+        background: 'rgba(247, 243, 234, .96)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
         color: GRIS_TEXTO, borderRadius: '0 0 12px 12px', border: `1px solid ${BORDE_CLARO}`, borderTop: 'none',
         boxShadow: '0 20px 60px rgba(0,0,0,.22)', overflowY: 'auto', flex: 1,
       }}
     >
-      {/* Mientras una burbuja "Cómo se calculó" está abierta (ChipPorcentaje
-          más abajo), un scrim atenúa y bloquea el resto del panel -- antes,
-          al estar cada burbuja anclada a su propio chip (posición absoluta,
-          angosta), se solapaba a medias con la fila siguiente sin taparla
-          del todo: se veían pedazos de otro chip/botón por los bordes, y a
-          veces ese otro elemento hasta se quedaba con el click en vez de la
-          burbuja (reportado como "tapa otros botones"). `position:fixed`
-          adentro de este panel ancla al propio .mapa-panel, no al viewport
-          -- tiene `contain:'layout'` (ver estilo de arriba), que por spec de
-          CSS crea el "containing block" para hijos fixed (mismo mecanismo
-          ya documentado más abajo en ChipPorcentaje, para el cierre por
-          click afuera). Así cubre SIEMPRE el panel completo tal como se ve,
-          sin importar el scroll. */}
-      {chipAbierto && (
-        <div
-          onClick={() => setChipAbierto(null)}
-          style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(28, 58, 62, .12)' }}
-        />
-      )}
-
       <div style={{ padding: '16px 16px 12px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
@@ -181,8 +137,6 @@ export default function PanelDetalle({
               onMoverArticulo={soloLectura ? null : onMoverArticulo}
               moviendoAlgo={moviendoAlgo}
               onDepositarBuffer={migracionEstado === 'vaciando' ? onDepositarBuffer : null}
-              chipAbierto={chipAbierto}
-              onCambiarChipAbierto={setChipAbierto}
             />
           ) : (
             <EstanteVacio key={nivel} nivel={nivel} />
@@ -259,7 +213,7 @@ function TarjetaKpi({ icono, etiqueta, valor }) {
 }
 
 /** Un nivel del rack como tarjeta propia -- barra de llenado en vez de solo el número, mismo cálculo de llenura()/colorLlenura() del dominio, aplicado a este nivel solo (no al rack entero). */
-function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer, chipAbierto, onCambiarChipAbierto }) {
+function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer }) {
   const rackDeEsteNivel = { niveles: { [nivel]: articulos } };
   const proporcion = configuracionOcupacion ? llenura(rackDeEsteNivel, configuracionOcupacion) : 0;
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : VERDE_ESTRUCTURA;
@@ -293,8 +247,6 @@ function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulo
               <ChipPorcentaje
                 etiqueta="Rack" proporcion={llenuraRack} configuracionOcupacion={configuracionOcupacion}
                 rack={rackCompleto} descripcionDe={descripcionDe}
-                idUnico={`${nivel}|${a.articulo}`} abierta={chipAbierto === `${nivel}|${a.articulo}`}
-                onCambiarAbierta={onCambiarChipAbierto}
               />
               {onMoverArticulo && (
                 <BotonMoverArticulo
@@ -442,50 +394,36 @@ function BotonMoverArticulo({ onClick, deshabilitado, etiqueta, icono = 'ti-arro
  * artículo del rack + capacidad útil) -- así el número deja de ser una caja
  * negra. Sin `rack`/`descripcionDe` (ej. el chip de nivel, si algún día
  * existiera) el clic no hace nada -- degrada a chip informativo simple.
- *
- * `abierta`/`onCambiarAbierta` viven en PanelDetalle (no acá adentro) --
- * antes cada chip tenía su propio useState, así que abrir la burbuja de un
- * artículo no cerraba la de otro: podían quedar varias abiertas a la vez,
- * apiladas sobre botones de otras filas del panel (reportado como "tapa
- * otros botones"), y con varias animando juntas (cada una con su propio
- * anillo de progreso + entrada de Framer Motion) se sentía lenta/trabada.
- * Con un solo id "abierto" para todo el panel, nunca hay más de una
- * BurbujaFormula montada a la vez.
  */
-function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, descripcionDe, idUnico, abierta, onCambiarAbierta }) {
+function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, descripcionDe }) {
+  const [abierta, setAbierta] = useState(false);
   const contenedorRef = useRef(null);
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : GRIS_TEXTO_TENUE;
   const puedeExplicar = !!(rack && configuracionOcupacion);
 
-  function alternar() {
-    onCambiarAbierta(actual => (actual === idUnico ? null : idUnico));
-  }
-
   // Clic afuera cierra la burbuja -- listener en document en vez del truco
   // del fondo invisible `position:fixed` que tenía antes: ese fondo asumía
   // que "fixed" se ancla siempre al viewport, pero .mapa-panel (el
-  // contenedor de este chip) tiene `contain:'layout'` (antes backdrop-filter,
-  // sacado por un parpadeo real reportado en vivo -- ver estilo de
-  // .mapa-panel más arriba), y eso crea un nuevo "containing block" para
-  // hijos fixed (spec CSS) -- el fondo quedaba recortado al tamaño del
-  // panel, no de la pantalla, así que un clic en el canvas de atrás nunca
-  // cerraba la burbuja (bug real, encontrado 2026-08-12 verificando este
-  // mismo rediseño con Playwright). Este patrón no depende
+  // contenedor de este chip) tiene `backdrop-filter`, y eso crea un nuevo
+  // "containing block" para hijos fixed (spec CSS) -- el fondo quedaba
+  // recortado al tamaño del panel, no de la pantalla, así que un clic en el
+  // canvas de atrás nunca cerraba la burbuja (bug real, encontrado 2026-08-12
+  // verificando este mismo rediseño con Playwright). Este patrón no depende
   // de ningún contexto de posicionamiento -- solo mira si el clic cayó
   // dentro del contenedor del chip+burbuja.
   useEffect(() => {
     if (!abierta) return;
     function alClickearFuera(e) {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) onCambiarAbierta(null);
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) setAbierta(false);
     }
     document.addEventListener('mousedown', alClickearFuera);
     return () => document.removeEventListener('mousedown', alClickearFuera);
-  }, [abierta, onCambiarAbierta]);
+  }, [abierta]);
 
   return (
-    <div ref={contenedorRef} style={{ position: 'relative', zIndex: abierta ? 42 : 'auto' }}>
+    <div ref={contenedorRef} style={{ position: 'relative' }}>
       <div
-        onClick={puedeExplicar ? alternar : undefined}
+        onClick={puedeExplicar ? () => setAbierta(v => !v) : undefined}
         title={puedeExplicar ? 'Ver cómo se calculó este %' : undefined}
         style={{
           display: 'inline-flex', alignItems: 'baseline', gap: 4, padding: '2px 7px', borderRadius: 999,
@@ -500,7 +438,7 @@ function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, de
         {abierta && puedeExplicar && (
           <BurbujaFormula
             proporcion={proporcion} color={color} configuracionOcupacion={configuracionOcupacion} rack={rack} descripcionDe={descripcionDe}
-            onCerrar={() => onCambiarAbierta(null)}
+            onCerrar={() => setAbierta(false)}
           />
         )}
       </AnimatePresence>
