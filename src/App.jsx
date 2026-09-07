@@ -15,6 +15,7 @@ import { ROLES, puede } from './features/auth/roles.js';
 // la librería xlsx entera en el chunk principal aunque nadie haya abierto
 // carga masiva todavía.
 const Login = lazy(() => import('./features/auth/Login.jsx'));
+const RestablecerPassword = lazy(() => import('./features/auth/RestablecerPassword.jsx'));
 const SlottingFrame = lazy(() => import('./features/mapa/SlottingFrame.jsx'));
 const SalasView = lazy(() => import('./features/salas/SalasView.jsx'));
 const DashboardAnalitico = lazy(() => import('./features/dashboard/DashboardAnalitico.jsx'));
@@ -103,6 +104,11 @@ export default function App() {
       <Suspense fallback={<div className="pantalla-carga" />}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Pública a propósito -- ver RestablecerPassword.jsx -- el link de
+              recuperación de Supabase deja una sesión temporal activa, así
+              que ProtectedRoute la dejaría pasar igual, pero no se apoya en
+              eso: se valida esa sesión adentro del propio componente. */}
+          <Route path="/restablecer-password" element={<RestablecerPassword />} />
           <Route path="/" element={<ProtectedRoute><Shell /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

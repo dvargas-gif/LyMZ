@@ -7,6 +7,7 @@ import Logo from '../../shared/components/Logo.jsx';
 import { useReducedMotion } from '../../ui/motion/prefersReducedMotion.js';
 import { entradaConStagger, entradaProtagonista } from '../../ui/motion/variants.js';
 import EscenaAlmacen, { ESCENA_ANCHO, ESCENA_ALTO } from './loginEscenaAlmacen.jsx';
+import OlvidoPasswordModal from './OlvidoPasswordModal.jsx';
 import { ANCLAS_HUD } from './anclasHud.js';
 import { DURACION } from '../../ui/motion/tokens.js';
 import { detectarWebGL2 } from '../../shared/utils/webgl.js';
@@ -114,6 +115,7 @@ export default function Login() {
   // aunque el mouse se mueva a otro lado, hasta que se cierre.
   const [legendaAbierta, setLegendaAbierta] = useState(null);
   const resaltado = legendaAbierta ?? hoverActivo;
+  const [mostrarOlvidoPassword, setMostrarOlvidoPassword] = useState(false);
 
   function manejarClickHud(id, e) {
     // Antes de revelar, un click en CUALQUIER parte del panel (incluido un
@@ -446,7 +448,7 @@ export default function Login() {
               <input type="checkbox" defaultChecked />
               Recordarme
             </label>
-            <a href="#" onClick={e => e.preventDefault()}>¿Olvidaste tu contraseña?</a>
+            <a href="#" onClick={e => { e.preventDefault(); setMostrarOlvidoPassword(true); }}>¿Olvidaste tu contraseña?</a>
           </div>
 
           {error && <div className="login-card__error"><i className="ti ti-alert-circle" /> {error}</div>}
@@ -474,6 +476,8 @@ export default function Login() {
         </motion.form>
       </div>
       )}
+
+      {mostrarOlvidoPassword && <OlvidoPasswordModal onCerrar={() => setMostrarOlvidoPassword(false)} />}
     </div>
   );
 }
