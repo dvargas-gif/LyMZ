@@ -98,18 +98,23 @@ export default function PanelDetalle({
       }}
     >
       {/* Mientras una burbuja "Cómo se calculó" está abierta, un scrim
-          atenúa y bloquea el resto del panel -- CUALQUIER otro botón/chip,
-          a propósito (ver nota de arriba: no hay forma de que un chip
+          BLOQUEA el resto del panel -- CUALQUIER otro botón/chip, a
+          propósito (ver nota de arriba: no hay forma de que un chip
           "escape" por z-index a la burbuja portada) -- primero hay que
           cerrarla (click acá, o afuera del todo) para poder abrir la de
-          otro artículo. `position:'absolute'` (no `fixed`) -- alcanza
-          porque cualquier scroll de .mapa-panel cierra la burbuja al toque
-          (ver useLayoutEffect en ChipPorcentaje), así que este scrim nunca
-          tiene que sobrevivir un scroll en curso. */}
+          otro artículo. Transparente a propósito (pedido explícito del
+          usuario: "que ese gris no se note para nada") -- bloquea clicks
+          igual, solo que sin ningún tinte visible; la tarjeta del nivel
+          abierto ya no dependía de este color para notarse (ver
+          TarjetaNivel/estaAbiertaAqui), así que sacarlo no le debe nada a
+          nadie. `position:'absolute'` (no `fixed`) -- alcanza porque
+          cualquier scroll de .mapa-panel cierra la burbuja al toque (ver
+          useLayoutEffect en ChipPorcentaje), así que este scrim nunca tiene
+          que sobrevivir un scroll en curso. */}
       {chipAbierto && (
         <div
           onClick={() => setChipAbierto(null)}
-          style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'rgba(28, 58, 62, .12)' }}
+          style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'transparent' }}
         />
       )}
 
