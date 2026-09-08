@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { nArts, consumoTotal, llenura, colorLlenura, colorArticulo } from '../../../domain/formulasOcupacion.js';
 import { VERDE_ESTRUCTURA, BLANCO_CALIDO, BLANCO_HUESO_TARJETA, GRIS_TEXTO, GRIS_TEXTO_TENUE, BORDE_CLARO, ESTADOS } from './paleta.js';
@@ -43,16 +44,75 @@ export default function PanelDetalle({
   const niveles = ORDEN_NIVELES.filter(n => rack.niveles[n]?.length);
   const llenuraTotal = configuracionOcupacion ? llenura(rack, configuracionOcupacion) : 0;
   const nivelesOcupados = niveles.length;
+  // Cuál burbuja "Cómo se calculó" (ChipPorcentaje/BurbujaFormula) está
+  // abierta -- UNA para todo el panel, no una por chip (antes cada
+  // ChipPorcentaje tenía su propio useState local: abrir la de un artículo
+  // no cerraba la de otro, podían quedar varias abiertas a la vez apiladas
+  // sobre otros botones del panel, y con varias burbujas animando junto con
+  // el resto del mapa se sentía lento/trabado). Guarda un id único
+  // `${nivel}|${articulo}` -- null si ninguna está abierta.
+  const [chipAbierto, setChipAbierto] = useState(null);
+
+  // Clic afuera cierra la burbuja abierta -- UN solo listener centralizado
+  // acá (no uno por ChipPorcentaje) a propósito: con uno por chip, saltar
+  // de la burbuja de un artículo a la de otro (clickear el chip nuevo)
+  // disparaba una condición de carrera real -- el listener de la burbuja
+  // VIEJA todavía estaba activo en el instante del mousedown, veía ese
+  // click (en el chip NUEVO) como "de afuera" y la cerraba, justo cuando
+  // `alternar()` del chip nuevo recién iba a abrir la suya -- terminaba
+  // todo cerrado, visible como "abre y se cierra sola" (reportado en vivo
+  // como parpadeo). `[data-chip-porcentaje]` marca tanto el chip que abre
+  // como la burbuja portada (ChipPorcentaje la monta con createPortal en
+  // document.body, ya no es descendiente del chip en el DOM) -- un click
+  // en cualquiera de los dos no cuenta como "afuera".
+  useEffect(() => {
+    if (!chipAbierto) return;
+    function alClickearFuera(e) {
+      if (e.target.closest('[data-chip-porcentaje]')) return;
+      setChipAbierto(null);
+    }
+    document.addEventListener('mousedown', alClickearFuera);
+    return () => document.removeEventListener('mousedown', alClickearFuera);
+  }, [chipAbierto]);
 
   return (
     <div
       className={`mapa-panel${oculto ? ' mapa-panel--oculto' : ''}`}
       style={{
+        // `position:'relative'` (agregado -- no estaba) -- lo necesita el
+        // scrim de acá abajo para anclarse a este panel con
+        // `position:'absolute'` en vez de `fixed`. Nota: se probó además
+        // sacar el backdrop-filter para que el z-index de los chips pudiera
+        // "escapar" y quedar clickeables por encima de una burbuja abierta
+        // -- no sirvió: el wrapper de MapaCanvas.jsx que centra este panel
+        // usa `transform:translateX(-50%)`, que por spec de CSS crea SU
+        // PROPIO stacking context antes de llegar acá, así que cualquier
+        // z-index puesto en un chip queda atrapado ahí de todos modos, nunca
+        // le gana a la burbuja portada (documentado con más detalle en
+        // ChipPorcentaje). No siendo posible esa mejora, el backdrop-filter
+        // se deja como estaba.
+        position: 'relative',
         background: 'rgba(247, 243, 234, .96)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
         color: GRIS_TEXTO, borderRadius: '0 0 12px 12px', border: `1px solid ${BORDE_CLARO}`, borderTop: 'none',
         boxShadow: '0 20px 60px rgba(0,0,0,.22)', overflowY: 'auto', flex: 1,
       }}
     >
+      {/* Mientras una burbuja "Cómo se calculó" está abierta, un scrim
+          atenúa y bloquea el resto del panel -- CUALQUIER otro botón/chip,
+          a propósito (ver nota de arriba: no hay forma de que un chip
+          "escape" por z-index a la burbuja portada) -- primero hay que
+          cerrarla (click acá, o afuera del todo) para poder abrir la de
+          otro artículo. `position:'absolute'` (no `fixed`) -- alcanza
+          porque cualquier scroll de .mapa-panel cierra la burbuja al toque
+          (ver useLayoutEffect en ChipPorcentaje), así que este scrim nunca
+          tiene que sobrevivir un scroll en curso. */}
+      {chipAbierto && (
+        <div
+          onClick={() => setChipAbierto(null)}
+          style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'rgba(28, 58, 62, .12)' }}
+        />
+      )}
+
       <div style={{ padding: '16px 16px 12px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
@@ -137,6 +197,8 @@ export default function PanelDetalle({
               onMoverArticulo={soloLectura ? null : onMoverArticulo}
               moviendoAlgo={moviendoAlgo}
               onDepositarBuffer={migracionEstado === 'vaciando' ? onDepositarBuffer : null}
+              chipAbierto={chipAbierto}
+              onCambiarChipAbierto={setChipAbierto}
             />
           ) : (
             <EstanteVacio key={nivel} nivel={nivel} />
@@ -213,7 +275,7 @@ function TarjetaKpi({ icono, etiqueta, valor }) {
 }
 
 /** Un nivel del rack como tarjeta propia -- barra de llenado en vez de solo el número, mismo cálculo de llenura()/colorLlenura() del dominio, aplicado a este nivel solo (no al rack entero). */
-function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer }) {
+function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulos, rackCompleto, configuracionOcupacion, llenuraRack, descripcionDe, onMoverArticulo, moviendoAlgo, onDepositarBuffer, chipAbierto, onCambiarChipAbierto }) {
   const rackDeEsteNivel = { niveles: { [nivel]: articulos } };
   const proporcion = configuracionOcupacion ? llenura(rackDeEsteNivel, configuracionOcupacion) : 0;
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : VERDE_ESTRUCTURA;
@@ -247,6 +309,8 @@ function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulo
               <ChipPorcentaje
                 etiqueta="Rack" proporcion={llenuraRack} configuracionOcupacion={configuracionOcupacion}
                 rack={rackCompleto} descripcionDe={descripcionDe}
+                idUnico={`${nivel}|${a.articulo}`} abierta={chipAbierto === `${nivel}|${a.articulo}`}
+                onCambiarAbierta={onCambiarChipAbierto}
               />
               {onMoverArticulo && (
                 <BotonMoverArticulo
@@ -394,36 +458,82 @@ function BotonMoverArticulo({ onClick, deshabilitado, etiqueta, icono = 'ti-arro
  * artículo del rack + capacidad útil) -- así el número deja de ser una caja
  * negra. Sin `rack`/`descripcionDe` (ej. el chip de nivel, si algún día
  * existiera) el clic no hace nada -- degrada a chip informativo simple.
+ *
+ * `abierta`/`onCambiarAbierta` viven en PanelDetalle (no acá adentro) --
+ * antes cada chip tenía su propio useState, así que abrir la burbuja de un
+ * artículo no cerraba la de otro: podían quedar varias abiertas a la vez,
+ * apiladas sobre botones de otras filas del panel (reportado como "tapa
+ * otros botones"), y con varias animando juntas (cada una con su propio
+ * anillo de progreso + entrada de Framer Motion) se sentía lenta/trabada.
+ * Con un solo id "abierto" para todo el panel, nunca hay más de una
+ * BurbujaFormula montada a la vez.
  */
-function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, descripcionDe }) {
-  const [abierta, setAbierta] = useState(false);
+function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, descripcionDe, idUnico, abierta, onCambiarAbierta }) {
   const contenedorRef = useRef(null);
+  const [posicion, setPosicion] = useState(null); // {top, right} en coordenadas de viewport, ver useLayoutEffect
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : GRIS_TEXTO_TENUE;
   const puedeExplicar = !!(rack && configuracionOcupacion);
 
-  // Clic afuera cierra la burbuja -- listener en document en vez del truco
-  // del fondo invisible `position:fixed` que tenía antes: ese fondo asumía
-  // que "fixed" se ancla siempre al viewport, pero .mapa-panel (el
-  // contenedor de este chip) tiene `backdrop-filter`, y eso crea un nuevo
-  // "containing block" para hijos fixed (spec CSS) -- el fondo quedaba
-  // recortado al tamaño del panel, no de la pantalla, así que un clic en el
-  // canvas de atrás nunca cerraba la burbuja (bug real, encontrado 2026-08-12
-  // verificando este mismo rediseño con Playwright). Este patrón no depende
-  // de ningún contexto de posicionamiento -- solo mira si el clic cayó
-  // dentro del contenedor del chip+burbuja.
-  useEffect(() => {
-    if (!abierta) return;
-    function alClickearFuera(e) {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target)) setAbierta(false);
-    }
-    document.addEventListener('mousedown', alClickearFuera);
-    return () => document.removeEventListener('mousedown', alClickearFuera);
-  }, [abierta]);
+  function alternar() {
+    onCambiarAbierta(actual => (actual === idUnico ? null : idUnico));
+  }
 
+  // La burbuja se porta afuera con createPortal (ver más abajo) -- vive
+  // DENTRO del scroll de .mapa-panel-rack (chips uno por artículo, filas
+  // apiladas), y como es position:absolute anclada a SU chip, un rack con
+  // varios artículos la mandaba fácil más allá del borde inferior visible
+  // de .mapa-panel (que tiene su propio overflowY:auto) -- ahí el navegador
+  // la RECORTA de verdad, no solo la tapa: ni se ve ni recibe clicks/scroll
+  // en la parte recortada (confirmado con elementFromPoint en una página de
+  // debug: el punto caía en .mapa-panel, la burbuja ni estaba ahí). Eso es
+  // lo que se reportó como "parpadea/se buguea al scrollear adentro" (el
+  // scroll del mouse le llegaba de lleno al panel de atrás, invisible) y
+  // "los botones de otra fila se ven por encima" (esa fila estaba encima
+  // porque la burbuja, recortada, ya no ocupaba ese lugar).
+  useLayoutEffect(() => {
+    if (!abierta) { setPosicion(null); return; }
+    function recalcular() {
+      const r = contenedorRef.current?.getBoundingClientRect();
+      if (r) setPosicion({ top: r.bottom + 10, right: window.innerWidth - r.right });
+    }
+    recalcular();
+    // Si el panel scrollea mientras está abierta, la burbuja (ahora en
+    // coordenadas fijas de pantalla) se quedaría "flotando" desanclada de
+    // su chip -- más simple y predecible cerrarla que perseguir el scroll.
+    const panelScrolleable = contenedorRef.current?.closest('.mapa-panel');
+    panelScrolleable?.addEventListener('scroll', () => onCambiarAbierta(null), { once: true });
+    window.addEventListener('resize', recalcular);
+    return () => window.removeEventListener('resize', recalcular);
+  }, [abierta, onCambiarAbierta]);
+
+  // El "clic afuera cierra" vive en PanelDetalle (un solo listener para
+  // todo el panel, ver más arriba) -- ponerlo acá, uno por chip, tenía una
+  // condición de carrera real: al clickear el chip DE OTRO artículo para
+  // saltar de una burbuja a otra, el listener de la burbuja VIEJA (todavía
+  // sin desmontar en el instante del mousedown) veía ese click como "de
+  // afuera" y cerraba -- justo cuando `alternar()` de la burbuja NUEVA
+  // recién iba a abrir la suya, quedaban pisándose y todo terminaba
+  // cerrado (visible como abrir/cerrar en el mismo instante -- otra forma
+  // más de lo que se reportó como "parpadea"). `data-chip-porcentaje` acá
+  // y en BurbujaFormula son los marcadores que ese listener central usa
+  // para reconocer "esto es parte de la burbuja actual, no es de afuera".
+  // Nota sobre "saltar directo de una burbuja a otra": se intentó que el
+  // chip de al lado quedara clickeable POR ENCIMA de una burbuja abierta
+  // (con z-index alto acá), pero no hay z-index que lo logre -- el
+  // wrapper de MapaCanvas.jsx que centra este panel usa
+  // `transform:translateX(-50%)`, y transform crea su propio stacking
+  // context por spec de CSS: cualquier z-index puesto adentro (acá) queda
+  // atrapado comparándose solo contra otras cosas de ADENTRO de ese
+  // wrapper, nunca contra la burbuja de verdad (portada en document.body,
+  // fuera de ese árbol) -- confirmado con elementFromPoint en una página
+  // de debug, con varios intentos de z-index distintos. Con la burbuja
+  // abierta, los demás chips quedan bloqueados por el scrim a propósito
+  // (como cualquier otro botón del panel) -- primero un click afuera (o en
+  // el scrim) cierra, y recién ahí se puede abrir la burbuja de otro chip.
   return (
-    <div ref={contenedorRef} style={{ position: 'relative' }}>
+    <div ref={contenedorRef} data-chip-porcentaje style={{ position: 'relative' }}>
       <div
-        onClick={puedeExplicar ? () => setAbierta(v => !v) : undefined}
+        onClick={puedeExplicar ? alternar : undefined}
         title={puedeExplicar ? 'Ver cómo se calculó este %' : undefined}
         style={{
           display: 'inline-flex', alignItems: 'baseline', gap: 4, padding: '2px 7px', borderRadius: 999,
@@ -434,14 +544,16 @@ function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, de
         <span style={{ fontSize: 12, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{Math.round(proporcion * 100)}%</span>
         {puedeExplicar && <i className="ti ti-info-circle" style={{ fontSize: 10, color, opacity: .7, marginLeft: 1 }} />}
       </div>
-      <AnimatePresence>
-        {abierta && puedeExplicar && (
+      {abierta && puedeExplicar && posicion && createPortal(
+        <AnimatePresence>
           <BurbujaFormula
+            posicion={posicion}
             proporcion={proporcion} color={color} configuracionOcupacion={configuracionOcupacion} rack={rack} descripcionDe={descripcionDe}
-            onCerrar={() => setAbierta(false)}
+            onCerrar={() => onCambiarAbierta(null)}
           />
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
@@ -475,8 +587,33 @@ function AnilloPorcentaje({ proporcion, color, tamano = 60 }) {
   );
 }
 
-/** El contenido de la burbuja: fórmula + cada artículo que aporta al consumo total, para que el % del rack se pueda auditar a ojo. Pedido explícito 2026-08-12: se sentía "de un sistema más económico" comparado con el resto de la app -- este rediseño reusa el sistema de animación real del proyecto (ui/motion/tokens.js, prohibido inventar duraciones/easings a mano, ver MASTER-PROMPT.md sección 7), nunca valores nuevos. */
-function BurbujaFormula({ proporcion, color, configuracionOcupacion, rack, descripcionDe, onCerrar }) {
+/**
+ * El contenido de la burbuja: fórmula + cada artículo que aporta al consumo
+ * total, para que el % del rack se pueda auditar a ojo. Pedido explícito
+ * 2026-08-12: se sentía "de un sistema más económico" comparado con el
+ * resto de la app -- este rediseño reusa el sistema de animación real del
+ * proyecto (ui/motion/tokens.js, prohibido inventar duraciones/easings a
+ * mano, ver MASTER-PROMPT.md sección 7), nunca valores nuevos.
+ *
+ * `posicion` ({top,right} en coordenadas de VIEWPORT, no relativas a ningún
+ * ancestro) -- ChipPorcentaje la monta con createPortal directo en
+ * document.body. Antes era position:absolute anclada a su chip, que vive
+ * adentro del scroll de .mapa-panel -- con varios artículos en el rack, la
+ * burbuja de un chip que no estaba pegado arriba del todo quedaba recortada
+ * por el propio overflow:auto del panel (invisible y sin recibir
+ * clicks/scroll en la parte recortada, confirmado con elementFromPoint en
+ * una página de debug) -- eso era el parpadeo real reportado al scrollear
+ * adentro de la burbuja (el scroll le pegaba de lleno al panel de atrás) y
+ * los botones de otra fila "viéndose por encima" (esa fila estaba ahí
+ * porque la burbuja recortada ya no ocupaba ese lugar).
+ *
+ * `data-chip-porcentaje` -- el listener de "clic afuera cierra" vive
+ * centralizado en PanelDetalle (ver comentario ahí), y usa este mismo
+ * marcador (también en el chip que la abre) para reconocer que un click
+ * ACÁ ADENTRO no es "de afuera", aunque en el DOM esta burbuja ya no sea
+ * descendiente de su chip (vive en un portal, en document.body).
+ */
+function BurbujaFormula({ posicion, proporcion, color, configuracionOcupacion, rack, descripcionDe, onCerrar }) {
   const reducido = useReducedMotion();
   const articulos = Object.values(rack.niveles).flat();
   const total = consumoTotal(rack);
@@ -486,12 +623,13 @@ function BurbujaFormula({ proporcion, color, configuracionOcupacion, rack, descr
 
   return (
     <motion.div
+      data-chip-porcentaje
       initial={reducido ? { opacity: 1 } : { opacity: 0, scale: .94, y: -6 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={reducido ? { opacity: 0 } : { opacity: 0, scale: .96, y: -4 }}
       transition={{ duration: reducido ? 0 : DURACION.estado, ease: EASING.entrada }}
       style={{
-        position: 'absolute', top: '100%', right: 0, marginTop: 10, zIndex: 41, width: 300, transformOrigin: 'top right',
+        position: 'fixed', top: posicion.top, right: posicion.right, zIndex: 41, width: 300, transformOrigin: 'top right',
         background: BLANCO_CALIDO, border: `1px solid ${BORDE_CLARO}`, borderRadius: 12,
         boxShadow: '0 16px 40px rgba(0,0,0,.28)', padding: 14, fontSize: 12, color: GRIS_TEXTO,
       }}
@@ -539,7 +677,15 @@ function BurbujaFormula({ proporcion, color, configuracionOcupacion, rack, descr
       <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE, marginBottom: 7 }}>
         Artículos que aportan ({articulosOrdenados.length})
       </div>
-      <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {/* overscrollBehavior:'contain' -- esta lista es corta, llega rápido a
+          su propio límite; sin esto, seguir scrolleando ahí "traspasa" el
+          scroll a lo que sea que venga después en la página (encadenamiento
+          de scroll estándar del navegador). La burbuja ya vive en un portal
+          en document.body (ver ChipPorcentaje) -- de por sí no hay ningún
+          ancestro scrolleable real detrás para encadenarse, pero se deja
+          puesto igual, es la forma correcta de declarar "este scroll no se
+          escapa de acá" sin depender de la estructura del DOM alrededor. */}
+      <div style={{ maxHeight: 180, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', gap: 7 }}>
         {articulosOrdenados.map(a => {
           const colorArt = configuracionOcupacion ? colorArticulo(a.consumo ?? 0, configuracionOcupacion) : GRIS_TEXTO;
           const proporcionArt = Math.max(0.03, (a.consumo ?? 0) / mayorConsumo);
