@@ -494,7 +494,28 @@ function ChipPorcentaje({ etiqueta, proporcion, configuracionOcupacion, rack, de
     if (!abierta) { setPosicion(null); return; }
     function recalcular() {
       const r = contenedorRef.current?.getBoundingClientRect();
-      if (r) setPosicion({ top: r.bottom + 10, right: window.innerWidth - r.right });
+      if (!r) return;
+      // Voltea arriba del chip si no entra abajo -- reportado en vivo: las
+      // burbujas de los chips de N01 (el nivel más pegado al borde inferior
+      // del panel/rack) se cortaban contra el borde de la pantalla, sin
+      // forma de leerlas enteras ni scrolleando (el scroll interno de
+      // "Artículos que aportan" es de la LISTA, no mueve la burbuja
+      // entera). ALTURA_MAX_ESTIMADA es generosa a propósito -- la burbuja
+      // no tiene una altura fija (depende de cuántos artículos aporten),
+      // pero sí un techo real: el encabezado+anillo+consumo (~170px) más la
+      // lista, que nunca crece más de 180px porque tiene su propio scroll
+      // (overflowY:auto, ver más abajo) -- 430px cubre ese peor caso con
+      // margen de sobra. Mismo criterio para "no entra ni arriba ni abajo"
+      // (chip muy cerca del borde derecho en una pantalla muy baja): se
+      // deja abajo, que scrollee lo que pueda en vez de desaparecer.
+      const ALTURA_MAX_ESTIMADA = 430;
+      const espacioAbajo = window.innerHeight - r.bottom;
+      const espacioArriba = r.top;
+      const entraAbajo = espacioAbajo >= ALTURA_MAX_ESTIMADA || espacioAbajo >= espacioArriba;
+      setPosicion({
+        right: window.innerWidth - r.right,
+        ...(entraAbajo ? { top: r.bottom + 10, bottom: undefined } : { bottom: window.innerHeight - r.top + 10, top: undefined }),
+      });
     }
     recalcular();
     // Si el panel scrollea mientras está abierta, la burbuja (ahora en
@@ -620,25 +641,37 @@ function BurbujaFormula({ posicion, proporcion, color, configuracionOcupacion, r
   const capacidad = configuracionOcupacion.capacidadUtilRack;
   const articulosOrdenados = [...articulos].sort((a, b) => (b.consumo ?? 0) - (a.consumo ?? 0));
   const mayorConsumo = Math.max(1e-9, ...articulosOrdenados.map(a => a.consumo ?? 0));
+  // Volteada arriba del chip (ver recalcular() en ChipPorcentaje, chips de
+  // N01 pegados al borde inferior) -- el pico y el origen de la animación
+  // tienen que voltear con ella para seguir señalando al chip correcto.
+  const arriba = posicion.bottom !== undefined;
 
   return (
     <motion.div
       data-chip-porcentaje
-      initial={reducido ? { opacity: 1 } : { opacity: 0, scale: .94, y: -6 }}
+      initial={reducido ? { opacity: 1 } : { opacity: 0, scale: .94, y: arriba ? 6 : -6 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={reducido ? { opacity: 0 } : { opacity: 0, scale: .96, y: -4 }}
+      exit={reducido ? { opacity: 0 } : { opacity: 0, scale: .96, y: arriba ? 4 : -4 }}
       transition={{ duration: reducido ? 0 : DURACION.estado, ease: EASING.entrada }}
       style={{
-        position: 'fixed', top: posicion.top, right: posicion.right, zIndex: 41, width: 300, transformOrigin: 'top right',
+        position: 'fixed', top: posicion.top, bottom: posicion.bottom, right: posicion.right,
+        zIndex: 41, width: 300, transformOrigin: arriba ? 'bottom right' : 'top right',
         background: BLANCO_CALIDO, border: `1px solid ${BORDE_CLARO}`, borderRadius: 12,
         boxShadow: '0 16px 40px rgba(0,0,0,.28)', padding: 14, fontSize: 12, color: GRIS_TEXTO,
       }}
     >
-      {/* Pico -- conecta visualmente la burbuja con el chip que la abrió, en vez de flotar suelta. */}
-      <div style={{
-        position: 'absolute', top: -6, right: 16, width: 12, height: 12, background: BLANCO_CALIDO,
-        borderLeft: `1px solid ${BORDE_CLARO}`, borderTop: `1px solid ${BORDE_CLARO}`, transform: 'rotate(45deg)',
-      }} />
+      {/* Pico -- conecta visualmente la burbuja con el chip que la abrió, en vez de flotar suelta. Apunta hacia arriba (al chip de abajo) o hacia abajo (al chip de arriba), según de qué lado quedó la burbuja. */}
+      {arriba ? (
+        <div style={{
+          position: 'absolute', bottom: -6, right: 16, width: 12, height: 12, background: BLANCO_CALIDO,
+          borderRight: `1px solid ${BORDE_CLARO}`, borderBottom: `1px solid ${BORDE_CLARO}`, transform: 'rotate(45deg)',
+        }} />
+      ) : (
+        <div style={{
+          position: 'absolute', top: -6, right: 16, width: 12, height: 12, background: BLANCO_CALIDO,
+          borderLeft: `1px solid ${BORDE_CLARO}`, borderTop: `1px solid ${BORDE_CLARO}`, transform: 'rotate(45deg)',
+        }} />
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>Cómo se calculó</span>
