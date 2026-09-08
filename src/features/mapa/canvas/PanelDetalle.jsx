@@ -279,9 +279,28 @@ function TarjetaNivel({ pasillo, columna, nivel, vistaContenido = 'mz', articulo
   const rackDeEsteNivel = { niveles: { [nivel]: articulos } };
   const proporcion = configuracionOcupacion ? llenura(rackDeEsteNivel, configuracionOcupacion) : 0;
   const color = configuracionOcupacion ? colorLlenura(proporcion, configuracionOcupacion) : VERDE_ESTRUCTURA;
+  // El chip abierto vive DENTRO de esta tarjeta -- ver ChipPorcentaje, el
+  // scrim de PanelDetalle atenúa TODO .mapa-panel mientras hay una burbuja
+  // abierta, chip incluido, si nadie lo excluye a propósito. Reportado en
+  // vivo: "el N que se está cuestionando... se pinta de un color más
+  // oscuro" -- exactamente esa tarjeta quedaba atenuada igual que el resto,
+  // aunque sea la que el usuario está mirando ahora mismo. zIndex acá
+  // (arriba del scrim, que es 40) saca a TODA la tarjeta -- no solo al
+  // chip -- para que no quede un borde raro entre la fila "escapada" y las
+  // demás filas de la misma tarjeta, atenuadas. Esta comparación de z-index
+  // es LOCAL a .mapa-panel (no necesita escapar el wrapper con transform de
+  // MapaCanvas.jsx, esa limitación real es solo para competir contra la
+  // burbuja portada en document.body, ver ChipPorcentaje) -- acá sí funciona.
+  const estaAbiertaAqui = articulos.some(a => chipAbierto === `${nivel}|${a.articulo}`);
 
   return (
-    <div className="mapa-panel-nivel" style={{ background: BLANCO_HUESO_TARJETA, border: `1px solid ${BORDE_CLARO}`, borderRadius: 10, padding: '12px 14px' }}>
+    <div
+      className="mapa-panel-nivel"
+      style={{
+        background: BLANCO_HUESO_TARJETA, border: `1px solid ${BORDE_CLARO}`, borderRadius: 10, padding: '12px 14px',
+        position: 'relative', zIndex: estaAbiertaAqui ? 41 : 'auto',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.3px', color: GRIS_TEXTO_TENUE }}>
           <i className="ti ti-layers-intersect" style={{ fontSize: 13 }} />
